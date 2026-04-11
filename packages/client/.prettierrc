@@ -1,0 +1,9 @@
+{
+    "endOfLine": "lf",
+    "semi": true,
+    "singleQuote": true,
+    "trailingComma": "all",
+    "printWidth": 140,
+    "tabWidth": 4,
+    "plugins": ["prettier-plugin-organize-imports"]
+}

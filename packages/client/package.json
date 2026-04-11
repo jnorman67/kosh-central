@@ -1,0 +1,42 @@
+{
+    "name": "@kosh-central/client",
+    "private": true,
+    "version": "0.0.0",
+    "type": "module",
+    "scripts": {
+        "dev": "vite",
+        "build": "tsc -b && vite build",
+        "preview": "vite preview",
+        "lint": "eslint .",
+        "format": "prettier --write \"src/**/*.{ts,tsx,css}\""
+    },
+    "dependencies": {
+        "@tanstack/react-query": "^5.81.5",
+        "class-variance-authority": "^0.7.1",
+        "clsx": "^2.1.1",
+        "lucide-react": "^0.541.0",
+        "react": "^19.1.0",
+        "react-dom": "^19.1.0",
+        "react-router-dom": "^6.28.0",
+        "tailwind-merge": "^3.0.2"
+    },
+    "devDependencies": {
+        "@eslint/js": "^9.25.0",
+        "@types/node": "^22.13.10",
+        "@types/react": "^19.1.2",
+        "@types/react-dom": "^19.1.2",
+        "@typescript-eslint/eslint-plugin": "^8.29.0",
+        "@typescript-eslint/parser": "^8.29.0",
+        "@vitejs/plugin-react-swc": "^4.2.0",
+        "autoprefixer": "^10.4.21",
+        "eslint": "^9.25.0",
+        "eslint-plugin-prettier": "^5.2.6",
+        "postcss": "^8.5.3",
+        "prettier": "^3.5.3",
+        "prettier-plugin-organize-imports": "^4.1.0",
+        "tailwindcss": "^3.4.17",
+        "tailwindcss-animate": "^1.0.7",
+        "typescript": "^5.7.3",
+        "vite": "^6.3.2"
+    }
+}

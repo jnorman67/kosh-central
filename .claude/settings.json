@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep:*)",
+      "Bash(find:*)",
+      "Bash(ls:*)",
+      "Bash(wc:*)",
+      "Bash(findstr:*)",
+      "Bash(dir:*)",
+      "Bash(base64 -w0)",
+      "Bash(yarn:*)",
+      "Bash(git fetch:*)",
+      "Bash(git worktree:*)",
+      "Bash(git log:*)",
+      "Bash(git status:*)",
+      "Read(//home/jim/vc/**)"
+    ]
+  }
+}

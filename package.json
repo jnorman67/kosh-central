@@ -1,0 +1,16 @@
+{
+    "name": "kosh-central",
+    "private": true,
+    "workspaces": [
+        "packages/client",
+        "packages/server"
+    ],
+    "scripts": {
+        "dev": "concurrently -n server,client -c blue,green \"npm run dev -w packages/server\" \"npm run dev -w packages/client\"",
+        "build": "npm run build -w packages/server && npm run build -w packages/client",
+        "lint": "npm run lint -w packages/client"
+    },
+    "devDependencies": {
+        "concurrently": "^9.1.2"
+    }
+}
