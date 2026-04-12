@@ -6,9 +6,9 @@
         "packages/server"
     ],
     "scripts": {
-        "dev": "concurrently -n server,client -c blue,green \"npm run dev -w packages/server\" \"npm run dev -w packages/client\"",
-        "build": "npm run build -w packages/server && npm run build -w packages/client",
-        "lint": "npm run lint -w packages/client"
+        "dev": "concurrently -n server,client -c blue,green \"npm run dev -w @kosh-central/server\" \"npm run dev -w @kosh-central/client\"",
+        "build": "npm run build -w @kosh-central/server && npm run build -w @kosh-central/client",
+        "lint": "npm run lint -w @kosh-central/client"
     },
     "devDependencies": {
         "concurrently": "^9.1.2"
