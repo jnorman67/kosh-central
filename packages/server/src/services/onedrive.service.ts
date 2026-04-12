@@ -1,3 +1,5 @@
+import type { MsalService } from '../auth/msal.service.js';
+
 export interface Photo {
     id: string;
     name: string;
@@ -14,6 +16,8 @@ export class OneDriveService {
     private cache = new Map<string, CacheEntry>();
     private readonly TTL_MS = 10 * 60 * 1000; // 10 minutes
 
+    constructor(private msalService: MsalService) {}
+
     encodeSharingUrl(url: string): string {
         const base64 = Buffer.from(url).toString('base64');
         const base64url = base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -26,11 +30,15 @@ export class OneDriveService {
             return cached.data;
         }
 
+        const accessToken = await this.msalService.getAccessToken();
         const encoded = this.encodeSharingUrl(sharingUrl);
         const graphUrl = `https://graph.microsoft.com/v1.0/shares/${encoded}/driveItem/children`;
 
         const response = await fetch(graphUrl, {
-            headers: { Accept: 'application/json' },
+            headers: {
+                Accept: 'application/json',
+                Authorization: `Bearer ${accessToken}`,
+            },
         });
 
         if (!response.ok) {

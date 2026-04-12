@@ -1,13 +1,23 @@
 import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { MsalService } from './auth/msal.service.js';
 import { createFoldersRouter } from './routes/folders.router.js';
 import { OneDriveService } from './services/onedrive.service.js';
+
+const AZURE_CLIENT_ID = process.env.AZURE_CLIENT_ID;
+if (!AZURE_CLIENT_ID) {
+    console.error('AZURE_CLIENT_ID environment variable is required.');
+    console.error('Register an app at https://entra.microsoft.com > App registrations');
+    process.exit(1);
+}
 
 const app = express();
 const PORT = process.env.PORT ?? 3001;
 
-const oneDriveService = new OneDriveService();
+const msalService = new MsalService(AZURE_CLIENT_ID);
+await msalService.loadCache();
+const oneDriveService = new OneDriveService(msalService);
 
 app.use(express.json());
 app.use('/api/folders', createFoldersRouter(oneDriveService));
@@ -25,4 +35,7 @@ if (process.env.NODE_ENV === 'production') {
 
 app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
+    if (!msalService.isAuthenticated()) {
+        console.log('No cached credentials found. Authentication will be triggered on first API request.');
+    }
 });
