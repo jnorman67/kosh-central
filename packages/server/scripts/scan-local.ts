@@ -1,19 +1,21 @@
 #!/usr/bin/env npx tsx
 /**
- * Local photo scanner.
+ * Standalone local photo scanner. No server dependencies — runs anywhere
+ * with Node.js + tsx (including Windows).
  *
- * Walks configured folders (those with a `localPath`), computes SHA-256 for
- * each image file, and writes a JSON manifest to stdout (or a file).
+ * Walks a folder, computes SHA-256 for each image, and writes a JSON manifest.
  *
  * Usage:
- *   npx tsx packages/server/scripts/scan-local.ts                     # stdout
- *   npx tsx packages/server/scripts/scan-local.ts -o manifest.json    # file
+ *   npx tsx scan-local.ts <folder-path> <folder-name> [-o manifest.json]
+ *
+ * Examples:
+ *   npx tsx scan-local.ts "C:\Users\Jim\OneDrive\Dorothy's Album 18" "Dorothy's Album 18" -o manifest.json
+ *   npx tsx scan-local.ts /home/jim/OneDrive/Album "Dorothy's Album 18"
  */
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
-import { FOLDERS } from '../src/config/folders.config.js';
 
 const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.gif', '.webp', '.tiff', '.tif', '.bmp', '.heic', '.heif']);
 
@@ -36,7 +38,6 @@ interface ManifestEntry {
     mimeType: string;
     fileSize: number;
     folderName: string;
-    folderUrl: string;
     localPath: string;
 }
 
@@ -45,7 +46,7 @@ interface Manifest {
     photos: ManifestEntry[];
 }
 
-async function hashFile(filePath: string): Promise<string> {
+function hashFile(filePath: string): Promise<string> {
     return new Promise((resolve, reject) => {
         const hash = crypto.createHash('sha256');
         const stream = fs.createReadStream(filePath);
@@ -55,16 +56,16 @@ async function hashFile(filePath: string): Promise<string> {
     });
 }
 
-async function scanFolder(folder: { displayName: string; sharingUrl: string; localPath: string }): Promise<ManifestEntry[]> {
+async function scanFolder(folderPath: string, folderName: string): Promise<ManifestEntry[]> {
     const entries: ManifestEntry[] = [];
-    const dirEntries = await fsp.readdir(folder.localPath, { withFileTypes: true });
+    const dirEntries = await fsp.readdir(folderPath, { withFileTypes: true });
 
     for (const dirEntry of dirEntries) {
         if (!dirEntry.isFile()) continue;
         const ext = path.extname(dirEntry.name).toLowerCase();
         if (!IMAGE_EXTENSIONS.has(ext)) continue;
 
-        const filePath = path.join(folder.localPath, dirEntry.name);
+        const filePath = path.join(folderPath, dirEntry.name);
         const stat = await fsp.stat(filePath);
         const contentHash = await hashFile(filePath);
 
@@ -73,8 +74,7 @@ async function scanFolder(folder: { displayName: string; sharingUrl: string; loc
             fileName: dirEntry.name,
             mimeType: MIME_MAP[ext] ?? 'application/octet-stream',
             fileSize: stat.size,
-            folderName: folder.displayName,
-            folderUrl: folder.sharingUrl,
+            folderName,
             localPath: filePath,
         });
 
@@ -84,23 +84,45 @@ async function scanFolder(folder: { displayName: string; sharingUrl: string; loc
     return entries;
 }
 
-async function main() {
-    const outputArg = process.argv.indexOf('-o');
-    const outputPath = outputArg !== -1 ? process.argv[outputArg + 1] : null;
+function printUsage(): void {
+    console.error('Usage: npx tsx scan-local.ts <folder-path> <folder-name> [-o output.json]');
+    console.error('');
+    console.error('Example:');
+    console.error('  npx tsx scan-local.ts "C:\\Users\\Jim\\OneDrive\\Album 18" "Dorothy\'s Album 18" -o manifest.json');
+}
 
-    const foldersToScan = FOLDERS.filter((f) => f.localPath);
-    if (foldersToScan.length === 0) {
-        console.error('No folders have localPath configured. Set localPath in packages/server/src/config/folders.config.ts');
+async function main() {
+    const args = process.argv.slice(2);
+    const outputIdx = args.indexOf('-o');
+
+    let outputPath: string | null = null;
+    if (outputIdx !== -1) {
+        outputPath = args[outputIdx + 1];
+        args.splice(outputIdx, 2); // remove -o and its value from args
+    }
+
+    const [folderPath, folderName] = args;
+
+    if (!folderPath || !folderName) {
+        printUsage();
         process.exit(1);
     }
 
-    const manifest: Manifest = { scannedAt: new Date().toISOString(), photos: [] };
-
-    for (const folder of foldersToScan) {
-        console.error(`Scanning: ${folder.displayName} (${folder.localPath})`);
-        const entries = await scanFolder(folder as { displayName: string; sharingUrl: string; localPath: string });
-        manifest.photos.push(...entries);
+    // Verify folder exists
+    try {
+        const stat = await fsp.stat(folderPath);
+        if (!stat.isDirectory()) {
+            console.error(`Error: ${folderPath} is not a directory`);
+            process.exit(1);
+        }
+    } catch {
+        console.error(`Error: cannot access ${folderPath}`);
+        process.exit(1);
     }
+
+    console.error(`Scanning: ${folderName} (${folderPath})`);
+    const photos = await scanFolder(folderPath, folderName);
+    const manifest: Manifest = { scannedAt: new Date().toISOString(), photos };
 
     console.error(`\nDone. ${manifest.photos.length} photos scanned.`);
 
