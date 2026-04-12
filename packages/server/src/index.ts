@@ -1,7 +1,10 @@
+import cookieParser from 'cookie-parser';
 import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { requireAuth } from './auth/auth.middleware.js';
 import { MsalService } from './auth/msal.service.js';
+import { createAuthRouter } from './routes/auth.router.js';
 import { createFoldersRouter } from './routes/folders.router.js';
 import { OneDriveService } from './services/onedrive.service.js';
 
@@ -20,7 +23,9 @@ await msalService.loadCache();
 const oneDriveService = new OneDriveService(msalService);
 
 app.use(express.json());
-app.use('/api/folders', createFoldersRouter(oneDriveService));
+app.use(cookieParser());
+app.use('/api/auth', createAuthRouter());
+app.use('/api/folders', requireAuth, createFoldersRouter(oneDriveService));
 
 // Static file serving in production
 const __dirname = fileURLToPath(new URL('.', import.meta.url));

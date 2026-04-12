@@ -26,3 +26,6 @@ npm-debug.log*
 
 # MSAL token cache
 .msal-cache.json
+
+# User database
+.users.json

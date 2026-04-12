@@ -40,7 +40,45 @@ The app uses MSAL (Microsoft Authentication Library) with device code flow to ac
    AZURE_CLIENT_ID=your-client-id-here
    ```
 
-Credentials are cached to `.msal-cache.json` (gitignored). The refresh token lasts ~90 days and is extended on each use.
+## MSAL Token Cache
+
+The server stores authentication credentials in `packages/server/.msal-cache.json`. This file is gitignored and contains an access token and a refresh token issued by Microsoft.
+
+**How it works:**
+
+- The **access token** expires after ~1 hour. The server uses it for Graph API calls.
+- The **refresh token** lasts ~90 days and is automatically extended each time it's used. As long as the app makes at least one Graph API request within 90 days, the refresh token stays valid indefinitely.
+- On startup, the server loads the cache from disk. If a valid refresh token is present, it silently acquires a new access token — no user interaction needed.
+- If the cache is missing, empty, or the refresh token has expired, the server triggers device code flow on the next API request: it prints a URL and code to the console, and you authenticate in a browser.
+
+**Local development:** The cache file is created automatically on first authentication and persists across server restarts. You should rarely need to re-authenticate.
+
+**Azure deployment:** The F1 (Free) App Service tier does not support SSH, so you cannot run device code flow on the server directly. Instead:
+
+1. Authenticate locally first (`npm run dev`, then trigger an API request)
+2. Include `packages/server/.msal-cache.json` in the deployment zip (the deploy command in this README already does this)
+3. The deployed server picks up the cached refresh token and operates normally
+
+**When you need to re-authenticate:**
+
+- If the app hasn't made a Graph API request in 90+ days, the refresh token expires
+- If you revoke the app's permissions in your Microsoft account settings
+- If you delete or lose the `.msal-cache.json` file
+
+In any of these cases, re-authenticate locally and redeploy:
+
+```bash
+# Delete the stale cache
+rm packages/server/.msal-cache.json
+
+# Start the dev server and hit http://localhost:5173 to trigger auth
+npm run dev
+
+# After authenticating in the browser, rebuild and redeploy
+npm run build
+zip -r deploy.zip packages/server/dist packages/server/.msal-cache.json packages/client/dist node_modules package.json packages/server/package.json packages/client/package.json
+az webapp deploy --resource-group kosh-central-rg --name kosh-central --src-path deploy.zip --type zip
+```
 
 ## Adding Photo Folders
 
