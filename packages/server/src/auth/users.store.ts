@@ -1,10 +1,5 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { getDb } from '../db/database.js';
 import type { Role } from '../config/invites.config.js';
-
-const __dirname = fileURLToPath(new URL('.', import.meta.url));
-const USERS_PATH = path.join(__dirname, '../../.users.json');
 
 export interface StoredUser {
     id: string;
@@ -15,31 +10,38 @@ export interface StoredUser {
     createdAt: string;
 }
 
-function readUsers(): StoredUser[] {
-    try {
-        if (fs.existsSync(USERS_PATH)) {
-            return JSON.parse(fs.readFileSync(USERS_PATH, 'utf-8'));
-        }
-    } catch {
-        // Corrupt file — start fresh
-    }
-    return [];
+interface UserRow {
+    id: string;
+    email: string;
+    display_name: string;
+    password_hash: string;
+    role: string;
+    created_at: string;
 }
 
-function writeUsers(users: StoredUser[]): void {
-    fs.writeFileSync(USERS_PATH, JSON.stringify(users, null, 2), 'utf-8');
+function rowToUser(row: UserRow): StoredUser {
+    return {
+        id: row.id,
+        email: row.email,
+        displayName: row.display_name,
+        passwordHash: row.password_hash,
+        role: row.role as Role,
+        createdAt: row.created_at,
+    };
 }
 
 export function findUserByEmail(email: string): StoredUser | undefined {
-    return readUsers().find((u) => u.email.toLowerCase() === email.toLowerCase());
+    const row = getDb().prepare('SELECT * FROM users WHERE email = ?').get(email) as UserRow | undefined;
+    return row ? rowToUser(row) : undefined;
 }
 
 export function findUserById(id: string): StoredUser | undefined {
-    return readUsers().find((u) => u.id === id);
+    const row = getDb().prepare('SELECT * FROM users WHERE id = ?').get(id) as UserRow | undefined;
+    return row ? rowToUser(row) : undefined;
 }
 
 export function createUser(user: StoredUser): void {
-    const users = readUsers();
-    users.push(user);
-    writeUsers(users);
+    getDb()
+        .prepare('INSERT INTO users (id, email, display_name, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+        .run(user.id, user.email, user.displayName, user.passwordHash, user.role, user.createdAt);
 }

@@ -4,9 +4,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { requireAuth } from './auth/auth.middleware.js';
 import { MsalService } from './auth/msal.service.js';
+import { initDb } from './db/database.js';
 import { createAuthRouter } from './routes/auth.router.js';
 import { createFoldersRouter } from './routes/folders.router.js';
 import { OneDriveService } from './services/onedrive.service.js';
+
+initDb();
 
 const AZURE_CLIENT_ID = process.env.AZURE_CLIENT_ID;
 if (!AZURE_CLIENT_ID) {
