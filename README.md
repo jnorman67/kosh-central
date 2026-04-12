@@ -48,23 +48,33 @@ Edit `packages/server/src/config/folders.config.ts` and add your OneDrive sharin
 
 ```typescript
 export const FOLDERS: FolderConfig[] = [
-    {
-        displayName: 'My Album',
-        sharingUrl: 'https://1drv.ms/f/c/...',
-    },
+  {
+    displayName: "My Album",
+    sharingUrl: "https://1drv.ms/f/c/...",
+  },
 ];
 ```
 
 To get a sharing URL: right-click a folder in OneDrive > **Share** > **Anyone with the link** > **Copy link**.
 
-## Building for Production
+## Running in Production (locally)
 
 ```bash
 npm run build
-NODE_ENV=production node --env-file=packages/server/.env packages/server/dist/index.js
+npm run start -w @kosh-central/server
 ```
 
-The Express server serves the built client as static files and handles API requests.
+Then visit http://localhost:3001. The Express server serves the built client as static files and handles API requests.
+
+## Deploying to Azure
+
+```bash
+npm run build
+zip -r deploy.zip packages/server/dist packages/server/.msal-cache.json packages/client/dist node_modules package.json packages/server/package.json packages/client/package.json
+az webapp deploy --resource-group kosh-central-rg --name kosh-central --src-path deploy.zip --type zip
+```
+
+The app is hosted at https://kosh-central.azurewebsites.net
 
 ## Project Structure
 
