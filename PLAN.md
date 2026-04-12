@@ -19,7 +19,7 @@ Browser  <-->  Express (prod, serves static + API)  <-->  Graph API
 - **Frontend**: Vite + React 19 + TypeScript, Tailwind CSS + shadcn/ui, React Router v6, TanStack React Query
 - **Backend**: Express on Node 22, TypeScript compiled with `tsx` in dev
 - **Infra**: Azure App Service (Linux, Node 22) via Bicep; single service hosts both API and static files
-- **OneDrive**: Graph API `/shares/{encodedUrl}/driveItem/children` — no auth needed for public shares
+- **OneDrive**: Graph API `/shares/{encodedUrl}/driveItem/children` — authenticated via MSAL device code flow
 
 ---
 
@@ -73,8 +73,12 @@ kosh-central/
 │   └── server/                        # Express backend
 │       ├── package.json
 │       ├── tsconfig.json
+│       ├── .env                       # AZURE_CLIENT_ID (gitignored)
+│       ├── .env.example
 │       └── src/
 │           ├── index.ts               # Express entry + static serving
+│           ├── auth/
+│           │   └── msal.service.ts    # MSAL device code flow + token cache
 │           ├── config/
 │           │   └── folders.config.ts  # HARDCODED sharing URLs
 │           ├── services/
@@ -100,11 +104,12 @@ Two endpoints:
 
 ### OneDrive resolution
 
-1. Base64url-encode the sharing URL, prepend `u!`
-2. `GET https://graph.microsoft.com/v1.0/shares/{encoded}/driveItem/children`
-3. Filter to `file.mimeType.startsWith('image/')`
-4. Return `@microsoft.graph.downloadUrl` (direct, time-limited CDN link)
-5. Cache results in-memory with 10-minute TTL (download URLs expire in ~1 hour)
+1. Acquire access token via MSAL (silent from cache, or device code flow on first run)
+2. Base64url-encode the sharing URL, prepend `u!`
+3. `GET https://graph.microsoft.com/v1.0/shares/{encoded}/driveItem/children` with `Authorization: Bearer` header
+4. Filter to `file.mimeType.startsWith('image/')`
+5. Return `@microsoft.graph.downloadUrl` (direct, time-limited CDN link)
+6. Cache results in-memory with 10-minute TTL (download URLs expire in ~1 hour)
 
 ### Key file: `packages/server/src/config/folders.config.ts`
 

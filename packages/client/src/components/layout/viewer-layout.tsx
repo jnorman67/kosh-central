@@ -14,9 +14,7 @@ export function ViewerLayout({ header, viewer, toolbar, rightPanel }: ViewerLayo
             style={{
                 gridTemplateRows: 'auto 1fr auto',
                 gridTemplateColumns: rightPanel ? '1fr auto' : '1fr',
-                gridTemplateAreas: rightPanel
-                    ? '"header header" "viewer panel" "toolbar toolbar"'
-                    : '"header" "viewer" "toolbar"',
+                gridTemplateAreas: rightPanel ? '"header header" "viewer panel" "toolbar toolbar"' : '"header" "viewer" "toolbar"',
             }}
         >
             <header style={{ gridArea: 'header' }} className="border-b bg-background">
