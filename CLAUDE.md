@@ -32,14 +32,22 @@ npm run kill       # Kill any processes on ports 3001/5173
 packages/server/src/
   index.ts                          # Express entry point
   db/database.ts                    # SQLite init + migration runner
+  db/photos.store.ts                # Photo + location CRUD, manifest import
+  db/relations.store.ts             # Photo relations CRUD (auto-inverse pairs)
+  db/series.store.ts                # Photo series + member CRUD
   auth/msal.service.ts              # OneDrive token acquisition (device code flow)
   auth/auth.middleware.ts            # JWT verification middleware
   auth/users.store.ts                # User CRUD (SQLite)
-  config/folders.config.ts           # Hardcoded OneDrive folder URLs
+  config/folders.config.ts           # OneDrive folder URLs + optional local paths
   config/invites.config.ts           # Hardcoded invite list (email + role)
   routes/auth.router.ts              # /api/auth (register, login, logout, me)
   routes/folders.router.ts           # /api/folders (protected)
+  routes/photos.router.ts            # /api/photos (catalog + import)
+  routes/relations.router.ts         # /api/relations (CRUD with inverse)
+  routes/series.router.ts            # /api/series (CRUD + members)
   services/onedrive.service.ts       # Microsoft Graph API client
+packages/server/scripts/
+  scan-local.ts                      # SHA-256 scanner → JSON manifest
 
 packages/client/src/
   app.tsx                            # Root: QueryClient + AuthQuery + Router
@@ -60,6 +68,8 @@ Server env lives in `packages/server/.env` (gitignored):
 ## Database
 
 SQLite with sequential migrations defined in `packages/server/src/db/database.ts`. Add new migrations to the `migrations` array — they run automatically on server startup. The database file is gitignored.
+
+Tables: `users`, `photos` (content-addressed by SHA-256 hash), `photo_locations` (multiple locations per photo), `photo_relations` (directional pairs with auto-inverse), `photo_series` + `photo_series_members` (ordered groups).
 
 ## Auth Flow
 

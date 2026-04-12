@@ -77,4 +77,76 @@ const migrations: Migration[] = [
             )
         `,
     },
+    {
+        version: 2,
+        description: 'Create photos and photo_locations tables',
+        sql: `
+            CREATE TABLE photos (
+                id TEXT PRIMARY KEY,
+                content_hash TEXT NOT NULL UNIQUE,
+                file_name TEXT NOT NULL,
+                mime_type TEXT NOT NULL,
+                file_size INTEGER,
+                taken_at TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
+            CREATE TABLE photo_locations (
+                id TEXT PRIMARY KEY,
+                photo_id TEXT NOT NULL REFERENCES photos(id) ON DELETE CASCADE,
+                folder_url TEXT,
+                folder_name TEXT,
+                onedrive_id TEXT,
+                local_path TEXT,
+                UNIQUE(photo_id, folder_url)
+            );
+
+            CREATE INDEX idx_photo_locations_photo_id ON photo_locations(photo_id);
+        `,
+    },
+    {
+        version: 3,
+        description: 'Create photo_relations table',
+        sql: `
+            CREATE TABLE photo_relations (
+                id TEXT PRIMARY KEY,
+                photo_id TEXT NOT NULL REFERENCES photos(id) ON DELETE CASCADE,
+                related_photo_id TEXT NOT NULL REFERENCES photos(id) ON DELETE CASCADE,
+                relation_type TEXT NOT NULL CHECK (relation_type IN (
+                    'back-of', 'front-of', 'duplicate-of',
+                    'raw-version-of', 'enhanced-version-of'
+                )),
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                created_by TEXT REFERENCES users(id),
+                UNIQUE(photo_id, related_photo_id, relation_type),
+                CHECK(photo_id != related_photo_id)
+            );
+
+            CREATE INDEX idx_photo_relations_photo_id ON photo_relations(photo_id);
+            CREATE INDEX idx_photo_relations_related_id ON photo_relations(related_photo_id);
+        `,
+    },
+    {
+        version: 4,
+        description: 'Create photo_series and photo_series_members tables',
+        sql: `
+            CREATE TABLE photo_series (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                description TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                created_by TEXT REFERENCES users(id)
+            );
+
+            CREATE TABLE photo_series_members (
+                series_id TEXT NOT NULL REFERENCES photo_series(id) ON DELETE CASCADE,
+                photo_id TEXT NOT NULL REFERENCES photos(id) ON DELETE CASCADE,
+                position INTEGER NOT NULL DEFAULT 0,
+                added_at TEXT NOT NULL DEFAULT (datetime('now')),
+                PRIMARY KEY(series_id, photo_id)
+            );
+
+            CREATE INDEX idx_series_members_photo_id ON photo_series_members(photo_id);
+        `,
+    },
 ];

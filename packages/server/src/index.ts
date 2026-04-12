@@ -7,6 +7,9 @@ import { MsalService } from './auth/msal.service.js';
 import { initDb } from './db/database.js';
 import { createAuthRouter } from './routes/auth.router.js';
 import { createFoldersRouter } from './routes/folders.router.js';
+import { createPhotosRouter } from './routes/photos.router.js';
+import { createRelationsRouter } from './routes/relations.router.js';
+import { createSeriesRouter } from './routes/series.router.js';
 import { OneDriveService } from './services/onedrive.service.js';
 
 initDb();
@@ -25,10 +28,13 @@ const msalService = new MsalService(AZURE_CLIENT_ID);
 await msalService.loadCache();
 const oneDriveService = new OneDriveService(msalService);
 
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 app.use(cookieParser());
 app.use('/api/auth', createAuthRouter());
 app.use('/api/folders', requireAuth, createFoldersRouter(oneDriveService));
+app.use('/api/photos', requireAuth, createPhotosRouter());
+app.use('/api/relations', requireAuth, createRelationsRouter());
+app.use('/api/series', requireAuth, createSeriesRouter());
 
 // Static file serving in production
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
