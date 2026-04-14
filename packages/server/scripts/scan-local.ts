@@ -41,9 +41,77 @@ interface ManifestEntry {
     localPath: string;
 }
 
+interface ManifestRelation {
+    sourceHash: string;
+    targetHash: string;
+    relationType: 'back-of' | 'enhanced-version-of';
+}
+
 interface Manifest {
     scannedAt: string;
     photos: ManifestEntry[];
+    relations: ManifestRelation[];
+}
+
+/** Suffix patterns that indicate a relationship to the base-named photo. */
+const SUFFIX_PATTERNS: { pattern: RegExp; relationType: ManifestRelation['relationType'] }[] = [
+    { pattern: /[-_ ]b$/i,       relationType: 'back-of' },
+    { pattern: /[-_ ]back$/i,    relationType: 'back-of' },
+    { pattern: /[-_ ]a$/i,       relationType: 'enhanced-version-of' },
+    { pattern: /[-_ ]alt$/i,     relationType: 'enhanced-version-of' },
+    { pattern: /[-_ ]enhanced$/i, relationType: 'enhanced-version-of' },
+];
+
+/**
+ * Given a filename (without extension), check if it ends with a known suffix.
+ * Returns the base name and relation type, or null if no match.
+ */
+function parseSuffix(baseName: string): { strippedName: string; relationType: ManifestRelation['relationType'] } | null {
+    for (const { pattern, relationType } of SUFFIX_PATTERNS) {
+        if (pattern.test(baseName)) {
+            const strippedName = baseName.replace(pattern, '');
+            if (strippedName.length > 0) {
+                return { strippedName, relationType };
+            }
+        }
+    }
+    return null;
+}
+
+/**
+ * After scanning, detect relationships between photos based on filename conventions.
+ * E.g. "photo001_b.jpg" is the back of "photo001.jpg".
+ */
+function detectRelations(entries: ManifestEntry[]): ManifestRelation[] {
+    // Build a lookup: base name (no extension, lowercased) → entry
+    const byBaseName = new Map<string, ManifestEntry>();
+    for (const entry of entries) {
+        const ext = path.extname(entry.fileName);
+        const baseName = path.basename(entry.fileName, ext);
+        byBaseName.set(baseName.toLowerCase(), entry);
+    }
+
+    const relations: ManifestRelation[] = [];
+
+    for (const entry of entries) {
+        const ext = path.extname(entry.fileName);
+        const baseName = path.basename(entry.fileName, ext);
+        const parsed = parseSuffix(baseName);
+        if (!parsed) continue;
+
+        const target = byBaseName.get(parsed.strippedName.toLowerCase());
+        if (!target || target.contentHash === entry.contentHash) continue;
+
+        relations.push({
+            sourceHash: entry.contentHash,
+            targetHash: target.contentHash,
+            relationType: parsed.relationType,
+        });
+
+        process.stderr.write(`  ↳ ${entry.fileName} → ${parsed.relationType} → ${target.fileName}\n`);
+    }
+
+    return relations;
 }
 
 function hashFile(filePath: string): Promise<string> {
@@ -122,9 +190,10 @@ async function main() {
 
     console.error(`Scanning: ${folderName} (${folderPath})`);
     const photos = await scanFolder(folderPath, folderName);
-    const manifest: Manifest = { scannedAt: new Date().toISOString(), photos };
+    const relations = detectRelations(photos);
+    const manifest: Manifest = { scannedAt: new Date().toISOString(), photos, relations };
 
-    console.error(`\nDone. ${manifest.photos.length} photos scanned.`);
+    console.error(`\nDone. ${manifest.photos.length} photos scanned, ${relations.length} relations detected.`);
 
     const json = JSON.stringify(manifest, null, 2);
     if (outputPath) {

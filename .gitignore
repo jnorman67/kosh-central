@@ -23,6 +23,7 @@ npm-debug.log*
 
 # build
 *.tsbuildinfo
+deploy.zip
 
 # MSAL token cache
 .msal-cache.json

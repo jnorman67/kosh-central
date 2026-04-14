@@ -32,7 +32,7 @@ export function LoginPage() {
             <Card className="w-full max-w-sm">
                 <CardHeader>
                     <CardTitle className="text-2xl">Sign in</CardTitle>
-                    <CardDescription>Enter your credentials to access Kosh</CardDescription>
+                    <CardDescription>Enter your credentials to access Kosh Central</CardDescription>
                 </CardHeader>
                 <CardContent>
                     {registered && (

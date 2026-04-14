@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { getDb } from './database.js';
+import { createRelation, type RelationType } from './relations.store.js';
 
 export interface StoredPhoto {
     id: string;
@@ -117,12 +118,22 @@ export interface PhotoManifestEntry {
     onedriveId?: string;
 }
 
+export interface ManifestRelationEntry {
+    sourceHash: string;
+    targetHash: string;
+    relationType: RelationType;
+}
+
 /** Bulk-import photos from a scan manifest. Returns counts of new vs existing. */
-export function importManifest(entries: PhotoManifestEntry[]): { created: number; existing: number; locations: number } {
+export function importManifest(
+    entries: PhotoManifestEntry[],
+    relations?: ManifestRelationEntry[],
+): { created: number; existing: number; locations: number; relations: number } {
     const db = getDb();
     let created = 0;
     let existing = 0;
     let locations = 0;
+    let relationsCreated = 0;
 
     const importAll = db.transaction(() => {
         for (const entry of entries) {
@@ -151,8 +162,27 @@ export function importManifest(entries: PhotoManifestEntry[]): { created: number
             });
             locations++;
         }
+
+        if (relations) {
+            for (const rel of relations) {
+                const source = findPhotoByHash(rel.sourceHash);
+                const target = findPhotoByHash(rel.targetHash);
+                if (!source || !target) continue;
+
+                // Skip if this relation already exists
+                const existing = db
+                    .prepare(
+                        'SELECT 1 FROM photo_relations WHERE photo_id = ? AND related_photo_id = ? AND relation_type = ?',
+                    )
+                    .get(source.id, target.id, rel.relationType);
+                if (existing) continue;
+
+                createRelation(source.id, target.id, rel.relationType, null);
+                relationsCreated++;
+            }
+        }
     });
 
     importAll();
-    return { created, existing, locations };
+    return { created, existing, locations, relations: relationsCreated };
 }

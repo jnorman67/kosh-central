@@ -4,6 +4,7 @@ import {
     getPhotoLocations,
     importManifest,
     listPhotos,
+    type ManifestRelationEntry,
     type PhotoManifestEntry,
 } from '../db/photos.store.js';
 import { getRelationsForPhoto } from '../db/relations.store.js';
@@ -34,12 +35,12 @@ export function createPhotosRouter(): Router {
 
     /** Import a scan manifest (JSON body). */
     router.post('/import', (req, res) => {
-        const body = req.body as { photos?: PhotoManifestEntry[] };
+        const body = req.body as { photos?: PhotoManifestEntry[]; relations?: ManifestRelationEntry[] };
         if (!body.photos || !Array.isArray(body.photos)) {
             res.status(400).json({ error: 'Request body must have a "photos" array' });
             return;
         }
-        const result = importManifest(body.photos);
+        const result = importManifest(body.photos, body.relations);
         res.json(result);
     });
 
