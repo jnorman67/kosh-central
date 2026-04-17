@@ -3,9 +3,23 @@ export interface PhotoFolder {
     displayName: string;
 }
 
+export type RelationType = 'back-of' | 'front-of' | 'duplicate-of' | 'raw-version-of' | 'enhanced-version-of';
+
+export interface PhotoRelation {
+    id: string;
+    photoId: string;
+    relatedPhotoId: string;
+    relationType: RelationType;
+}
+
 export interface Photo {
     id: string;
     name: string;
     downloadUrl: string;
     mimeType: string;
+    /** Catalog UUID, present when the OneDrive file matched a row in the local catalog. */
+    catalogId?: string;
+    contentHash?: string;
+    /** Relations where this photo is the subject (e.g. 'back-of' target). */
+    relations: PhotoRelation[];
 }

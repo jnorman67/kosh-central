@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { requireAuth } from './auth/auth.middleware.js';
 import { MsalService } from './auth/msal.service.js';
 import { initDb } from './db/database.js';
-import { importManifest, type PhotoManifestEntry } from './db/photos.store.js';
+import { importManifest, type ManifestRelationEntry, type PhotoManifestEntry } from './db/photos.store.js';
 import { createAuthRouter } from './routes/auth.router.js';
 import { createFoldersRouter } from './routes/folders.router.js';
 import { createPhotosRouter } from './routes/photos.router.js';
@@ -19,15 +19,27 @@ loadManifest();
 
 function loadManifest(): void {
     const manifestPath = path.resolve(import.meta.dirname, '../data/manifest.json');
-    if (!fs.existsSync(manifestPath)) return;
-
-    const raw = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as { photos?: PhotoManifestEntry[] };
-    if (!raw.photos?.length) return;
-
-    const result = importManifest(raw.photos);
-    if (result.created > 0) {
-        console.log(`Manifest import: ${result.created} new photos, ${result.existing} already known`);
+    if (!fs.existsSync(manifestPath)) {
+        console.log(`Manifest not found at ${manifestPath} — skipping import`);
+        return;
     }
+
+    const raw = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as {
+        photos?: PhotoManifestEntry[];
+        relations?: ManifestRelationEntry[];
+    };
+
+    const photoCount = raw.photos?.length ?? 0;
+    const relationCount = raw.relations?.length ?? 0;
+    console.log(`Manifest: ${photoCount} photos, ${relationCount} relations in ${manifestPath}`);
+
+    if (!photoCount) return;
+
+    const result = importManifest(raw.photos!, raw.relations);
+    console.log(
+        `Manifest import: ${result.created} new photos, ${result.existing} already known, ` +
+            `${result.relations} new relations (of ${relationCount} in manifest)`,
+    );
 }
 
 const AZURE_CLIENT_ID = process.env.AZURE_CLIENT_ID;
@@ -63,9 +75,21 @@ if (process.env.NODE_ENV === 'production') {
     });
 }
 
-app.listen(PORT, () => {
+const httpServer = app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
     if (!msalService.isAuthenticated()) {
         console.log('No cached credentials found. Authentication will be triggered on first API request.');
     }
 });
+
+// Graceful shutdown: close the HTTP listener so the event loop can exit.
+// Without this, `tsx watch` has to force-kill on Ctrl+C and reload.
+function shutdown(signal: NodeJS.Signals): void {
+    console.log(`\nReceived ${signal}, shutting down...`);
+    httpServer.close(() => process.exit(0));
+    // Fallback: if open connections prevent close() from completing, exit anyway.
+    setTimeout(() => process.exit(0), 1000).unref();
+}
+
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
