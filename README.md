@@ -89,11 +89,27 @@ export const FOLDERS: FolderConfig[] = [
   {
     displayName: "My Album",
     sharingUrl: "https://1drv.ms/f/c/...",
+    folderPath: "Dorothy's albums/album20",
   },
 ];
 ```
 
 To get a sharing URL: right-click a folder in OneDrive > **Share** > **Anyone with the link** > **Copy link**.
+
+`folderPath` is the directory path relative to the local scan root, using forward slashes. It must match the `folderName` recorded by `scan-local.ts` so that local catalog data (content hash, front/back relations, etc.) can be joined to the OneDrive listing at request time.
+
+## Local Catalog & Matching Strategy
+
+`scripts/scan-local.ts` walks a root directory once, computes SHA-256 for every image, detects front/back and original/enhanced relations from filename conventions, and emits a manifest. The manifest is imported via `POST /api/photos/import` and stored in SQLite. At request time, files returned by OneDrive are joined to local catalog rows by `(folderPath, fileName)`.
+
+**Current limitation — name-based matching is brittle.** OneDrive's folder listing returns file names, not content hashes, so we have no choice but to join on `(folderPath, fileName)`. This breaks down when:
+
+- A file is renamed in OneDrive but not locally (or vice versa) — the join silently misses and the OneDrive entry shows up without its hash, relations, or other local metadata.
+- Two files in the same folder share a name across cases on a case-sensitive scan but a case-insensitive OneDrive (or the reverse) — false matches or missed matches.
+- A folder is restructured (renamed, moved, or split) — every `folderPath` in `FolderConfig` becomes stale at once.
+- The same physical file is referenced from multiple folders — local catalog supports multiple locations per content hash, but name-based matching can't take advantage of that.
+
+**Future direction.** Once Graph API queries can cheaply return file hashes (Graph exposes `file.hashes.quickXorHash` and sometimes `sha1Hash`/`sha256Hash` for OneDrive Personal), we should match on content hash instead of name. That makes the join rename-proof and lets a single local record back multiple OneDrive locations. Until then, treat `folderPath` as a deployment-time contract: keep it in sync with both the scan root and the OneDrive folder structure.
 
 ## Running in Production (locally)
 
