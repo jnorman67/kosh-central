@@ -10,16 +10,16 @@ interface FolderSelectorProps {
 
 export function FolderSelector({ folders, selectedIndex, onSelect, isLoading }: FolderSelectorProps) {
     if (isLoading) {
-        return <div className="flex items-center px-4 py-2 text-sm text-muted-foreground">Loading folders...</div>;
+        return <div className="flex items-center px-4 py-2 text-sm text-muted-foreground">Loading albums...</div>;
     }
 
     if (folders.length === 0) {
-        return <div className="flex items-center px-4 py-2 text-sm text-muted-foreground">No folders configured</div>;
+        return <div className="flex items-center px-4 py-2 text-sm text-muted-foreground">No albums configured</div>;
     }
 
     return (
         <div className="flex items-center gap-3 px-4 py-2">
-            <span className="text-sm font-medium">Folder</span>
+            <span className="text-sm font-medium">Album</span>
             <Select value={String(selectedIndex)} onValueChange={(val) => onSelect(Number(val))}>
                 <SelectTrigger className="w-[240px]">
                     <SelectValue />

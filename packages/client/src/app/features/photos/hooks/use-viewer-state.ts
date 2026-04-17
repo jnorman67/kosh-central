@@ -1,4 +1,6 @@
-import { useReducer } from 'react';
+import { useEffect, useReducer } from 'react';
+
+const FOLDER_INDEX_KEY = 'kosh.selectedFolderIndex';
 
 interface ViewerState {
     currentFolderIndex: number;
@@ -26,11 +28,31 @@ function viewerReducer(state: ViewerState, action: ViewerAction): ViewerState {
     }
 }
 
+function readSavedFolderIndex(): number {
+    try {
+        const raw = localStorage.getItem(FOLDER_INDEX_KEY);
+        if (raw === null) return 0;
+        const n = Number.parseInt(raw, 10);
+        return Number.isInteger(n) && n >= 0 ? n : 0;
+    } catch {
+        return 0;
+    }
+}
+
 export function useViewerState() {
-    const [state, dispatch] = useReducer(viewerReducer, {
-        currentFolderIndex: 0,
+    const [state, dispatch] = useReducer(viewerReducer, undefined, () => ({
+        currentFolderIndex: readSavedFolderIndex(),
         currentPhotoIndex: 0,
-    });
+    }));
+
+    // Persist folder selection across reloads.
+    useEffect(() => {
+        try {
+            localStorage.setItem(FOLDER_INDEX_KEY, String(state.currentFolderIndex));
+        } catch {
+            // storage disabled / full — non-fatal
+        }
+    }, [state.currentFolderIndex]);
 
     return {
         currentFolderIndex: state.currentFolderIndex,

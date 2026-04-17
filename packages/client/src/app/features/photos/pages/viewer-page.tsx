@@ -28,6 +28,14 @@ export function ViewerPage() {
     const [backEnlarged, setBackEnlarged] = useState(false);
 
     const { data: folders = [], isLoading: foldersLoading } = useGetFolders();
+
+    // If a saved folder index is out of range (config shrank/changed), fall back to 0.
+    useEffect(() => {
+        if (folders.length > 0 && currentFolderIndex >= folders.length) {
+            setFolder(0);
+        }
+    }, [folders.length, currentFolderIndex, setFolder]);
+
     const currentFolder = folders[currentFolderIndex];
     const { data: allPhotos = [], isLoading: photosLoading } = useGetPhotos(currentFolder?.id ?? null);
 

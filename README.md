@@ -74,10 +74,8 @@ rm packages/server/.msal-cache.json
 # Start the dev server and hit http://localhost:5173 to trigger auth
 npm run dev
 
-# After authenticating in the browser, rebuild and redeploy
-npm run build
-zip -r deploy.zip packages/server/dist packages/server/.msal-cache.json packages/client/dist node_modules package.json packages/server/package.json packages/client/package.json
-az webapp deploy --resource-group kosh-central-rg --name kosh-central --src-path deploy.zip --type zip
+# After authenticating in the browser, redeploy
+npm run deploy
 ```
 
 ## Adding Photo Folders
@@ -123,10 +121,15 @@ Then visit http://localhost:3001. The Express server serves the built client as 
 ## Deploying to Azure
 
 ```bash
-npm run build
-zip -r deploy.zip packages/server/dist packages/server/.msal-cache.json packages/client/dist node_modules package.json packages/server/package.json packages/client/package.json
-az webapp deploy --resource-group kosh-central-rg --name kosh-central --src-path deploy.zip --type zip
+npm run deploy
 ```
+
+This runs three steps in sequence:
+1. `npm run build` — build both server and client.
+2. `npm run deploy:package` — create `deploy.zip` containing the server dist, client dist, manifest data, MSAL cache, and `node_modules`.
+3. `npm run deploy:push` — upload to Azure App Service via `az webapp deploy`.
+
+The individual steps can also be run on their own if you want to inspect `deploy.zip` before pushing.
 
 The app is hosted at https://kosh-central.azurewebsites.net
 

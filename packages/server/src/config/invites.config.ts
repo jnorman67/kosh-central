@@ -7,7 +7,9 @@ export interface Invite {
 
 // Add invited users here. Only these emails can register.
 export const INVITED_EMAILS: Invite[] = [
-  { email: "jnorman67utfan@gmail.com", role: "admin" }, // TODO: replace with your real email
+  { email: "jnorman67utfan@gmail.com", role: "admin" },
+  { email: "drkosh@sbcglobal.net", role: "user" },
+  { email: "deidra.ryan.cpa@gmail.com", role: "user" },
 ];
 
 export function findInvite(email: string): Invite | undefined {

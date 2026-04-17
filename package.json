@@ -10,7 +10,10 @@
         "dev": "concurrently -n server,client -c blue,green --kill-others-on-fail \"npm run dev -w @kosh-central/server\" \"npm run dev -w @kosh-central/client\"",
         "build": "npm run build -w @kosh-central/server && npm run build -w @kosh-central/client",
         "lint": "npm run lint -w @kosh-central/client",
-        "kill": "lsof -ti:3001 -ti:5173 2>/dev/null | xargs -r kill -9; echo 'Ports 3001/5173 cleared'"
+        "kill": "lsof -ti:3001 -ti:5173 2>/dev/null | xargs -r kill -9; echo 'Ports 3001/5173 cleared'",
+        "deploy:package": "rm -f deploy.zip && zip -r deploy.zip packages/server/dist packages/server/data packages/server/.msal-cache.json packages/client/dist node_modules package.json packages/server/package.json packages/client/package.json",
+        "deploy:push": "az webapp deploy --resource-group kosh-central-rg --name kosh-central --src-path deploy.zip --type zip",
+        "deploy": "npm run build && npm run deploy:package && npm run deploy:push"
     },
     "devDependencies": {
         "@types/node": "^25.6.0",
