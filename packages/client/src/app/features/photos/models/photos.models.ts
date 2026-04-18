@@ -16,6 +16,7 @@ export interface Photo {
     id: string;
     name: string;
     downloadUrl: string;
+    thumbnailUrl?: string;
     mimeType: string;
     /** Catalog UUID, present when the OneDrive file matched a row in the local catalog. */
     catalogId?: string;

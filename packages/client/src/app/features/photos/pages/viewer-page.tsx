@@ -3,11 +3,13 @@ import { BackThumbnail } from '@/app/features/photos/components/back-thumbnail';
 import { FolderSelector } from '@/app/features/photos/components/folder-selector';
 import { LetterboxViewer } from '@/app/features/photos/components/letterbox-viewer';
 import { PhotoControls } from '@/app/features/photos/components/photo-controls';
+import { PhotoGallery } from '@/app/features/photos/components/photo-gallery';
 import { usePhotosQueries } from '@/app/features/photos/contexts/photos-query.context';
 import { useViewerState } from '@/app/features/photos/hooks/use-viewer-state';
 import type { Photo } from '@/app/features/photos/models/photos.models';
 import { ViewerLayout } from '@/components/layout/viewer-layout';
 import { Button } from '@/components/ui/button';
+import { LayoutGrid } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -22,7 +24,7 @@ export function ViewerPage() {
     const navigate = useNavigate();
     const { useGetFolders, useGetPhotos } = usePhotosQueries();
     const { useGetMe, useLogout } = useAuthQueries();
-    const { currentFolderIndex, currentPhotoIndex, setFolder, nextPhoto, prevPhoto } = useViewerState();
+    const { currentFolderIndex, currentPhotoIndex, view, setFolder, openPhoto, backToGallery, nextPhoto, prevPhoto } = useViewerState();
     const { data: me } = useGetMe();
     const logout = useLogout();
     const [backEnlarged, setBackEnlarged] = useState(false);
@@ -40,10 +42,7 @@ export function ViewerPage() {
     const { data: allPhotos = [], isLoading: photosLoading } = useGetPhotos(currentFolder?.id ?? null);
 
     // Hide photos that are the back of another — they should only appear as the side thumbnail.
-    const viewablePhotos = useMemo(
-        () => allPhotos.filter((p) => !p.relations?.some((r) => r.relationType === 'back-of')),
-        [allPhotos],
-    );
+    const viewablePhotos = useMemo(() => allPhotos.filter((p) => !p.relations?.some((r) => r.relationType === 'back-of')), [allPhotos]);
 
     const currentPhoto = viewablePhotos[currentPhotoIndex] ?? null;
     const back = currentPhoto ? findBackFor(currentPhoto, allPhotos) : null;
@@ -53,15 +52,16 @@ export function ViewerPage() {
         setBackEnlarged(false);
     }, [currentPhoto?.id]);
 
-    // Allow Escape to cancel enlargement.
+    // Allow Escape to cancel back-enlargement or return to the gallery.
     useEffect(() => {
-        if (!backEnlarged) return;
         function onKey(e: KeyboardEvent) {
-            if (e.key === 'Escape') setBackEnlarged(false);
+            if (e.key !== 'Escape') return;
+            if (backEnlarged) setBackEnlarged(false);
+            else if (view === 'photo') backToGallery();
         }
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
-    }, [backEnlarged]);
+    }, [backEnlarged, view, backToGallery]);
 
     const handleNext = useCallback(() => nextPhoto(viewablePhotos.length), [nextPhoto, viewablePhotos.length]);
     const handlePrev = useCallback(() => prevPhoto(viewablePhotos.length), [prevPhoto, viewablePhotos.length]);
@@ -73,13 +73,15 @@ export function ViewerPage() {
     }
 
     const displayPhoto = backEnlarged && back ? back : currentPhoto;
+    const isGallery = view === 'gallery';
 
     return (
         <>
-            {/* Preload next 2 photos */}
-            {viewablePhotos.slice(currentPhotoIndex + 1, currentPhotoIndex + 3).map((p) => (
-                <link key={p.id} rel="preload" as="image" href={p.downloadUrl} />
-            ))}
+            {/* Preload next 2 photos when viewing a single photo */}
+            {!isGallery &&
+                viewablePhotos
+                    .slice(currentPhotoIndex + 1, currentPhotoIndex + 3)
+                    .map((p) => <link key={p.id} rel="preload" as="image" href={p.downloadUrl} />)}
 
             <ViewerLayout
                 header={
@@ -91,6 +93,12 @@ export function ViewerPage() {
                             isLoading={foldersLoading}
                         />
                         <div className="flex items-center gap-3 px-4">
+                            {!isGallery && (
+                                <Button variant="ghost" size="sm" onClick={backToGallery}>
+                                    <LayoutGrid className="mr-2 h-4 w-4" />
+                                    Gallery
+                                </Button>
+                            )}
                             <span className="text-sm text-muted-foreground">{me?.displayName}</span>
                             <Button variant="ghost" size="sm" onClick={handleLogout}>
                                 Sign out
@@ -99,22 +107,32 @@ export function ViewerPage() {
                     </div>
                 }
                 viewer={
-                    <LetterboxViewer
-                        photo={displayPhoto}
-                        isLoading={photosLoading && !!currentFolder}
-                        onClick={backEnlarged ? () => setBackEnlarged(false) : undefined}
-                    />
+                    isGallery ? (
+                        <PhotoGallery photos={viewablePhotos} isLoading={photosLoading && !!currentFolder} onSelect={openPhoto} />
+                    ) : (
+                        <LetterboxViewer
+                            photo={displayPhoto}
+                            isLoading={photosLoading && !!currentFolder}
+                            onClick={backEnlarged ? () => setBackEnlarged(false) : undefined}
+                        />
+                    )
                 }
                 rightPanel={
-                    back && !backEnlarged ? <BackThumbnail back={back} onClick={() => setBackEnlarged(true)} /> : undefined
+                    !isGallery && back && !backEnlarged ? <BackThumbnail back={back} onClick={() => setBackEnlarged(true)} /> : undefined
                 }
                 toolbar={
-                    <PhotoControls
-                        currentIndex={currentPhotoIndex}
-                        totalCount={viewablePhotos.length}
-                        onPrev={handlePrev}
-                        onNext={handleNext}
-                    />
+                    isGallery ? (
+                        <div className="flex items-center justify-center px-4 py-2 text-sm text-muted-foreground">
+                            {viewablePhotos.length} {viewablePhotos.length === 1 ? 'photo' : 'photos'}
+                        </div>
+                    ) : (
+                        <PhotoControls
+                            currentIndex={currentPhotoIndex}
+                            totalCount={viewablePhotos.length}
+                            onPrev={handlePrev}
+                            onNext={handleNext}
+                        />
+                    )
                 }
             />
         </>

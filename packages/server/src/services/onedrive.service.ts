@@ -46,23 +46,33 @@ export class OneDriveService {
             throw new Error(`Graph API error: ${response.status} ${response.statusText}`);
         }
 
+        type ThumbnailSet = {
+            small?: { url: string };
+            medium?: { url: string };
+            large?: { url: string };
+        };
         const json = (await response.json()) as {
             value?: Array<{
                 id: string;
                 name: string;
                 '@microsoft.graph.downloadUrl'?: string;
                 file?: { mimeType: string };
+                thumbnails?: ThumbnailSet[];
             }>;
         };
 
         const photos: Photo[] = (json.value ?? [])
             .filter((item) => item.file?.mimeType?.startsWith('image/'))
-            .map((item) => ({
-                id: item.id,
-                name: item.name,
-                downloadUrl: item['@microsoft.graph.downloadUrl'] ?? '',
-                mimeType: item.file!.mimeType,
-            }));
+            .map((item) => {
+                const thumb = item.thumbnails?.[0];
+                return {
+                    id: item.id,
+                    name: item.name,
+                    downloadUrl: item['@microsoft.graph.downloadUrl'] ?? '',
+                    thumbnailUrl: thumb?.large?.url ?? thumb?.medium?.url ?? thumb?.small?.url,
+                    mimeType: item.file!.mimeType,
+                };
+            });
 
         this.cache.set(sharingUrl, { data: photos, expiresAt: Date.now() + this.TTL_MS });
         return photos;

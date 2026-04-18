@@ -2,23 +2,29 @@ import { useEffect, useReducer } from 'react';
 
 const FOLDER_INDEX_KEY = 'kosh.selectedFolderIndex';
 
+type ViewMode = 'gallery' | 'photo';
+
 interface ViewerState {
     currentFolderIndex: number;
     currentPhotoIndex: number;
+    view: ViewMode;
 }
 
 type ViewerAction =
     | { type: 'SET_FOLDER'; index: number }
-    | { type: 'SET_PHOTO'; index: number }
+    | { type: 'OPEN_PHOTO'; index: number }
+    | { type: 'BACK_TO_GALLERY' }
     | { type: 'NEXT_PHOTO'; photoCount: number }
     | { type: 'PREV_PHOTO'; photoCount: number };
 
 function viewerReducer(state: ViewerState, action: ViewerAction): ViewerState {
     switch (action.type) {
         case 'SET_FOLDER':
-            return { currentFolderIndex: action.index, currentPhotoIndex: 0 };
-        case 'SET_PHOTO':
-            return { ...state, currentPhotoIndex: action.index };
+            return { currentFolderIndex: action.index, currentPhotoIndex: 0, view: 'gallery' };
+        case 'OPEN_PHOTO':
+            return { ...state, currentPhotoIndex: action.index, view: 'photo' };
+        case 'BACK_TO_GALLERY':
+            return { ...state, view: 'gallery' };
         case 'NEXT_PHOTO':
             if (action.photoCount === 0) return state;
             return { ...state, currentPhotoIndex: (state.currentPhotoIndex + 1) % action.photoCount };
@@ -43,6 +49,7 @@ export function useViewerState() {
     const [state, dispatch] = useReducer(viewerReducer, undefined, () => ({
         currentFolderIndex: readSavedFolderIndex(),
         currentPhotoIndex: 0,
+        view: 'gallery' as ViewMode,
     }));
 
     // Persist folder selection across reloads.
@@ -57,8 +64,10 @@ export function useViewerState() {
     return {
         currentFolderIndex: state.currentFolderIndex,
         currentPhotoIndex: state.currentPhotoIndex,
+        view: state.view,
         setFolder: (index: number) => dispatch({ type: 'SET_FOLDER', index }),
-        setPhoto: (index: number) => dispatch({ type: 'SET_PHOTO', index }),
+        openPhoto: (index: number) => dispatch({ type: 'OPEN_PHOTO', index }),
+        backToGallery: () => dispatch({ type: 'BACK_TO_GALLERY' }),
         nextPhoto: (photoCount: number) => dispatch({ type: 'NEXT_PHOTO', photoCount }),
         prevPhoto: (photoCount: number) => dispatch({ type: 'PREV_PHOTO', photoCount }),
     };
