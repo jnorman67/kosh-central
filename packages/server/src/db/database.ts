@@ -153,4 +153,16 @@ const migrations: Migration[] = [
             CREATE INDEX idx_series_members_photo_id ON photo_series_members(photo_id);
         `,
     },
+    {
+        version: 5,
+        description: 'Create folder_covers table',
+        sql: `
+            CREATE TABLE folder_covers (
+                folder_path TEXT PRIMARY KEY,
+                file_name TEXT NOT NULL,
+                updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_by TEXT REFERENCES users(id)
+            );
+        `,
+    },
 ];

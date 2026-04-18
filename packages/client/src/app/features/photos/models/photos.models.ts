@@ -1,6 +1,8 @@
 export interface PhotoFolder {
     id: string;
     displayName: string;
+    /** Admin-chosen cover photo's filename within the folder. Falls back to first viewable. */
+    coverFileName?: string;
 }
 
 export type RelationType = 'back-of' | 'front-of' | 'duplicate-of' | 'raw-version-of' | 'enhanced-version-of';

@@ -1,5 +1,5 @@
 import type { PhotosService } from '@/app/features/photos/services/photos.service';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 
 export const PhotosQueryKeys = {
     folders: ['Photos', 'Folders'] as const,
@@ -24,9 +24,38 @@ export const createPhotosQueries = (service: PhotosService) => {
         });
     };
 
+    const useGetPhotosForFolders = (folderIds: string[]) => {
+        return useQueries({
+            queries: folderIds.map((folderId) => ({
+                queryKey: PhotosQueryKeys.photos(folderId),
+                queryFn: () => service.getPhotos(folderId),
+                staleTime: 10 * 60 * 1000,
+            })),
+        });
+    };
+
+    const useSetFolderCover = () => {
+        const qc = useQueryClient();
+        return useMutation({
+            mutationFn: ({ folderId, fileName }: { folderId: string; fileName: string }) => service.setFolderCover(folderId, fileName),
+            onSuccess: () => qc.invalidateQueries({ queryKey: PhotosQueryKeys.folders }),
+        });
+    };
+
+    const useClearFolderCover = () => {
+        const qc = useQueryClient();
+        return useMutation({
+            mutationFn: ({ folderId }: { folderId: string }) => service.clearFolderCover(folderId),
+            onSuccess: () => qc.invalidateQueries({ queryKey: PhotosQueryKeys.folders }),
+        });
+    };
+
     return {
         useGetFolders,
         useGetPhotos,
+        useGetPhotosForFolders,
+        useSetFolderCover,
+        useClearFolderCover,
     };
 };
 

@@ -12,4 +12,18 @@ export class PhotosService {
         if (!res.ok) throw new Error('Failed to fetch photos');
         return res.json();
     }
+
+    async setFolderCover(folderId: string, fileName: string): Promise<void> {
+        const res = await fetch(`/api/folders/${folderId}/cover`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fileName }),
+        });
+        if (!res.ok) throw new Error('Failed to set folder cover');
+    }
+
+    async clearFolderCover(folderId: string): Promise<void> {
+        const res = await fetch(`/api/folders/${folderId}/cover`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('Failed to clear folder cover');
+    }
 }

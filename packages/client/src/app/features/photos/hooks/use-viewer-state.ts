@@ -2,7 +2,7 @@ import { useEffect, useReducer } from 'react';
 
 const FOLDER_INDEX_KEY = 'kosh.selectedFolderIndex';
 
-type ViewMode = 'gallery' | 'photo';
+type ViewMode = 'albums' | 'gallery' | 'photo';
 
 interface ViewerState {
     currentFolderIndex: number;
@@ -14,6 +14,7 @@ type ViewerAction =
     | { type: 'SET_FOLDER'; index: number }
     | { type: 'OPEN_PHOTO'; index: number }
     | { type: 'BACK_TO_GALLERY' }
+    | { type: 'GO_TO_ALBUMS' }
     | { type: 'NEXT_PHOTO'; photoCount: number }
     | { type: 'PREV_PHOTO'; photoCount: number };
 
@@ -25,6 +26,8 @@ function viewerReducer(state: ViewerState, action: ViewerAction): ViewerState {
             return { ...state, currentPhotoIndex: action.index, view: 'photo' };
         case 'BACK_TO_GALLERY':
             return { ...state, view: 'gallery' };
+        case 'GO_TO_ALBUMS':
+            return { ...state, view: 'albums' };
         case 'NEXT_PHOTO':
             if (action.photoCount === 0) return state;
             return { ...state, currentPhotoIndex: (state.currentPhotoIndex + 1) % action.photoCount };
@@ -68,6 +71,7 @@ export function useViewerState() {
         setFolder: (index: number) => dispatch({ type: 'SET_FOLDER', index }),
         openPhoto: (index: number) => dispatch({ type: 'OPEN_PHOTO', index }),
         backToGallery: () => dispatch({ type: 'BACK_TO_GALLERY' }),
+        goToAlbums: () => dispatch({ type: 'GO_TO_ALBUMS' }),
         nextPhoto: (photoCount: number) => dispatch({ type: 'NEXT_PHOTO', photoCount }),
         prevPhoto: (photoCount: number) => dispatch({ type: 'PREV_PHOTO', photoCount }),
     };
