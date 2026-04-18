@@ -4,8 +4,12 @@ import path from 'node:path';
 const DB_FILENAME = 'kosh.db';
 
 function getDbPath(): string {
+    // Preferred: explicit data directory (Container Apps file-share mount, etc.)
+    if (process.env.KOSH_DATA_DIR) {
+        return path.join(process.env.KOSH_DATA_DIR, DB_FILENAME);
+    }
+    // Legacy: App Service persists /home across deploys
     if (process.env.NODE_ENV === 'production') {
-        // Azure App Service persists /home across deploys
         return path.join('/home', DB_FILENAME);
     }
     // Local dev — store next to other server data files

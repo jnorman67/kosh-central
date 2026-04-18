@@ -4,7 +4,27 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
-const CACHE_PATH = path.join(__dirname, '../../.msal-cache.json');
+
+// Cache location, preferring an explicit data dir (Container Apps file share) over
+// Azure App Service's /home fallback, over the in-repo dev path.
+const BUNDLED_CACHE_PATH = path.join(__dirname, '../../.msal-cache.json');
+const CACHE_PATH = (() => {
+    if (process.env.KOSH_DATA_DIR) return path.join(process.env.KOSH_DATA_DIR, '.msal-cache.json');
+    if (process.env.NODE_ENV === 'production') return path.join('/home', '.msal-cache.json');
+    return BUNDLED_CACHE_PATH;
+})();
+
+function ensureSeededCache(): void {
+    if (CACHE_PATH === BUNDLED_CACHE_PATH) return;
+    if (fs.existsSync(CACHE_PATH)) return;
+    if (!fs.existsSync(BUNDLED_CACHE_PATH)) return;
+    try {
+        fs.copyFileSync(BUNDLED_CACHE_PATH, CACHE_PATH);
+        console.log(`Seeded MSAL cache: ${BUNDLED_CACHE_PATH} → ${CACHE_PATH}`);
+    } catch (err) {
+        console.error('Failed to seed MSAL cache:', err);
+    }
+}
 
 const SCOPES = ['Files.Read.All'];
 
@@ -24,6 +44,7 @@ export class MsalService {
     }
 
     async loadCache(): Promise<void> {
+        ensureSeededCache();
         try {
             if (fs.existsSync(CACHE_PATH)) {
                 const cacheData = fs.readFileSync(CACHE_PATH, 'utf-8');

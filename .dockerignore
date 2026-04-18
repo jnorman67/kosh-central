@@ -1,0 +1,31 @@
+# Version control / editor
+.git
+.gitignore
+.vscode
+.idea
+
+# Build outputs (rebuilt inside the image)
+**/dist
+**/*.tsbuildinfo
+
+# Dependencies (reinstalled in the image)
+node_modules
+**/node_modules
+
+# Local state that shouldn't ship
+*.db
+*.db-wal
+*.db-shm
+.env
+.env.*
+.msal-cache.json
+**/.msal-cache.json
+deploy.zip
+
+# Large local-only data — the manifest lives on the Azure File share now
+packages/server/data
+
+# Logs / misc
+*.log
+.DS_Store
+Thumbs.db

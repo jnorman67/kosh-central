@@ -18,7 +18,9 @@ initDb();
 loadManifest();
 
 function loadManifest(): void {
-    const manifestPath = path.resolve(import.meta.dirname, '../data/manifest.json');
+    const manifestPath = process.env.KOSH_DATA_DIR
+        ? path.join(process.env.KOSH_DATA_DIR, 'manifest.json')
+        : path.resolve(import.meta.dirname, '../data/manifest.json');
     if (!fs.existsSync(manifestPath)) {
         console.log(`Manifest not found at ${manifestPath} — skipping import`);
         return;

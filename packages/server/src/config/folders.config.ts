@@ -84,7 +84,7 @@ export const FOLDERS: FolderConfig[] = [
     folderPath: "Dorothy's Albums/album16 - Urban",
   },
   {
-    displayName: "Dorothy's Album 20 - Barta Kosh",
+    displayName: "Dorothy's Album 17 - Barta Kosh",
     sharingUrl:
       "https://1drv.ms/f/c/cd2c0c2b50d77f00/IgAzyriHGDWuRJdWqb5Z9v4FAf2FQ8XvQeVmlq-QN_EjoHQ?e=Zm7oS6",
     folderPath: "Dorothy's Albums/album17 - Barta Kosh",

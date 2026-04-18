@@ -4,6 +4,7 @@ export interface Photo {
     id: string;
     name: string;
     downloadUrl: string;
+    thumbnailUrl?: string;
     mimeType: string;
 }
 
@@ -32,7 +33,7 @@ export class OneDriveService {
 
         const accessToken = await this.msalService.getAccessToken();
         const encoded = this.encodeSharingUrl(sharingUrl);
-        const graphUrl = `https://graph.microsoft.com/v1.0/shares/${encoded}/driveItem/children`;
+        const graphUrl = `https://graph.microsoft.com/v1.0/shares/${encoded}/driveItem/children?$expand=thumbnails`;
 
         const response = await fetch(graphUrl, {
             headers: {

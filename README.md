@@ -120,18 +120,57 @@ Then visit http://localhost:3001. The Express server serves the built client as 
 
 ## Deploying to Azure
 
+The app is hosted at https://kosh-central.azurewebsites.net (App Service, legacy) and is migrating to **Azure Container Apps**. During the transition both paths exist.
+
+### Container Apps (new — preferred)
+
+After the one-time migration (see below), every deploy is:
+
+```bash
+npm run deploy:container
+```
+
+This runs two steps:
+1. `npm run deploy:image` — `az acr build` uploads the source and builds the Docker image on Azure's side.
+2. `npm run deploy:restart` — `az containerapp update` rolls to the new image.
+
+Typical deploy: ~60-90 seconds. No zip, no extraction, no Kudu.
+
+#### Data layout
+
+The Container App mounts an Azure File share at `/data`. Everything the app writes goes there:
+
+- `/data/kosh.db` — SQLite database (users, photos, relations, series)
+- `/data/.msal-cache.json` — OneDrive OAuth token cache
+- `/data/manifest.json` — photo scan manifest consumed on startup
+
+The Docker image sets `KOSH_DATA_DIR=/data` so [database.ts](packages/server/src/db/database.ts) and [msal.service.ts](packages/server/src/auth/msal.service.ts) route file I/O to the mount. In dev (no `KOSH_DATA_DIR`), paths fall back to `packages/server/...` as before.
+
+#### First-time migration
+
+One-time provisioning (creates ACR, Storage Account + file share, Container Apps Environment, first image, and the Container App):
+
+```bash
+export AZURE_CLIENT_ID=<same value as current App Service setting>
+export JWT_SECRET=<same value as current App Service setting>
+bash scripts/azure-provision.sh
+```
+
+Then copy current production data onto the new file share (pulls `/home/kosh.db` and the MSAL cache from App Service via Kudu, uploads with your local manifest):
+
+```bash
+bash scripts/azure-migrate-data.sh
+```
+
+Verify the Container App URL works, flip any custom domain, then stop the old App Service (`az webapp stop --resource-group kosh-central-rg --name kosh-central`). Keep it stopped-but-alive for ~1 week as a rollback path before deleting.
+
+### App Service (legacy — rollback only)
+
 ```bash
 npm run deploy
 ```
 
-This runs three steps in sequence:
-1. `npm run build` — build both server and client.
-2. `npm run deploy:package` — create `deploy.zip` containing the server dist, client dist, manifest data, MSAL cache, and `node_modules`.
-3. `npm run deploy:push` — upload to Azure App Service via `az webapp deploy`.
-
-The individual steps can also be run on their own if you want to inspect `deploy.zip` before pushing.
-
-The app is hosted at https://kosh-central.azurewebsites.net
+Still works. Uses the zip-upload path; subject to 504 timeouts on large pushes. Once the Container App is verified, delete the App Service and remove these scripts.
 
 ## Project Structure
 

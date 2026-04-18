@@ -1,0 +1,62 @@
+# Azure Container App definition for kosh-central.
+#
+# Consumed by `az containerapp create --yaml infra/containerapp.yaml`.
+# Resource-group, registry, and secret values are filled in via the provisioning
+# script (see scripts/azure-provision.sh) rather than hardcoded here.
+#
+# Key choices:
+#   - scale.minReplicas=0, maxReplicas=1 → scales to zero when idle (free-tier friendly).
+#   - volume "data" mounts an Azure File share at /data for persistent SQLite,
+#     MSAL token cache, and manifest.json.
+#   - secrets referenced by env vars keep AZURE_CLIENT_ID / JWT_SECRET out of
+#     the container image.
+
+location: WEST_US_2_PLACEHOLDER
+type: Microsoft.App/containerApps
+identity:
+  type: SystemAssigned
+properties:
+  managedEnvironmentId: ENV_ID_PLACEHOLDER
+  configuration:
+    ingress:
+      external: true
+      targetPort: 3001
+      transport: auto
+      allowInsecure: false
+    registries:
+      - server: ACR_LOGIN_SERVER_PLACEHOLDER
+        username: ACR_USERNAME_PLACEHOLDER
+        passwordSecretRef: acr-password
+    secrets:
+      - name: acr-password
+        value: ACR_PASSWORD_PLACEHOLDER
+      - name: azure-client-id
+        value: AZURE_CLIENT_ID_PLACEHOLDER
+      - name: jwt-secret
+        value: JWT_SECRET_PLACEHOLDER
+  template:
+    containers:
+      - name: kosh-central
+        image: ACR_LOGIN_SERVER_PLACEHOLDER/kosh-central:latest
+        resources:
+          cpu: 0.5
+          memory: 1.0Gi
+        env:
+          - name: AZURE_CLIENT_ID
+            secretRef: azure-client-id
+          - name: JWT_SECRET
+            secretRef: jwt-secret
+          - name: KOSH_DATA_DIR
+            value: /data
+          - name: PORT
+            value: "3001"
+        volumeMounts:
+          - volumeName: data
+            mountPath: /data
+    volumes:
+      - name: data
+        storageType: AzureFile
+        storageName: kosh-data
+    scale:
+      minReplicas: 0
+      maxReplicas: 1
