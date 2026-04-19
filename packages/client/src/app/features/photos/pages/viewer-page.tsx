@@ -11,7 +11,7 @@ import { useViewerState } from '@/app/features/photos/hooks/use-viewer-state';
 import type { Photo } from '@/app/features/photos/models/photos.models';
 import { ViewerLayout } from '@/components/layout/viewer-layout';
 import { Button } from '@/components/ui/button';
-import { LayoutGrid, LibraryBig, Star, StarOff } from 'lucide-react';
+import { ExternalLink, Filter, LayoutGrid, LibraryBig, Star, StarOff } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -49,6 +49,7 @@ export function ViewerPage() {
     const { data: me } = useGetMe();
     const logout = useLogout();
     const [enlargedRelatedId, setEnlargedRelatedId] = useState<string | null>(null);
+    const [uncatalogedOnly, setUncatalogedOnly] = useState(false);
 
     const { data: folders = [], isLoading: foldersLoading } = useGetFolders();
 
@@ -63,10 +64,17 @@ export function ViewerPage() {
     const { data: allPhotos = [], isLoading: photosLoading } = useGetPhotos(currentFolder?.id ?? null);
 
     // Hide photos that are a back or a raw — they only appear as side thumbnails.
-    const viewablePhotos = useMemo(
-        () => allPhotos.filter((p) => !p.relations?.some((r) => r.relationType === 'back-of' || r.relationType === 'raw-version-of')),
-        [allPhotos],
-    );
+    const viewablePhotos = useMemo(() => {
+        if (uncatalogedOnly) return allPhotos.filter((p) => !p.catalogId);
+        return allPhotos.filter((p) => !p.relations?.some((r) => r.relationType === 'back-of' || r.relationType === 'raw-version-of'));
+    }, [allPhotos, uncatalogedOnly]);
+
+    const uncatalogedCount = useMemo(() => allPhotos.filter((p) => !p.catalogId).length, [allPhotos]);
+
+    // Reset the uncataloged filter when switching folders.
+    useEffect(() => {
+        setUncatalogedOnly(false);
+    }, [currentFolder?.id]);
 
     const currentPhoto = viewablePhotos[currentPhotoIndex] ?? null;
     const relatedPhotos = useMemo(() => (currentPhoto ? findRelatedPhotos(currentPhoto, allPhotos) : []), [currentPhoto, allPhotos]);
@@ -128,16 +136,21 @@ export function ViewerPage() {
                             <div className="px-4 py-2 text-sm font-medium">All albums</div>
                         ) : (
                             <div className="flex items-center gap-2">
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={goToAlbums}
+                                    title="Click here to browse albums"
+                                    aria-label="Browse albums"
+                                >
+                                    <LibraryBig className="h-4 w-4" />
+                                </Button>
                                 <FolderSelector
                                     folders={folders}
                                     selectedIndex={currentFolderIndex}
                                     onSelect={setFolder}
                                     isLoading={foldersLoading}
                                 />
-                                <Button variant="ghost" size="sm" onClick={goToAlbums}>
-                                    <LibraryBig className="mr-2 h-4 w-4" />
-                                    All albums
-                                </Button>
                             </div>
                         )}
                         <div className="flex items-center gap-3 px-4">
@@ -207,8 +220,21 @@ export function ViewerPage() {
                             {folders.length} {folders.length === 1 ? 'album' : 'albums'}
                         </div>
                     ) : isGallery ? (
-                        <div className="flex items-center justify-center px-4 py-2 text-sm text-muted-foreground">
-                            {viewablePhotos.length} {viewablePhotos.length === 1 ? 'photo' : 'photos'}
+                        <div className="flex items-center justify-center gap-4 px-4 py-2 text-sm text-muted-foreground">
+                            <span>
+                                {viewablePhotos.length} {viewablePhotos.length === 1 ? 'photo' : 'photos'}
+                                {uncatalogedOnly && ' (uncataloged only)'}
+                            </span>
+                            {isAdmin && uncatalogedCount > 0 && (
+                                <Button
+                                    variant={uncatalogedOnly ? 'secondary' : 'ghost'}
+                                    size="sm"
+                                    onClick={() => setUncatalogedOnly((v) => !v)}
+                                >
+                                    <Filter className="mr-2 h-4 w-4" />
+                                    {uncatalogedOnly ? 'Show all' : `${uncatalogedCount} uncataloged`}
+                                </Button>
+                            )}
                         </div>
                     ) : (
                         <div className="flex items-center justify-center gap-6 px-4 py-2">
@@ -218,6 +244,19 @@ export function ViewerPage() {
                                 onPrev={handlePrev}
                                 onNext={handleNext}
                             />
+                            {displayPhoto && (
+                                <span className="max-w-[40ch] truncate text-sm text-muted-foreground" title={displayPhoto.name}>
+                                    {displayPhoto.name}
+                                </span>
+                            )}
+                            {displayPhoto?.webUrl && (
+                                <Button variant="ghost" size="sm" asChild>
+                                    <a href={displayPhoto.webUrl} target="_blank" rel="noreferrer" title="Open in OneDrive">
+                                        <ExternalLink className="mr-2 h-4 w-4" />
+                                        Open in OneDrive
+                                    </a>
+                                </Button>
+                            )}
                             {currentPhoto?.catalogId && currentFolder && (
                                 <StarRating
                                     rating={currentPhoto.rating}

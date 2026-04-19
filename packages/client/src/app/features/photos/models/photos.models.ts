@@ -19,6 +19,8 @@ export interface Photo {
     name: string;
     downloadUrl: string;
     thumbnailUrl?: string;
+    /** OneDrive web URL — opens this photo in the OneDrive UI. */
+    webUrl?: string;
     mimeType: string;
     /** Catalog UUID, present when the OneDrive file matched a row in the local catalog. */
     catalogId?: string;

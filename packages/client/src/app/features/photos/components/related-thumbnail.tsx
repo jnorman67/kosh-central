@@ -19,6 +19,9 @@ export function RelatedThumbnail({ photo, label, onClick }: RelatedThumbnailProp
                 className="max-h-48 w-full object-contain"
             />
             <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground group-hover:text-foreground">{label}</span>
+            <span className="w-full truncate text-center text-xs text-muted-foreground" title={photo.name}>
+                {photo.name}
+            </span>
         </button>
     );
 }

@@ -5,6 +5,7 @@ export interface Photo {
     name: string;
     downloadUrl: string;
     thumbnailUrl?: string;
+    webUrl?: string;
     mimeType: string;
 }
 
@@ -55,6 +56,7 @@ export class OneDriveService {
             value?: Array<{
                 id: string;
                 name: string;
+                webUrl?: string;
                 '@microsoft.graph.downloadUrl'?: string;
                 file?: { mimeType: string };
                 thumbnails?: ThumbnailSet[];
@@ -70,6 +72,7 @@ export class OneDriveService {
                     name: item.name,
                     downloadUrl: item['@microsoft.graph.downloadUrl'] ?? '',
                     thumbnailUrl: thumb?.large?.url ?? thumb?.medium?.url ?? thumb?.small?.url,
+                    webUrl: item.webUrl,
                     mimeType: item.file!.mimeType,
                 };
             });

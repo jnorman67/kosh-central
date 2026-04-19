@@ -25,8 +25,8 @@ export function AlbumGallery({ folders, onSelect }: AlbumGalleryProps) {
     }
 
     return (
-        <div className="h-full overflow-auto bg-black p-4">
-            <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}>
+        <div className="h-full overflow-auto bg-black p-6">
+            <div className="grid gap-6" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}>
                 {folders.map((folder, i) => {
                     const q = results[i];
                     const cover = pickCover(q?.data, folder.coverFileName);
@@ -37,23 +37,33 @@ export function AlbumGallery({ folders, onSelect }: AlbumGalleryProps) {
                             key={folder.id}
                             type="button"
                             onClick={() => onSelect(i)}
-                            className="group relative aspect-[4/3] overflow-hidden rounded-md bg-zinc-900 outline-none focus-visible:ring-2 focus-visible:ring-white"
+                            className="group relative aspect-[4/3] outline-none transition-transform hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-white"
                         >
-                            {coverSrc ? (
-                                <img
-                                    src={coverSrc}
-                                    alt=""
-                                    loading="lazy"
-                                    className="h-full w-full object-cover transition-opacity group-hover:opacity-60"
-                                />
-                            ) : (
-                                <div className="flex h-full w-full items-center justify-center text-xs text-zinc-600">
-                                    {q?.isLoading ? 'Loading…' : 'No preview'}
+                            <div
+                                aria-hidden="true"
+                                className="absolute inset-0 translate-x-[6px] translate-y-[6px] rotate-[3deg] rounded-md bg-zinc-700 shadow-md ring-1 ring-black/40"
+                            />
+                            <div
+                                aria-hidden="true"
+                                className="absolute inset-0 -translate-x-[5px] translate-y-[3px] -rotate-[2deg] rounded-md bg-zinc-800 shadow-md ring-1 ring-black/40"
+                            />
+                            <div className="relative h-full w-full overflow-hidden rounded-md bg-zinc-900 shadow-lg ring-1 ring-white/15">
+                                {coverSrc ? (
+                                    <img
+                                        src={coverSrc}
+                                        alt=""
+                                        loading="lazy"
+                                        className="h-full w-full object-cover transition-opacity group-hover:opacity-60"
+                                    />
+                                ) : (
+                                    <div className="flex h-full w-full items-center justify-center text-xs text-zinc-600">
+                                        {q?.isLoading ? 'Loading…' : 'No preview'}
+                                    </div>
+                                )}
+                                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-3 text-left">
+                                    <div className="truncate text-sm font-medium text-white">{folder.displayName}</div>
+                                    {count > 0 && <div className="text-xs text-zinc-300">{count} photos</div>}
                                 </div>
-                            )}
-                            <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-3 text-left">
-                                <div className="truncate text-sm font-medium text-white">{folder.displayName}</div>
-                                {count > 0 && <div className="text-xs text-zinc-300">{count} photos</div>}
                             </div>
                         </button>
                     );
