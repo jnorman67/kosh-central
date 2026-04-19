@@ -13,6 +13,12 @@
       "Bash(git worktree:*)",
       "Bash(git log:*)",
       "Bash(git status:*)",
+      "Bash(npm run lint)",
+      "Bash(npm run lint:*)",
+      "Bash(npx eslint:*)",
+      "Bash(npx prettier:*)",
+      "Bash(eslint:*)",
+      "Bash(prettier:*)",
       "Read(//home/jim/vc/**)"
     ]
   }
