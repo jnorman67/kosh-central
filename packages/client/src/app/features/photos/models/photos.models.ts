@@ -25,4 +25,6 @@ export interface Photo {
     contentHash?: string;
     /** Relations where this photo is the subject (e.g. 'back-of' target). */
     relations: PhotoRelation[];
+    /** Current user's rating (0–5), or null if unrated. Absent for uncataloged photos. */
+    rating?: number | null;
 }

@@ -50,12 +50,22 @@ export const createPhotosQueries = (service: PhotosService) => {
         });
     };
 
+    const useRatePhoto = () => {
+        const qc = useQueryClient();
+        return useMutation({
+            mutationFn: ({ catalogId, rating }: { catalogId: string; folderId: string; rating: number }) =>
+                rating === 0 ? service.clearRating(catalogId) : service.ratePhoto(catalogId, rating),
+            onSuccess: (_, { folderId }) => qc.invalidateQueries({ queryKey: PhotosQueryKeys.photos(folderId) }),
+        });
+    };
+
     return {
         useGetFolders,
         useGetPhotos,
         useGetPhotosForFolders,
         useSetFolderCover,
         useClearFolderCover,
+        useRatePhoto,
     };
 };
 

@@ -100,6 +100,9 @@ function parseSuffix(
   return null;
 }
 
+/** Back-suffix variants tried when pairing an orphaned alt (e.g. `XXX_a`) with its back. */
+const BACK_SUFFIX_VARIANTS = ["_b", "-b", " b", "_back", "-back", " back"];
+
 /**
  * Detect relationships between photos based on filename conventions.
  * E.g. "photo001_b.jpg" is the back of "photo001.jpg".
@@ -120,6 +123,26 @@ function detectRelations(entries: ManifestEntry[]): ManifestRelation[] {
   }
 
   const relations: ManifestRelation[] = [];
+  const seen = new Set<string>();
+
+  function record(
+    source: ManifestEntry,
+    target: ManifestEntry,
+    relationType: ManifestRelation["relationType"],
+  ): void {
+    if (source.contentHash === target.contentHash) return;
+    const key = `${source.contentHash}::${target.contentHash}::${relationType}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    relations.push({
+      sourceHash: source.contentHash,
+      targetHash: target.contentHash,
+      relationType,
+    });
+    process.stderr.write(
+      `  ↳ ${source.folderName}/${source.fileName} → ${relationType} → ${target.fileName}\n`,
+    );
+  }
 
   for (const entry of entries) {
     const ext = path.extname(entry.fileName);
@@ -127,20 +150,27 @@ function detectRelations(entries: ManifestEntry[]): ManifestRelation[] {
     const parsed = parseSuffix(baseName);
     if (!parsed) continue;
 
-    const target = byFolderAndBase.get(
+    const direct = byFolderAndBase.get(
       `${entry.folderName}::${parsed.strippedName.toLowerCase()}`,
     );
-    if (!target || target.contentHash === entry.contentHash) continue;
+    if (direct) {
+      record(entry, direct, parsed.relationType);
+      continue;
+    }
 
-    relations.push({
-      sourceHash: entry.contentHash,
-      targetHash: target.contentHash,
-      relationType: parsed.relationType,
-    });
-
-    process.stderr.write(
-      `  ↳ ${entry.folderName}/${entry.fileName} → ${parsed.relationType} → ${target.fileName}\n`,
-    );
+    // Fallback: an orphaned alt (e.g. `XXX_a` with no `XXX`) pairs with
+    // `XXX_b`/`XXX_back`/etc. The alt becomes the front; the `_b` is its back.
+    if (parsed.relationType === "enhanced-version-of") {
+      for (const suffix of BACK_SUFFIX_VARIANTS) {
+        const back = byFolderAndBase.get(
+          `${entry.folderName}::${(parsed.strippedName + suffix).toLowerCase()}`,
+        );
+        if (back) {
+          record(back, entry, "back-of");
+          break;
+        }
+      }
+    }
   }
 
   return relations;

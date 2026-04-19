@@ -13,7 +13,7 @@ function pickCover(photos: Photo[] | undefined, preferredFileName: string | unde
         if (chosen) return chosen;
         // Configured cover not found (renamed/deleted) — fall through to default.
     }
-    return photos.find((p) => !p.relations?.some((r) => r.relationType === 'back-of')) ?? null;
+    return photos.find((p) => !p.relations?.some((r) => r.relationType === 'back-of' || r.relationType === 'raw-version-of')) ?? null;
 }
 
 export function AlbumGallery({ folders, onSelect }: AlbumGalleryProps) {

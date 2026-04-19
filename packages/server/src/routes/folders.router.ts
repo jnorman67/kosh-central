@@ -3,6 +3,7 @@ import { requireAdmin } from '../auth/auth.middleware.js';
 import { FOLDERS } from '../config/folders.config.js';
 import { clearFolderCover, getAllFolderCovers, setFolderCover } from '../db/folder-covers.store.js';
 import { findPhotoByFolderAndName } from '../db/photos.store.js';
+import { getRatingsByUserForPhotos } from '../db/ratings.store.js';
 import { getRelationsForPhoto } from '../db/relations.store.js';
 import { OneDriveService } from '../services/onedrive.service.js';
 
@@ -39,14 +40,22 @@ export function createFoldersRouter(oneDriveService: OneDriveService): Router {
             // Enrich each OneDrive photo with local catalog data by matching
             // on (folderPath, fileName). See README "Local Catalog & Matching
             // Strategy" for why name-based matching is the current approach.
-            const enriched = photos.map((p) => {
+            const withCatalog = photos.map((p) => {
                 const cataloged = findPhotoByFolderAndName(folder.folderPath, p.name);
-                if (!cataloged) return { ...p, relations: [] };
+                return { photo: p, cataloged };
+            });
+
+            const catalogedIds = withCatalog.map((x) => x.cataloged?.id).filter((id): id is string => !!id);
+            const myRatings = getRatingsByUserForPhotos(req.user!.userId, catalogedIds);
+
+            const enriched = withCatalog.map(({ photo, cataloged }) => {
+                if (!cataloged) return { ...photo, relations: [] };
                 return {
-                    ...p,
+                    ...photo,
                     catalogId: cataloged.id,
                     contentHash: cataloged.contentHash,
                     relations: getRelationsForPhoto(cataloged.id),
+                    rating: myRatings.get(cataloged.id) ?? null,
                 };
             });
 

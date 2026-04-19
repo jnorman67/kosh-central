@@ -166,4 +166,19 @@ const migrations: Migration[] = [
             );
         `,
     },
+    {
+        version: 6,
+        description: 'Create photo_ratings table',
+        sql: `
+            CREATE TABLE photo_ratings (
+                photo_id TEXT NOT NULL REFERENCES photos(id) ON DELETE CASCADE,
+                user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                rating INTEGER NOT NULL CHECK (rating >= 0 AND rating <= 5),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+                PRIMARY KEY(photo_id, user_id)
+            );
+
+            CREATE INDEX idx_photo_ratings_user_id ON photo_ratings(user_id);
+        `,
+    },
 ];

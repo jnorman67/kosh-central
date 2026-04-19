@@ -26,4 +26,18 @@ export class PhotosService {
         const res = await fetch(`/api/folders/${folderId}/cover`, { method: 'DELETE' });
         if (!res.ok) throw new Error('Failed to clear folder cover');
     }
+
+    async ratePhoto(catalogId: string, rating: number): Promise<void> {
+        const res = await fetch(`/api/ratings/photo/${catalogId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rating }),
+        });
+        if (!res.ok) throw new Error('Failed to rate photo');
+    }
+
+    async clearRating(catalogId: string): Promise<void> {
+        const res = await fetch(`/api/ratings/photo/${catalogId}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error('Failed to clear rating');
+    }
 }

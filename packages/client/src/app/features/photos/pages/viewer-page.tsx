@@ -1,10 +1,11 @@
 import { useAuthQueries } from '@/app/features/auth/contexts/auth-query.context';
 import { AlbumGallery } from '@/app/features/photos/components/album-gallery';
-import { BackThumbnail } from '@/app/features/photos/components/back-thumbnail';
 import { FolderSelector } from '@/app/features/photos/components/folder-selector';
 import { LetterboxViewer } from '@/app/features/photos/components/letterbox-viewer';
 import { PhotoControls } from '@/app/features/photos/components/photo-controls';
 import { PhotoGallery } from '@/app/features/photos/components/photo-gallery';
+import { RelatedThumbnail } from '@/app/features/photos/components/related-thumbnail';
+import { StarRating } from '@/app/features/photos/components/star-rating';
 import { usePhotosQueries } from '@/app/features/photos/contexts/photos-query.context';
 import { useViewerState } from '@/app/features/photos/hooks/use-viewer-state';
 import type { Photo } from '@/app/features/photos/models/photos.models';
@@ -14,24 +15,40 @@ import { LayoutGrid, LibraryBig, Star, StarOff } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-/** Find the back photo (if any) for the given front. The front has a 'front-of' relation pointing to its back's catalog id. */
-function findBackFor(front: Photo, allPhotos: Photo[]): Photo | null {
-    const frontOf = front.relations?.find((r) => r.relationType === 'front-of');
-    if (!frontOf) return null;
-    return allPhotos.find((p) => p.catalogId === frontOf.relatedPhotoId) ?? null;
+interface RelatedPhoto {
+    photo: Photo;
+    label: string;
+}
+
+/**
+ * Collect the photos to show stacked on the side panel for the given main photo:
+ * backs first (front-of relations), then raws (enhanced-version-of relations).
+ */
+function findRelatedPhotos(main: Photo, allPhotos: Photo[]): RelatedPhoto[] {
+    const byCatalogId = new Map(allPhotos.filter((p) => p.catalogId).map((p) => [p.catalogId!, p]));
+    const backs: RelatedPhoto[] = [];
+    const raws: RelatedPhoto[] = [];
+    for (const rel of main.relations ?? []) {
+        const target = byCatalogId.get(rel.relatedPhotoId);
+        if (!target) continue;
+        if (rel.relationType === 'front-of') backs.push({ photo: target, label: 'Back' });
+        else if (rel.relationType === 'enhanced-version-of') raws.push({ photo: target, label: 'Raw' });
+    }
+    return [...backs, ...raws];
 }
 
 export function ViewerPage() {
     const navigate = useNavigate();
-    const { useGetFolders, useGetPhotos, useSetFolderCover, useClearFolderCover } = usePhotosQueries();
+    const { useGetFolders, useGetPhotos, useSetFolderCover, useClearFolderCover, useRatePhoto } = usePhotosQueries();
     const setCover = useSetFolderCover();
     const clearCover = useClearFolderCover();
+    const ratePhoto = useRatePhoto();
     const { useGetMe, useLogout } = useAuthQueries();
     const { currentFolderIndex, currentPhotoIndex, view, setFolder, openPhoto, backToGallery, goToAlbums, nextPhoto, prevPhoto } =
         useViewerState();
     const { data: me } = useGetMe();
     const logout = useLogout();
-    const [backEnlarged, setBackEnlarged] = useState(false);
+    const [enlargedRelatedId, setEnlargedRelatedId] = useState<string | null>(null);
 
     const { data: folders = [], isLoading: foldersLoading } = useGetFolders();
 
@@ -45,27 +62,31 @@ export function ViewerPage() {
     const currentFolder = folders[currentFolderIndex];
     const { data: allPhotos = [], isLoading: photosLoading } = useGetPhotos(currentFolder?.id ?? null);
 
-    // Hide photos that are the back of another — they should only appear as the side thumbnail.
-    const viewablePhotos = useMemo(() => allPhotos.filter((p) => !p.relations?.some((r) => r.relationType === 'back-of')), [allPhotos]);
+    // Hide photos that are a back or a raw — they only appear as side thumbnails.
+    const viewablePhotos = useMemo(
+        () => allPhotos.filter((p) => !p.relations?.some((r) => r.relationType === 'back-of' || r.relationType === 'raw-version-of')),
+        [allPhotos],
+    );
 
     const currentPhoto = viewablePhotos[currentPhotoIndex] ?? null;
-    const back = currentPhoto ? findBackFor(currentPhoto, allPhotos) : null;
+    const relatedPhotos = useMemo(() => (currentPhoto ? findRelatedPhotos(currentPhoto, allPhotos) : []), [currentPhoto, allPhotos]);
+    const enlargedRelated = relatedPhotos.find((r) => r.photo.id === enlargedRelatedId) ?? null;
 
     // Reset the enlargement whenever the current photo changes.
     useEffect(() => {
-        setBackEnlarged(false);
+        setEnlargedRelatedId(null);
     }, [currentPhoto?.id]);
 
-    // Allow Escape to cancel back-enlargement or return to the gallery.
+    // Allow Escape to cancel related-photo enlargement or return to the gallery.
     useEffect(() => {
         function onKey(e: KeyboardEvent) {
             if (e.key !== 'Escape') return;
-            if (backEnlarged) setBackEnlarged(false);
+            if (enlargedRelated) setEnlargedRelatedId(null);
             else if (view === 'photo') backToGallery();
         }
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
-    }, [backEnlarged, view, backToGallery]);
+    }, [enlargedRelated, view, backToGallery]);
 
     const handleNext = useCallback(() => nextPhoto(viewablePhotos.length), [nextPhoto, viewablePhotos.length]);
     const handlePrev = useCallback(() => prevPhoto(viewablePhotos.length), [prevPhoto, viewablePhotos.length]);
@@ -76,7 +97,7 @@ export function ViewerPage() {
         });
     }
 
-    const displayPhoto = backEnlarged && back ? back : currentPhoto;
+    const displayPhoto = enlargedRelated ? enlargedRelated.photo : currentPhoto;
     const isAlbums = view === 'albums';
     const isGallery = view === 'gallery';
     const isPhoto = view === 'photo';
@@ -162,12 +183,23 @@ export function ViewerPage() {
                         <LetterboxViewer
                             photo={displayPhoto}
                             isLoading={photosLoading && !!currentFolder}
-                            onClick={backEnlarged ? () => setBackEnlarged(false) : undefined}
+                            onClick={enlargedRelated ? () => setEnlargedRelatedId(null) : undefined}
                         />
                     )
                 }
                 rightPanel={
-                    isPhoto && back && !backEnlarged ? <BackThumbnail back={back} onClick={() => setBackEnlarged(true)} /> : undefined
+                    isPhoto && relatedPhotos.length > 0 && !enlargedRelated ? (
+                        <div className="flex flex-col gap-3 p-4">
+                            {relatedPhotos.map((r) => (
+                                <RelatedThumbnail
+                                    key={r.photo.id}
+                                    photo={r.photo}
+                                    label={r.label}
+                                    onClick={() => setEnlargedRelatedId(r.photo.id)}
+                                />
+                            ))}
+                        </div>
+                    ) : undefined
                 }
                 toolbar={
                     isAlbums ? (
@@ -179,12 +211,27 @@ export function ViewerPage() {
                             {viewablePhotos.length} {viewablePhotos.length === 1 ? 'photo' : 'photos'}
                         </div>
                     ) : (
-                        <PhotoControls
-                            currentIndex={currentPhotoIndex}
-                            totalCount={viewablePhotos.length}
-                            onPrev={handlePrev}
-                            onNext={handleNext}
-                        />
+                        <div className="flex items-center justify-center gap-6 px-4 py-2">
+                            <PhotoControls
+                                currentIndex={currentPhotoIndex}
+                                totalCount={viewablePhotos.length}
+                                onPrev={handlePrev}
+                                onNext={handleNext}
+                            />
+                            {currentPhoto?.catalogId && currentFolder && (
+                                <StarRating
+                                    rating={currentPhoto.rating}
+                                    disabled={ratePhoto.isPending}
+                                    onChange={(rating) =>
+                                        ratePhoto.mutate({
+                                            catalogId: currentPhoto.catalogId!,
+                                            folderId: currentFolder.id,
+                                            rating,
+                                        })
+                                    }
+                                />
+                            )}
+                        </div>
                     )
                 }
             />

@@ -10,6 +10,7 @@ import { importManifest, type ManifestRelationEntry, type PhotoManifestEntry } f
 import { createAuthRouter } from './routes/auth.router.js';
 import { createFoldersRouter } from './routes/folders.router.js';
 import { createPhotosRouter } from './routes/photos.router.js';
+import { createRatingsRouter } from './routes/ratings.router.js';
 import { createRelationsRouter } from './routes/relations.router.js';
 import { createSeriesRouter } from './routes/series.router.js';
 import { OneDriveService } from './services/onedrive.service.js';
@@ -63,6 +64,7 @@ app.use(cookieParser());
 app.use('/api/auth', createAuthRouter());
 app.use('/api/folders', requireAuth, createFoldersRouter(oneDriveService));
 app.use('/api/photos', requireAuth, createPhotosRouter());
+app.use('/api/ratings', requireAuth, createRatingsRouter());
 app.use('/api/relations', requireAuth, createRelationsRouter());
 app.use('/api/series', requireAuth, createSeriesRouter());
 
