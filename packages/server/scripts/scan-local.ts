@@ -3,17 +3,13 @@
  * Standalone local photo scanner. No server dependencies — runs anywhere
  * with Node.js + tsx (including Windows).
  *
- * Walks a root folder recursively, computes SHA-256 for each image, detects
- * front/back and original/enhanced relations from filename conventions, and
- * writes a JSON manifest. Each photo's `folderName` is its directory path
- * relative to the scan root (using forward slashes for cross-platform match).
+ * Walks a root folder recursively, computes SHA-256 for each image, groups
+ * files that share a base name (ignoring suffixes like `_a`/`_b`/`_back`) into
+ * "bundles" representing one physical photograph, assigns each file a side
+ * (front/back) and a heuristic preferred hint, and writes a JSON manifest.
  *
  * Usage:
  *   npx tsx scan-local.ts <root-path> [-o manifest.json]
- *
- * Examples:
- *   npx tsx scan-local.ts "C:\Users\Jim\OneDrive" -o manifest.json
- *   npx tsx scan-local.ts /home/jim/OneDrive
  */
 import crypto from "node:crypto";
 import fs from "node:fs";
@@ -46,7 +42,10 @@ const MIME_MAP: Record<string, string> = {
   ".heif": "image/heif",
 };
 
-interface ManifestEntry {
+type Side = "front" | "back";
+type Variant = "enhanced" | "original" | "back";
+
+interface ScannedFile {
   contentHash: string;
   fileName: string;
   mimeType: string;
@@ -55,125 +54,111 @@ interface ManifestEntry {
   localPath: string;
 }
 
-interface ManifestRelation {
-  sourceHash: string;
-  targetHash: string;
-  relationType: "back-of" | "enhanced-version-of";
+interface ManifestEntry extends ScannedFile {
+  /** Stable identifier that groups files of the same physical photograph. */
+  bundleKey: string;
+  side: Side;
+  /** Scanner's guess at the preferred version for this (bundle, side). */
+  preferredHint: boolean;
 }
 
 interface Manifest {
   scannedAt: string;
   photos: ManifestEntry[];
-  relations: ManifestRelation[];
 }
 
-/** Suffix patterns that indicate a relationship to the base-named photo. */
-const SUFFIX_PATTERNS: {
-  pattern: RegExp;
-  relationType: ManifestRelation["relationType"];
-}[] = [
-  { pattern: /[-_ ]b$/i, relationType: "back-of" },
-  { pattern: /[-_ ]back$/i, relationType: "back-of" },
-  { pattern: /[-_ ]a$/i, relationType: "enhanced-version-of" },
-  { pattern: /[-_ ]alt$/i, relationType: "enhanced-version-of" },
-  { pattern: /[-_ ]enhanced$/i, relationType: "enhanced-version-of" },
+/**
+ * Suffix patterns applied to a basename (extension stripped) to decide its
+ * role in a bundle. Order matters: `_back` / `_enhanced` are checked before
+ * single-letter `_b` / `_a` so longer matches win.
+ */
+const SUFFIX_PATTERNS: { pattern: RegExp; variant: Variant }[] = [
+  { pattern: /[-_ ]back$/i, variant: "back" },
+  { pattern: /[-_ ]enhanced$/i, variant: "enhanced" },
+  { pattern: /[-_ ]alt$/i, variant: "enhanced" },
+  { pattern: /[-_ ]b$/i, variant: "back" },
+  { pattern: /[-_ ]a$/i, variant: "enhanced" },
 ];
 
-/**
- * Given a filename (without extension), check if it ends with a known suffix.
- * Returns the base name and relation type, or null if no match.
- */
-function parseSuffix(
-  baseName: string,
-): {
-  strippedName: string;
-  relationType: ManifestRelation["relationType"];
-} | null {
-  for (const { pattern, relationType } of SUFFIX_PATTERNS) {
-    if (pattern.test(baseName)) {
-      const strippedName = baseName.replace(pattern, "");
-      if (strippedName.length > 0) {
-        return { strippedName, relationType };
-      }
-    }
-  }
-  return null;
+interface ParsedName {
+  /** The filename with the variant suffix stripped (still includes no extension). */
+  baseName: string;
+  variant: Variant | "bare";
 }
 
-/** Back-suffix variants tried when pairing an orphaned alt (e.g. `XXX_a`) with its back. */
-const BACK_SUFFIX_VARIANTS = ["_b", "-b", " b", "_back", "-back", " back"];
+/**
+ * Strip a known suffix from a basename and classify it. A bare name (no
+ * recognized suffix) is the "original" front version.
+ */
+function parseFileName(baseName: string): ParsedName {
+  for (const { pattern, variant } of SUFFIX_PATTERNS) {
+    if (pattern.test(baseName)) {
+      const stripped = baseName.replace(pattern, "");
+      if (stripped.length > 0) return { baseName: stripped, variant };
+    }
+  }
+  return { baseName, variant: "bare" };
+}
 
 /**
- * Detect relationships between photos based on filename conventions.
- * E.g. "photo001_b.jpg" is the back of "photo001.jpg".
- *
- * Pairs are scoped to each immediate directory (folderName) so unrelated
- * photos in different albums that happen to share a base name aren't paired.
+ * Rank fronts so the enhanced variant wins as the default preferred. Lower is
+ * better. Ties fall through to alphabetical fileName.
  */
-function detectRelations(entries: ManifestEntry[]): ManifestRelation[] {
-  // Lookup keyed by `${folderName}::${baseName.toLowerCase()}`
-  const byFolderAndBase = new Map<string, ManifestEntry>();
-  for (const entry of entries) {
-    const ext = path.extname(entry.fileName);
-    const baseName = path.basename(entry.fileName, ext);
-    byFolderAndBase.set(
-      `${entry.folderName}::${baseName.toLowerCase()}`,
-      entry,
-    );
+function frontRank(variant: ParsedName["variant"]): number {
+  if (variant === "enhanced") return 0;
+  if (variant === "bare") return 1;
+  return 2;
+}
+
+function buildBundles(files: ScannedFile[]): ManifestEntry[] {
+  // Group files by (folder, strippedBaseName). Each group becomes one bundle.
+  interface GroupMember {
+    file: ScannedFile;
+    parsed: ParsedName;
+  }
+  const groups = new Map<string, GroupMember[]>();
+
+  for (const file of files) {
+    const ext = path.extname(file.fileName);
+    const baseName = path.basename(file.fileName, ext);
+    const parsed = parseFileName(baseName);
+    const key = `${file.folderName}::${parsed.baseName.toLowerCase()}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push({ file, parsed });
   }
 
-  const relations: ManifestRelation[] = [];
-  const seen = new Set<string>();
+  const out: ManifestEntry[] = [];
 
-  function record(
-    source: ManifestEntry,
-    target: ManifestEntry,
-    relationType: ManifestRelation["relationType"],
-  ): void {
-    if (source.contentHash === target.contentHash) return;
-    const key = `${source.contentHash}::${target.contentHash}::${relationType}`;
-    if (seen.has(key)) return;
-    seen.add(key);
-    relations.push({
-      sourceHash: source.contentHash,
-      targetHash: target.contentHash,
-      relationType,
+  for (const [bundleKey, members] of groups) {
+    const fronts = members.filter((m) => m.parsed.variant !== "back");
+    const backs = members.filter((m) => m.parsed.variant === "back");
+
+    fronts.sort(
+      (a, b) =>
+        frontRank(a.parsed.variant) - frontRank(b.parsed.variant) ||
+        a.file.fileName.localeCompare(b.file.fileName),
+    );
+    backs.sort((a, b) => a.file.fileName.localeCompare(b.file.fileName));
+
+    fronts.forEach((m, i) => {
+      out.push({
+        ...m.file,
+        bundleKey,
+        side: "front",
+        preferredHint: i === 0,
+      });
     });
-    process.stderr.write(
-      `  ↳ ${source.folderName}/${source.fileName} → ${relationType} → ${target.fileName}\n`,
-    );
+    backs.forEach((m, i) => {
+      out.push({
+        ...m.file,
+        bundleKey,
+        side: "back",
+        preferredHint: i === 0,
+      });
+    });
   }
 
-  for (const entry of entries) {
-    const ext = path.extname(entry.fileName);
-    const baseName = path.basename(entry.fileName, ext);
-    const parsed = parseSuffix(baseName);
-    if (!parsed) continue;
-
-    const direct = byFolderAndBase.get(
-      `${entry.folderName}::${parsed.strippedName.toLowerCase()}`,
-    );
-    if (direct) {
-      record(entry, direct, parsed.relationType);
-      continue;
-    }
-
-    // Fallback: an orphaned alt (e.g. `XXX_a` with no `XXX`) pairs with
-    // `XXX_b`/`XXX_back`/etc. The alt becomes the front; the `_b` is its back.
-    if (parsed.relationType === "enhanced-version-of") {
-      for (const suffix of BACK_SUFFIX_VARIANTS) {
-        const back = byFolderAndBase.get(
-          `${entry.folderName}::${(parsed.strippedName + suffix).toLowerCase()}`,
-        );
-        if (back) {
-          record(back, entry, "back-of");
-          break;
-        }
-      }
-    }
-  }
-
-  return relations;
+  return out;
 }
 
 function hashFile(filePath: string): Promise<string> {
@@ -189,8 +174,8 @@ function hashFile(filePath: string): Promise<string> {
 async function scanFolderRecursive(
   rootPath: string,
   currentPath: string,
-): Promise<ManifestEntry[]> {
-  const entries: ManifestEntry[] = [];
+): Promise<ScannedFile[]> {
+  const entries: ScannedFile[] = [];
   const dirEntries = await fsp.readdir(currentPath, { withFileTypes: true });
 
   for (const dirEntry of dirEntries) {
@@ -277,16 +262,16 @@ async function main() {
   }
 
   console.error(`Scanning root: ${rootPath}`);
-  const photos = await scanFolderRecursive(rootPath, rootPath);
-  const relations = detectRelations(photos);
+  const scanned = await scanFolderRecursive(rootPath, rootPath);
+  const photos = buildBundles(scanned);
+  const bundleCount = new Set(photos.map((p) => p.bundleKey)).size;
   const manifest: Manifest = {
     scannedAt: new Date().toISOString(),
     photos,
-    relations,
   };
 
   console.error(
-    `\nDone. ${manifest.photos.length} photos scanned, ${relations.length} relations detected.`,
+    `\nDone. ${photos.length} photos across ${bundleCount} bundles.`,
   );
 
   const json = JSON.stringify(manifest, null, 2);

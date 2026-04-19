@@ -11,7 +11,7 @@ import { useViewerState } from '@/app/features/photos/hooks/use-viewer-state';
 import type { Photo } from '@/app/features/photos/models/photos.models';
 import { ViewerLayout } from '@/components/layout/viewer-layout';
 import { Button } from '@/components/ui/button';
-import { ExternalLink, Filter, FolderCog, Heart, LayoutGrid, LibraryBig, Star, StarOff } from 'lucide-react';
+import { Check, ExternalLink, Filter, FolderCog, Heart, LayoutGrid, LibraryBig, Star, StarOff, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
@@ -22,27 +22,33 @@ interface RelatedPhoto {
 
 /**
  * Collect the photos to show stacked on the side panel for the given main photo:
- * backs first (front-of relations), then raws (enhanced-version-of relations).
+ * backs first, then other front versions. Siblings are discovered via shared
+ * bundleId. Within each side, preferred peers sort first.
  */
 function findRelatedPhotos(main: Photo, allPhotos: Photo[]): RelatedPhoto[] {
-    const byCatalogId = new Map(allPhotos.filter((p) => p.catalogId).map((p) => [p.catalogId!, p]));
+    if (!main.bundleId) return [];
+    const siblings = allPhotos.filter((p) => p.bundleId === main.bundleId && p.id !== main.id);
     const backs: RelatedPhoto[] = [];
-    const raws: RelatedPhoto[] = [];
-    for (const rel of main.relations ?? []) {
-        const target = byCatalogId.get(rel.relatedPhotoId);
-        if (!target) continue;
-        if (rel.relationType === 'front-of') backs.push({ photo: target, label: 'Back' });
-        else if (rel.relationType === 'enhanced-version-of') raws.push({ photo: target, label: 'Raw' });
+    const others: RelatedPhoto[] = [];
+    for (const p of siblings) {
+        if (p.side === 'back') backs.push({ photo: p, label: 'Back' });
+        else if (p.side === 'front') others.push({ photo: p, label: 'Original' });
     }
-    return [...backs, ...raws];
+    const byPreferredThenName = (a: RelatedPhoto, b: RelatedPhoto) => {
+        if (!!a.photo.isPreferred !== !!b.photo.isPreferred) return a.photo.isPreferred ? -1 : 1;
+        return a.photo.name.localeCompare(b.photo.name);
+    };
+    return [...backs.sort(byPreferredThenName), ...others.sort(byPreferredThenName)];
 }
 
 export function ViewerPage() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
-    const { useGetFolders, useGetPhotos, useSetFolderCover, useClearFolderCover, useRatePhoto, useGetShareLink } = usePhotosQueries();
+    const { useGetFolders, useGetPhotos, useSetFolderCover, useClearFolderCover, useSetPreferredPhoto, useRatePhoto, useGetShareLink } =
+        usePhotosQueries();
     const setCover = useSetFolderCover();
     const clearCover = useClearFolderCover();
+    const setPreferred = useSetPreferredPhoto();
     const ratePhoto = useRatePhoto();
     const { useGetMe, useLogout } = useAuthQueries();
     const { data: me } = useGetMe();
@@ -61,10 +67,16 @@ export function ViewerPage() {
     );
     const { data: allPhotos = [], isLoading: photosLoading } = useGetPhotos(folderForFetch?.id ?? null);
 
-    // Hide photos that are a back or a raw — they only appear as side thumbnails.
+    // Show one photo per bundle in the gallery: the preferred front. Uncataloged
+    // photos have no bundle info and are always shown. Photos that are siblings
+    // (non-preferred, or backs) only appear as thumbnails in the side panel.
     const viewablePhotos = useMemo(() => {
         if (uncatalogedOnly) return allPhotos.filter((p) => !p.catalogId);
-        return allPhotos.filter((p) => !p.relations?.some((r) => r.relationType === 'back-of' || r.relationType === 'raw-version-of'));
+        return allPhotos.filter((p) => {
+            if (!p.catalogId) return true;
+            if (!p.bundleId) return true;
+            return p.side === 'front' && !!p.isPreferred;
+        });
     }, [allPhotos, uncatalogedOnly]);
 
     const { currentFolder, currentPhotoIndex, view, setFolder, openPhoto, backToGallery, goToAlbums, nextPhoto, prevPhoto } =
@@ -122,6 +134,13 @@ export function ViewerPage() {
         } else {
             setCover.mutate({ folderId: currentFolder.id, fileName: currentPhoto.name });
         }
+    };
+
+    const displayPhotoIsPreferred = !!displayPhoto?.isPreferred;
+    const canSetPreferred = !!displayPhoto?.catalogId && !!displayPhoto.bundleId && !displayPhotoIsPreferred;
+    const handleSetPreferred = () => {
+        if (!displayPhoto?.catalogId || !currentFolder) return;
+        setPreferred.mutate({ catalogId: displayPhoto.catalogId, folderId: currentFolder.id });
     };
 
     return (
@@ -205,6 +224,18 @@ export function ViewerPage() {
                                     )}
                                 </Button>
                             )}
+                            {isAdmin && isPhoto && canSetPreferred && (
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={handleSetPreferred}
+                                    disabled={setPreferred.isPending}
+                                    title="Make this the preferred version for its side of the bundle"
+                                >
+                                    <Check className="mr-2 h-4 w-4" />
+                                    Set as preferred
+                                </Button>
+                            )}
                             <span className="text-sm text-muted-foreground">{me?.displayName}</span>
                             <Button variant="ghost" size="sm" onClick={handleLogout}>
                                 Sign out
@@ -218,11 +249,25 @@ export function ViewerPage() {
                     ) : isGallery ? (
                         <PhotoGallery photos={viewablePhotos} isLoading={photosLoading && !!currentFolder} onSelect={openPhoto} />
                     ) : (
-                        <LetterboxViewer
-                            photo={displayPhoto}
-                            isLoading={photosLoading && !!currentFolder}
-                            onClick={enlargedRelated ? () => setEnlargedRelatedId(null) : undefined}
-                        />
+                        <div className="relative h-full w-full">
+                            <LetterboxViewer
+                                photo={displayPhoto}
+                                isLoading={photosLoading && !!currentFolder}
+                                onClick={enlargedRelated ? () => setEnlargedRelatedId(null) : undefined}
+                            />
+                            {enlargedRelated && (
+                                <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    onClick={() => setEnlargedRelatedId(null)}
+                                    className="absolute right-4 top-4 z-10 shadow"
+                                    title="Back to main photo (Esc)"
+                                >
+                                    <X className="mr-2 h-4 w-4" />
+                                    Back to main photo
+                                </Button>
+                            )}
+                        </div>
                     )
                 }
                 rightPanel={

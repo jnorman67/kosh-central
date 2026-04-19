@@ -13,7 +13,14 @@ function pickCover(photos: Photo[] | undefined, preferredFileName: string | unde
         if (chosen) return chosen;
         // Configured cover not found (renamed/deleted) — fall through to default.
     }
-    return photos.find((p) => !p.relations?.some((r) => r.relationType === 'back-of' || r.relationType === 'raw-version-of')) ?? null;
+    // Default cover is the first preferred-front in the folder; uncataloged
+    // photos without bundle info are treated as preferred fronts.
+    return (
+        photos.find((p) => {
+            if (!p.catalogId || !p.bundleId) return true;
+            return p.side === 'front' && !!p.isPreferred;
+        }) ?? null
+    );
 }
 
 export function AlbumGallery({ folders, onSelect }: AlbumGalleryProps) {

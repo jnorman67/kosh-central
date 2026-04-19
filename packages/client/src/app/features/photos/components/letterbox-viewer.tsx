@@ -1,17 +1,18 @@
 import type { Photo } from '@/app/features/photos/models/photos.models';
-import type { PointerEvent as ReactPointerEvent, MouseEvent as ReactMouseEvent } from 'react';
+import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
 
 interface LetterboxViewerProps {
     photo: Photo | null;
     isLoading: boolean;
-    /** If provided, the image becomes clickable (e.g. to cancel back-enlargement). */
+    /** If provided, an un-dragged click at scale 1 fires this (e.g. to cancel back-enlargement). */
     onClick?: () => void;
 }
 
 const MIN_SCALE = 1;
 const MAX_SCALE = 8;
 const DOUBLE_CLICK_SCALE = 2;
+const DRAG_THRESHOLD_PX = 3;
 
 export function LetterboxViewer({ photo, isLoading, onClick }: LetterboxViewerProps) {
     const [imgLoaded, setImgLoaded] = useState(false);
@@ -20,8 +21,7 @@ export function LetterboxViewer({ photo, isLoading, onClick }: LetterboxViewerPr
     const [isDragging, setIsDragging] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
     const dragStart = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
-
-    const zoomable = !onClick;
+    const movedRef = useRef(false);
 
     useEffect(() => {
         setImgLoaded(false);
@@ -29,18 +29,9 @@ export function LetterboxViewer({ photo, isLoading, onClick }: LetterboxViewerPr
         setOffset({ x: 0, y: 0 });
     }, [photo?.downloadUrl]);
 
-    // Reset zoom when entering/leaving the enlarged-related mode.
-    useEffect(() => {
-        if (!zoomable) {
-            setScale(1);
-            setOffset({ x: 0, y: 0 });
-        }
-    }, [zoomable]);
-
     // Wheel zoom, centered on the cursor. Must be a non-passive listener so we
     // can preventDefault.
     useEffect(() => {
-        if (!zoomable) return;
         const el = containerRef.current;
         if (!el) return;
 
@@ -65,10 +56,9 @@ export function LetterboxViewer({ photo, isLoading, onClick }: LetterboxViewerPr
 
         el.addEventListener('wheel', onWheel, { passive: false });
         return () => el.removeEventListener('wheel', onWheel);
-    }, [zoomable]);
+    }, []);
 
     function handleDoubleClick(e: ReactMouseEvent) {
-        if (!zoomable) return;
         const rect = containerRef.current!.getBoundingClientRect();
         const cx = e.clientX - rect.left - rect.width / 2;
         const cy = e.clientY - rect.top - rect.height / 2;
@@ -83,7 +73,8 @@ export function LetterboxViewer({ photo, isLoading, onClick }: LetterboxViewerPr
     }
 
     function handlePointerDown(e: ReactPointerEvent) {
-        if (!zoomable || scale === 1) return;
+        movedRef.current = false;
+        if (scale === 1) return;
         e.currentTarget.setPointerCapture(e.pointerId);
         dragStart.current = { x: e.clientX, y: e.clientY, ox: offset.x, oy: offset.y };
         setIsDragging(true);
@@ -92,7 +83,10 @@ export function LetterboxViewer({ photo, isLoading, onClick }: LetterboxViewerPr
     function handlePointerMove(e: ReactPointerEvent) {
         const start = dragStart.current;
         if (!start) return;
-        setOffset({ x: start.ox + (e.clientX - start.x), y: start.oy + (e.clientY - start.y) });
+        const dx = e.clientX - start.x;
+        const dy = e.clientY - start.y;
+        if (Math.abs(dx) > DRAG_THRESHOLD_PX || Math.abs(dy) > DRAG_THRESHOLD_PX) movedRef.current = true;
+        setOffset({ x: start.ox + dx, y: start.oy + dy });
     }
 
     function handlePointerUp(e: ReactPointerEvent) {
@@ -102,23 +96,26 @@ export function LetterboxViewer({ photo, isLoading, onClick }: LetterboxViewerPr
         setIsDragging(false);
     }
 
-    const clickable = !!onClick;
+    // Only treat a click as an exit gesture when we're at 1× and the pointer
+    // didn't drag — otherwise it conflicts with pan-tap and double-click.
+    function handleClick() {
+        if (!onClick) return;
+        if (movedRef.current) return;
+        if (scale !== 1) return;
+        onClick();
+    }
+
     const showSpinner = isLoading || (!!photo && !imgLoaded);
     const zoomed = scale > 1;
+    const exitable = !!onClick && scale === 1;
 
-    const cursorClass = clickable
-        ? 'cursor-zoom-out'
-        : zoomed
-          ? isDragging
-              ? 'cursor-grabbing'
-              : 'cursor-grab'
-          : 'cursor-zoom-in';
+    const cursorClass = zoomed ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : exitable ? 'cursor-zoom-out' : 'cursor-zoom-in';
 
     return (
         <div
             ref={containerRef}
             className={`relative flex h-full w-full items-center justify-center overflow-hidden bg-black ${cursorClass}`}
-            onClick={clickable ? onClick : undefined}
+            onClick={handleClick}
             onDoubleClick={handleDoubleClick}
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}

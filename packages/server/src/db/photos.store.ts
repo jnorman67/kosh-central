@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
+import { setBundleMembership, upsertBundleByScannerKey, type BundleSide } from './bundles.store.js';
 import { getDb } from './database.js';
-import { createRelation, type RelationType } from './relations.store.js';
 import { addSeriesMember, upsertFolderSeries } from './series.store.js';
 
 export interface StoredPhoto {
@@ -10,6 +10,9 @@ export interface StoredPhoto {
     mimeType: string;
     fileSize: number | null;
     takenAt: string | null;
+    bundleId: string | null;
+    side: BundleSide | null;
+    isPreferred: boolean;
     createdAt: string;
 }
 
@@ -29,6 +32,9 @@ interface PhotoRow {
     mime_type: string;
     file_size: number | null;
     taken_at: string | null;
+    bundle_id: string | null;
+    side: string | null;
+    is_preferred: number;
     created_at: string;
 }
 
@@ -49,6 +55,9 @@ function rowToPhoto(row: PhotoRow): StoredPhoto {
         mimeType: row.mime_type,
         fileSize: row.file_size,
         takenAt: row.taken_at,
+        bundleId: row.bundle_id,
+        side: (row.side as BundleSide | null) ?? null,
+        isPreferred: row.is_preferred === 1,
         createdAt: row.created_at,
     };
 }
@@ -81,7 +90,7 @@ export function listPhotos(): StoredPhoto[] {
     return rows.map(rowToPhoto);
 }
 
-export function createPhoto(photo: Omit<StoredPhoto, 'createdAt'>): StoredPhoto {
+export function createPhoto(photo: Omit<StoredPhoto, 'createdAt' | 'bundleId' | 'side' | 'isPreferred'>): StoredPhoto {
     const db = getDb();
     db.prepare(
         'INSERT INTO photos (id, content_hash, file_name, mime_type, file_size, taken_at) VALUES (?, ?, ?, ?, ?, ?)',
@@ -116,6 +125,18 @@ export function findPhotoByFolderAndName(folderName: string, fileName: string): 
     return row ? rowToPhoto(row) : undefined;
 }
 
+/**
+ * Return the other photos (by id) that share the bundle of the given photo.
+ * Used to surface bundle siblings via the folder photos endpoint so the client
+ * can render related-photo thumbnails without a second round trip.
+ */
+export function getBundleSiblingIds(bundleId: string, excludePhotoId: string): string[] {
+    const rows = getDb()
+        .prepare('SELECT id FROM photos WHERE bundle_id = ? AND id != ?')
+        .all(bundleId, excludePhotoId) as { id: string }[];
+    return rows.map((r) => r.id);
+}
+
 export function addPhotoLocation(location: Omit<StoredPhotoLocation, 'id'>): StoredPhotoLocation {
     const id = crypto.randomUUID();
     getDb()
@@ -136,12 +157,10 @@ export interface PhotoManifestEntry {
     folderUrl?: string;
     localPath?: string;
     onedriveId?: string;
-}
-
-export interface ManifestRelationEntry {
-    sourceHash: string;
-    targetHash: string;
-    relationType: RelationType;
+    /** Bundle grouping fields emitted by the scanner. When absent, the photo is imported without bundle membership. */
+    bundleKey?: string;
+    side?: BundleSide;
+    preferredHint?: boolean;
 }
 
 /**
@@ -161,24 +180,25 @@ function deriveSubfolderLeaf(folderName: string, folderRoots: string[]): string 
     return suffix.split('/').pop() ?? null;
 }
 
-/** Bulk-import photos from a scan manifest. Returns counts of new vs existing. */
+/** Bulk-import photos from a scan manifest. Returns counts. */
 export function importManifest(
     entries: PhotoManifestEntry[],
-    relations?: ManifestRelationEntry[],
     folderRoots?: string[],
 ): {
     created: number;
     existing: number;
     locations: number;
-    relations: number;
+    bundles: number;
     seriesMembers: number;
 } {
     const db = getDb();
     let created = 0;
     let existing = 0;
     let locations = 0;
-    let relationsCreated = 0;
     let seriesMembers = 0;
+
+    // Resolve each unique scanner bundleKey to a bundle id (find-or-create), memoized per import.
+    const bundleIdByKey = new Map<string, string>();
 
     const importAll = db.transaction(() => {
         for (const entry of entries) {
@@ -207,6 +227,15 @@ export function importManifest(
             });
             locations++;
 
+            if (entry.bundleKey && entry.side) {
+                let bundleId = bundleIdByKey.get(entry.bundleKey);
+                if (!bundleId) {
+                    bundleId = upsertBundleByScannerKey(entry.bundleKey).id;
+                    bundleIdByKey.set(entry.bundleKey, bundleId);
+                }
+                setBundleMembership(photo.id, bundleId, entry.side, !!entry.preferredHint);
+            }
+
             if (folderRoots) {
                 const leaf = deriveSubfolderLeaf(entry.folderName, folderRoots);
                 if (leaf) {
@@ -216,27 +245,8 @@ export function importManifest(
                 }
             }
         }
-
-        if (relations) {
-            for (const rel of relations) {
-                const source = findPhotoByHash(rel.sourceHash);
-                const target = findPhotoByHash(rel.targetHash);
-                if (!source || !target) continue;
-
-                // Skip if this relation already exists
-                const existing = db
-                    .prepare(
-                        'SELECT 1 FROM photo_relations WHERE photo_id = ? AND related_photo_id = ? AND relation_type = ?',
-                    )
-                    .get(source.id, target.id, rel.relationType);
-                if (existing) continue;
-
-                createRelation(source.id, target.id, rel.relationType, null);
-                relationsCreated++;
-            }
-        }
     });
 
     importAll();
-    return { created, existing, locations, relations: relationsCreated, seriesMembers };
+    return { created, existing, locations, bundles: bundleIdByKey.size, seriesMembers };
 }

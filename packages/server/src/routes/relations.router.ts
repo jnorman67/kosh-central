@@ -8,7 +8,7 @@ import {
     type RelationType,
 } from '../db/relations.store.js';
 
-const VALID_TYPES: RelationType[] = ['back-of', 'front-of', 'duplicate-of', 'raw-version-of', 'enhanced-version-of'];
+const VALID_TYPES: RelationType[] = ['duplicate-of'];
 
 export function createRelationsRouter(): Router {
     const router = Router();

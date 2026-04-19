@@ -53,6 +53,16 @@ export const createPhotosQueries = (service: PhotosService) => {
         });
     };
 
+    const useSetPreferredPhoto = () => {
+        const qc = useQueryClient();
+        return useMutation({
+            mutationFn: ({ catalogId }: { catalogId: string; folderId: string }) => service.setPreferredPhoto(catalogId),
+            onSuccess: (_, { folderId }) => {
+                qc.invalidateQueries({ queryKey: PhotosQueryKeys.photos(folderId) });
+            },
+        });
+    };
+
     const useRatePhoto = () => {
         const qc = useQueryClient();
         return useMutation({
@@ -88,6 +98,7 @@ export const createPhotosQueries = (service: PhotosService) => {
         useGetPhotosForFolders,
         useSetFolderCover,
         useClearFolderCover,
+        useSetPreferredPhoto,
         useRatePhoto,
         useGetFavorites,
         useGetShareLink,

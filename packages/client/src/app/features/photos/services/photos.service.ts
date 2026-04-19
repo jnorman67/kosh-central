@@ -47,6 +47,11 @@ export class PhotosService {
         return res.json();
     }
 
+    async setPreferredPhoto(catalogId: string): Promise<void> {
+        const res = await fetch(`/api/admin/photos/${catalogId}/preferred`, { method: 'PUT' });
+        if (!res.ok) throw new Error('Failed to set preferred photo');
+    }
+
     async getShareLink(folderId: string, itemId: string): Promise<string> {
         const res = await fetch(`/api/folders/${folderId}/photos/${encodeURIComponent(itemId)}/share-link`);
         if (!res.ok) throw new Error('Failed to fetch share link');

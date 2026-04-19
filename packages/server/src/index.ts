@@ -7,11 +7,12 @@ import { requireAuth } from './auth/auth.middleware.js';
 import { MsalService } from './auth/msal.service.js';
 import { initDb } from './db/database.js';
 import { listFolders, seedFoldersIfEmpty } from './db/folders.store.js';
-import { importManifest, type ManifestRelationEntry, type PhotoManifestEntry } from './db/photos.store.js';
+import { importManifest, type PhotoManifestEntry } from './db/photos.store.js';
 import { createAuthRouter } from './routes/auth.router.js';
 import { createFavoritesRouter } from './routes/favorites.router.js';
 import { createFoldersAdminRouter } from './routes/folders-admin.router.js';
 import { createFoldersRouter } from './routes/folders.router.js';
+import { createPhotosAdminRouter } from './routes/photos-admin.router.js';
 import { createPhotosRouter } from './routes/photos.router.js';
 import { createRatingsRouter } from './routes/ratings.router.js';
 import { createRelationsRouter } from './routes/relations.router.js';
@@ -33,24 +34,17 @@ function loadManifest(): void {
 
     const raw = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as {
         photos?: PhotoManifestEntry[];
-        relations?: ManifestRelationEntry[];
     };
 
     const photoCount = raw.photos?.length ?? 0;
-    const relationCount = raw.relations?.length ?? 0;
-    console.log(`Manifest: ${photoCount} photos, ${relationCount} relations in ${manifestPath}`);
+    console.log(`Manifest: ${photoCount} photos in ${manifestPath}`);
 
     if (!photoCount) return;
 
-    const result = importManifest(
-        raw.photos!,
-        raw.relations,
-        listFolders().map((f) => f.folderPath),
-    );
+    const result = importManifest(raw.photos!, listFolders().map((f) => f.folderPath));
     console.log(
         `Manifest import: ${result.created} new photos, ${result.existing} already known, ` +
-            `${result.relations} new relations (of ${relationCount} in manifest), ` +
-            `${result.seriesMembers} folder-series memberships`,
+            `${result.bundles} bundles referenced, ${result.seriesMembers} folder-series memberships`,
     );
 }
 
@@ -72,6 +66,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(cookieParser());
 app.use('/api/auth', createAuthRouter());
 app.use('/api/admin/folders', requireAuth, createFoldersAdminRouter(oneDriveService));
+app.use('/api/admin/photos', requireAuth, createPhotosAdminRouter());
 app.use('/api/favorites', requireAuth, createFavoritesRouter(oneDriveService));
 app.use('/api/folders', requireAuth, createFoldersRouter(oneDriveService));
 app.use('/api/photos', requireAuth, createPhotosRouter());

@@ -79,15 +79,17 @@ From the admin screen you can:
 
 To get a sharing URL: right-click a folder in OneDrive > **Share** > **Anyone with the link** > **Copy link**.
 
-`folderPath` is the directory path relative to the local scan root, using forward slashes. It must match the `folderName` recorded by `scan-local.ts` so that local catalog data (content hash, front/back relations, etc.) can be joined to the OneDrive listing at request time. The `slug` is used in bookmarkable URLs and must be stable once published.
+`folderPath` is the directory path relative to the local scan root, using forward slashes. It must match the `folderName` recorded by `scan-local.ts` so that local catalog data (content hash, bundle membership, etc.) can be joined to the OneDrive listing at request time. The `slug` is used in bookmarkable URLs and must be stable once published.
 
 ## Local Catalog & Matching Strategy
 
-`scripts/scan-local.ts` walks a root directory once, computes SHA-256 for every image, detects front/back and original/enhanced relations from filename conventions, and emits a manifest. The manifest is imported via `POST /api/photos/import` and stored in SQLite. At request time, files returned by OneDrive are joined to local catalog rows by `(folderPath, fileName)`.
+`scripts/scan-local.ts` walks a root directory once, computes SHA-256 for every image, groups files that share a base name (e.g. `photo.jpg`, `photo_a.jpg`, `photo_b.jpg`) into **bundles** representing one physical photograph, assigns each file a `side` (front/back) and a heuristic preferred hint, and emits a manifest. The manifest is imported via `POST /api/photos/import` and stored in SQLite. At request time, files returned by OneDrive are joined to local catalog rows by `(folderPath, fileName)`.
+
+**Bundles and preferred versions.** A bundle has zero or more front versions (e.g. `photo.jpg` + `photo_a.jpg`) and zero or more backs (e.g. `photo_b.jpg`). Exactly one photo per `(bundle, side)` is marked `is_preferred`, enforced by a partial unique index. The scanner picks a default (enhanced variants beat bare names); admins can override with `PUT /api/admin/photos/:photoId/preferred`. Re-scans look up bundles by `scanner_key`, so admin overrides survive re-imports.
 
 **Current limitation — name-based matching is brittle.** OneDrive's folder listing returns file names, not content hashes, so we have no choice but to join on `(folderPath, fileName)`. This breaks down when:
 
-- A file is renamed in OneDrive but not locally (or vice versa) — the join silently misses and the OneDrive entry shows up without its hash, relations, or other local metadata.
+- A file is renamed in OneDrive but not locally (or vice versa) — the join silently misses and the OneDrive entry shows up without its hash, bundle, or other local metadata.
 - Two files in the same folder share a name across cases on a case-sensitive scan but a case-insensitive OneDrive (or the reverse) — false matches or missed matches.
 - A folder is restructured (renamed, moved, or split) — every `folderPath` in `FolderConfig` becomes stale at once.
 - The same physical file is referenced from multiple folders — local catalog supports multiple locations per content hash, but name-based matching can't take advantage of that.

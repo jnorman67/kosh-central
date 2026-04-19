@@ -33,7 +33,8 @@ packages/server/src/
   index.ts                          # Express entry point
   db/database.ts                    # SQLite init + migration runner
   db/photos.store.ts                # Photo + location CRUD, manifest import
-  db/relations.store.ts             # Photo relations CRUD (auto-inverse pairs)
+  db/bundles.store.ts               # Bundle (physical photo) CRUD + preferred-version invariant
+  db/relations.store.ts             # Cross-bundle relations (duplicate-of only; front/back/original live on bundles)
   db/series.store.ts                # Photo series + member CRUD
   db/folders.store.ts               # Folder config CRUD + cache + import/export helpers
   db/folders.seed.ts                # One-time seed data for a fresh `folders` table
@@ -45,7 +46,8 @@ packages/server/src/
   routes/folders.router.ts           # /api/folders (protected)
   routes/folders-admin.router.ts     # /api/admin/folders (admin-only CRUD + export/import)
   routes/photos.router.ts            # /api/photos (catalog + import)
-  routes/relations.router.ts         # /api/relations (CRUD with inverse)
+  routes/photos-admin.router.ts      # /api/admin/photos (admin-only preferred-version toggle)
+  routes/relations.router.ts         # /api/relations (duplicate-of only)
   routes/series.router.ts            # /api/series (CRUD + members)
   services/onedrive.service.ts       # Microsoft Graph API client
 packages/server/scripts/
@@ -72,7 +74,7 @@ Server env lives in `packages/server/.env` (gitignored):
 
 SQLite with sequential migrations defined in `packages/server/src/db/database.ts`. Add new migrations to the `migrations` array — they run automatically on server startup. The database file is gitignored.
 
-Tables: `users`, `photos` (content-addressed by SHA-256 hash), `photo_locations` (multiple locations per photo), `photo_relations` (directional pairs with auto-inverse), `photo_series` + `photo_series_members` (ordered groups), `folders` (admin-editable folder config, seeded once from `folders.seed.ts`).
+Tables: `users`, `photos` (content-addressed by SHA-256 hash, carry `bundle_id` / `side` / `is_preferred`), `photo_locations` (multiple locations per photo), `bundles` (one per physical photograph; scanner-keyed for idempotent re-import), `photo_relations` (cross-bundle `duplicate-of` only; front/back/original grouping lives on bundles), `photo_series` + `photo_series_members` (ordered groups), `folders` (admin-editable folder config, seeded once from `folders.seed.ts`).
 
 ## Auth Flow
 

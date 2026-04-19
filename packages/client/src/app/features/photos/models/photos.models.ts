@@ -5,7 +5,7 @@ export interface PhotoFolder {
     coverFileName?: string;
 }
 
-export type RelationType = 'back-of' | 'front-of' | 'duplicate-of' | 'raw-version-of' | 'enhanced-version-of';
+export type RelationType = 'duplicate-of';
 
 export interface PhotoRelation {
     id: string;
@@ -13,6 +13,8 @@ export interface PhotoRelation {
     relatedPhotoId: string;
     relationType: RelationType;
 }
+
+export type BundleSide = 'front' | 'back';
 
 export interface Photo {
     id: string;
@@ -23,7 +25,13 @@ export interface Photo {
     /** Catalog UUID, present when the OneDrive file matched a row in the local catalog. */
     catalogId?: string;
     contentHash?: string;
-    /** Relations where this photo is the subject (e.g. 'back-of' target). */
+    /** Bundle this photo belongs to (one physical photograph). Absent for uncataloged photos. */
+    bundleId?: string | null;
+    /** Which side of the physical photograph this file represents. */
+    side?: BundleSide | null;
+    /** Whether this photo is the preferred version for its (bundle, side). */
+    isPreferred?: boolean;
+    /** Cross-bundle relations (currently only duplicate-of). */
     relations: PhotoRelation[];
     /** Current user's rating (0–5), or null if unrated. Absent for uncataloged photos. */
     rating?: number | null;

@@ -56,6 +56,9 @@ export function createFoldersRouter(oneDriveService: OneDriveService): Router {
                     ...rest,
                     catalogId: cataloged.id,
                     contentHash: cataloged.contentHash,
+                    bundleId: cataloged.bundleId,
+                    side: cataloged.side,
+                    isPreferred: cataloged.isPreferred,
                     relations: getRelationsForPhoto(cataloged.id),
                     rating: myRatings.get(cataloged.id) ?? null,
                 };

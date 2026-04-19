@@ -1,13 +1,6 @@
 import { Router } from 'express';
 import { listFolders } from '../db/folders.store.js';
-import {
-    findPhotoById,
-    getPhotoLocations,
-    importManifest,
-    listPhotos,
-    type ManifestRelationEntry,
-    type PhotoManifestEntry,
-} from '../db/photos.store.js';
+import { findPhotoById, getPhotoLocations, importManifest, listPhotos, type PhotoManifestEntry } from '../db/photos.store.js';
 import { getRelationsForPhoto } from '../db/relations.store.js';
 import { getSeriesForPhoto } from '../db/series.store.js';
 
@@ -36,14 +29,13 @@ export function createPhotosRouter(): Router {
 
     /** Import a scan manifest (JSON body). */
     router.post('/import', (req, res) => {
-        const body = req.body as { photos?: PhotoManifestEntry[]; relations?: ManifestRelationEntry[] };
+        const body = req.body as { photos?: PhotoManifestEntry[] };
         if (!body.photos || !Array.isArray(body.photos)) {
             res.status(400).json({ error: 'Request body must have a "photos" array' });
             return;
         }
         const result = importManifest(
             body.photos,
-            body.relations,
             listFolders().map((f) => f.folderPath),
         );
         res.json(result);

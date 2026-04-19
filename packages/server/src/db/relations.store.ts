@@ -1,14 +1,13 @@
 import crypto from 'node:crypto';
 import { getDb } from './database.js';
 
-export type RelationType = 'back-of' | 'front-of' | 'duplicate-of' | 'raw-version-of' | 'enhanced-version-of';
+// Bundle membership (front/back, original/enhanced) is now modeled via the
+// `bundles` table; the only relation type that survives is cross-bundle
+// duplicate tracking.
+export type RelationType = 'duplicate-of';
 
 const INVERSE_MAP: Record<RelationType, RelationType> = {
-    'back-of': 'front-of',
-    'front-of': 'back-of',
     'duplicate-of': 'duplicate-of',
-    'raw-version-of': 'enhanced-version-of',
-    'enhanced-version-of': 'raw-version-of',
 };
 
 export interface StoredRelation {

@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3';
+import crypto from 'node:crypto';
 import path from 'node:path';
 
 const DB_FILENAME = 'kosh.db';
@@ -52,7 +53,8 @@ function runMigrations(db: Database.Database): void {
 
     const runAll = db.transaction(() => {
         for (const migration of toRun) {
-            db.exec(migration.sql);
+            if (migration.sql) db.exec(migration.sql);
+            if (migration.fn) migration.fn(db);
             db.prepare('INSERT INTO schema_version (version) VALUES (?)').run(migration.version);
             console.log(`Migration ${migration.version}: ${migration.description}`);
         }
@@ -64,7 +66,8 @@ function runMigrations(db: Database.Database): void {
 interface Migration {
     version: number;
     description: string;
-    sql: string;
+    sql?: string;
+    fn?: (db: Database.Database) => void;
 }
 
 const migrations: Migration[] = [
@@ -208,4 +211,136 @@ const migrations: Migration[] = [
             CREATE UNIQUE INDEX idx_folders_folder_path ON folders(folder_path COLLATE NOCASE);
         `,
     },
+    {
+        version: 9,
+        description: 'Create bundles table and add bundle membership columns to photos',
+        sql: `
+            CREATE TABLE bundles (
+                id TEXT PRIMARY KEY,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+
+            ALTER TABLE photos ADD COLUMN bundle_id TEXT REFERENCES bundles(id) ON DELETE SET NULL;
+            ALTER TABLE photos ADD COLUMN side TEXT CHECK (side IN ('front', 'back'));
+            ALTER TABLE photos ADD COLUMN is_preferred INTEGER NOT NULL DEFAULT 0 CHECK (is_preferred IN (0, 1));
+
+            CREATE INDEX idx_photos_bundle ON photos(bundle_id);
+            CREATE UNIQUE INDEX idx_photos_one_preferred_per_side
+                ON photos(bundle_id, side) WHERE is_preferred = 1;
+        `,
+    },
+    {
+        version: 10,
+        description: 'Backfill bundles from existing front/back and raw/enhanced relations',
+        fn: backfillBundlesFromRelations,
+    },
+    {
+        version: 11,
+        description: 'Add scanner_key to bundles for idempotent manifest re-imports',
+        sql: `
+            ALTER TABLE bundles ADD COLUMN scanner_key TEXT;
+            CREATE UNIQUE INDEX idx_bundles_scanner_key ON bundles(scanner_key) WHERE scanner_key IS NOT NULL;
+        `,
+    },
+    {
+        version: 12,
+        description: 'Drop superseded bundle-level relations (keep duplicate-of)',
+        sql: `
+            DELETE FROM photo_relations
+            WHERE relation_type IN ('back-of', 'front-of', 'raw-version-of', 'enhanced-version-of');
+        `,
+    },
 ];
+
+/**
+ * Build bundles from existing relation data. Connected components over the
+ * bundle-related relation types become bundles; a photo is 'back' iff it is
+ * the source of any back-of relation. Preferred is chosen heuristically
+ * (enhanced variants of a front beat the bare name; alphabetical as fallback).
+ *
+ * After bundling, the bundle-level relation rows are deleted — bundles now
+ * carry that information. `duplicate-of` rows are preserved for cross-bundle
+ * duplicate tracking.
+ */
+function backfillBundlesFromRelations(db: Database.Database): void {
+    const BUNDLE_RELATION_TYPES = ['back-of', 'front-of', 'raw-version-of', 'enhanced-version-of'];
+
+    const photos = db.prepare('SELECT id, file_name FROM photos').all() as { id: string; file_name: string }[];
+    if (photos.length === 0) return;
+
+    const rels = db
+        .prepare(
+            `SELECT photo_id, related_photo_id, relation_type FROM photo_relations
+             WHERE relation_type IN (${BUNDLE_RELATION_TYPES.map(() => '?').join(',')})`,
+        )
+        .all(...BUNDLE_RELATION_TYPES) as { photo_id: string; related_photo_id: string; relation_type: string }[];
+
+    const parent = new Map<string, string>();
+    for (const p of photos) parent.set(p.id, p.id);
+    function find(x: string): string {
+        let root = x;
+        while (parent.get(root)! !== root) root = parent.get(root)!;
+        while (parent.get(x)! !== root) {
+            const next = parent.get(x)!;
+            parent.set(x, root);
+            x = next;
+        }
+        return root;
+    }
+    function union(a: string, b: string): void {
+        const ra = find(a);
+        const rb = find(b);
+        if (ra !== rb) parent.set(ra, rb);
+    }
+    for (const r of rels) union(r.photo_id, r.related_photo_id);
+
+    // A photo is a back iff it is the source of a back-of relation (or,
+    // equivalently by inverse pair, the target of a front-of relation).
+    const backIds = new Set<string>();
+    for (const r of rels) {
+        if (r.relation_type === 'back-of') backIds.add(r.photo_id);
+    }
+
+    // Rank fronts: enhanced variants first, then bare, then anything else.
+    function frontRank(fileName: string): number {
+        const base = fileName.replace(/\.[^.]+$/, '');
+        if (/[-_ ](a|alt|enhanced)$/i.test(base)) return 0;
+        return 1;
+    }
+
+    const groups = new Map<string, string[]>();
+    for (const p of photos) {
+        const root = find(p.id);
+        if (!groups.has(root)) groups.set(root, []);
+        groups.get(root)!.push(p.id);
+    }
+
+    const photoById = new Map(photos.map((p) => [p.id, p]));
+    const createBundle = db.prepare('INSERT INTO bundles (id) VALUES (?)');
+    const updatePhoto = db.prepare('UPDATE photos SET bundle_id = ?, side = ?, is_preferred = ? WHERE id = ?');
+
+    for (const [, groupIds] of groups) {
+        const bundleId = crypto.randomUUID();
+        createBundle.run(bundleId);
+
+        const fronts: { id: string; file_name: string }[] = [];
+        const backs: { id: string; file_name: string }[] = [];
+        for (const id of groupIds) {
+            const ph = photoById.get(id)!;
+            if (backIds.has(id)) backs.push(ph);
+            else fronts.push(ph);
+        }
+
+        fronts.sort(
+            (a, b) => frontRank(a.file_name) - frontRank(b.file_name) || a.file_name.localeCompare(b.file_name),
+        );
+        backs.sort((a, b) => a.file_name.localeCompare(b.file_name));
+
+        fronts.forEach((p, i) => updatePhoto.run(bundleId, 'front', i === 0 ? 1 : 0, p.id));
+        backs.forEach((p, i) => updatePhoto.run(bundleId, 'back', i === 0 ? 1 : 0, p.id));
+    }
+
+    db.prepare(
+        `DELETE FROM photo_relations WHERE relation_type IN (${BUNDLE_RELATION_TYPES.map(() => '?').join(',')})`,
+    ).run(...BUNDLE_RELATION_TYPES);
+}
