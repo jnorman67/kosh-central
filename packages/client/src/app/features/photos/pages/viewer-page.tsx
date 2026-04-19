@@ -249,39 +249,45 @@ export function ViewerPage() {
                             )}
                         </div>
                     ) : (
-                        <div className="flex items-center justify-center gap-6 px-4 py-2">
-                            <PhotoControls
-                                currentIndex={currentPhotoIndex}
-                                totalCount={viewablePhotos.length}
-                                onPrev={handlePrev}
-                                onNext={handleNext}
-                            />
-                            {displayPhoto && (
-                                <span className="max-w-[40ch] truncate text-sm text-muted-foreground" title={displayPhoto.name}>
-                                    {displayPhoto.name}
-                                </span>
-                            )}
-                            {shareLink && (
-                                <Button variant="ghost" size="sm" asChild>
-                                    <a href={shareLink} target="_blank" rel="noreferrer" title="Open in OneDrive">
-                                        <ExternalLink className="mr-2 h-4 w-4" />
-                                        Open in OneDrive
-                                    </a>
-                                </Button>
-                            )}
-                            {currentPhoto?.catalogId && currentFolder && (
-                                <StarRating
-                                    rating={currentPhoto.rating}
-                                    disabled={ratePhoto.isPending}
-                                    onChange={(rating) =>
-                                        ratePhoto.mutate({
-                                            catalogId: currentPhoto.catalogId!,
-                                            folderId: currentFolder.id,
-                                            rating,
-                                        })
-                                    }
+                        <div className="grid grid-cols-3 items-center px-4 py-2">
+                            <div className="flex items-center justify-start gap-3 min-w-0">
+                                {shareLink && (
+                                    <Button variant="ghost" size="sm" asChild className="shrink-0">
+                                        <a href={shareLink} target="_blank" rel="noreferrer" title="Open in OneDrive">
+                                            <ExternalLink className="h-4 w-4" />
+                                            <span className="sr-only">Open in OneDrive</span>
+                                        </a>
+                                    </Button>
+                                )}
+                                {displayPhoto && (
+                                    <span className="truncate text-sm text-muted-foreground" title={displayPhoto.name}>
+                                        {displayPhoto.name}
+                                    </span>
+                                )}
+                            </div>
+                            <div className="flex items-center justify-center">
+                                <PhotoControls
+                                    currentIndex={currentPhotoIndex}
+                                    totalCount={viewablePhotos.length}
+                                    onPrev={handlePrev}
+                                    onNext={handleNext}
                                 />
-                            )}
+                            </div>
+                            <div className="flex items-center justify-end">
+                                {currentPhoto?.catalogId && currentFolder && (
+                                    <StarRating
+                                        rating={currentPhoto.rating}
+                                        disabled={ratePhoto.isPending}
+                                        onChange={(rating) =>
+                                            ratePhoto.mutate({
+                                                catalogId: currentPhoto.catalogId!,
+                                                folderId: currentFolder.id,
+                                                rating,
+                                            })
+                                        }
+                                    />
+                                )}
+                            </div>
                         </div>
                     )
                 }
