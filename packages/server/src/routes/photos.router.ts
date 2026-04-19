@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { FOLDERS } from '../config/folders.config.js';
+import { listFolders } from '../db/folders.store.js';
 import {
     findPhotoById,
     getPhotoLocations,
@@ -44,7 +44,7 @@ export function createPhotosRouter(): Router {
         const result = importManifest(
             body.photos,
             body.relations,
-            FOLDERS.map((f) => f.folderPath),
+            listFolders().map((f) => f.folderPath),
         );
         res.json(result);
     });

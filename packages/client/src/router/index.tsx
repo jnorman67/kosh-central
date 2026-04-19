@@ -1,3 +1,6 @@
+import { AdminQueryProvider } from '@/app/features/admin/contexts/admin-query.context';
+import { FoldersAdminPage } from '@/app/features/admin/pages/folders-admin-page';
+import { AdminGuard } from '@/app/features/auth/components/admin-guard';
 import { AuthGuard } from '@/app/features/auth/components/auth-guard';
 import { LoginPage } from '@/app/features/auth/pages/login-page';
 import { RegisterPage } from '@/app/features/auth/pages/register-page';
@@ -32,6 +35,18 @@ export const router = createBrowserRouter([
                 <PhotosQueryProvider>
                     <FavoritesPage />
                 </PhotosQueryProvider>
+            </AuthGuard>
+        ),
+    },
+    {
+        path: '/admin/folders',
+        element: (
+            <AuthGuard>
+                <AdminGuard>
+                    <AdminQueryProvider>
+                        <FoldersAdminPage />
+                    </AdminQueryProvider>
+                </AdminGuard>
             </AuthGuard>
         ),
     },

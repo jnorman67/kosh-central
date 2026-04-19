@@ -192,4 +192,20 @@ const migrations: Migration[] = [
                 ON photo_series(source_key) WHERE source_key IS NOT NULL;
         `,
     },
+    {
+        version: 8,
+        description: 'Create folders table for admin-editable folder configuration',
+        sql: `
+            CREATE TABLE folders (
+                slug TEXT PRIMARY KEY,
+                display_name TEXT NOT NULL,
+                sharing_url TEXT NOT NULL,
+                folder_path TEXT NOT NULL,
+                sort_order INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE UNIQUE INDEX idx_folders_folder_path ON folders(folder_path COLLATE NOCASE);
+        `,
+    },
 ];

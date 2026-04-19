@@ -69,21 +69,17 @@ In any of these cases, re-authenticate locally and re-upload as above.
 
 ## Adding Photo Folders
 
-Edit `packages/server/src/config/folders.config.ts` and add your OneDrive sharing URLs:
+Folder configuration is stored in the `folders` table and managed through the admin screen at `/admin/folders` (visible to admin users only). On first boot of a fresh database the table is seeded from `packages/server/src/db/folders.seed.ts`; after that, all changes happen in the UI.
 
-```typescript
-export const FOLDERS: FolderConfig[] = [
-  {
-    displayName: "My Album",
-    sharingUrl: "https://1drv.ms/f/c/...",
-    folderPath: "Dorothy's albums/album20",
-  },
-];
-```
+From the admin screen you can:
+
+- **Add / edit / delete** folder entries. The OneDrive sharing URL is validated against Microsoft Graph before save, so bad URLs are caught at edit time.
+- **Export** the current configuration as JSON.
+- **Import** a JSON file to propagate changes between environments (dev ↔ prod). Two modes: _upsert_ (add/update by slug, leave others untouched) or _replace_ (wipe existing rows, then insert the file's contents).
 
 To get a sharing URL: right-click a folder in OneDrive > **Share** > **Anyone with the link** > **Copy link**.
 
-`folderPath` is the directory path relative to the local scan root, using forward slashes. It must match the `folderName` recorded by `scan-local.ts` so that local catalog data (content hash, front/back relations, etc.) can be joined to the OneDrive listing at request time.
+`folderPath` is the directory path relative to the local scan root, using forward slashes. It must match the `folderName` recorded by `scan-local.ts` so that local catalog data (content hash, front/back relations, etc.) can be joined to the OneDrive listing at request time. The `slug` is used in bookmarkable URLs and must be stable once published.
 
 ## Local Catalog & Matching Strategy
 

@@ -35,13 +35,15 @@ packages/server/src/
   db/photos.store.ts                # Photo + location CRUD, manifest import
   db/relations.store.ts             # Photo relations CRUD (auto-inverse pairs)
   db/series.store.ts                # Photo series + member CRUD
+  db/folders.store.ts               # Folder config CRUD + cache + import/export helpers
+  db/folders.seed.ts                # One-time seed data for a fresh `folders` table
   auth/msal.service.ts              # OneDrive token acquisition (device code flow)
   auth/auth.middleware.ts            # JWT verification middleware
   auth/users.store.ts                # User CRUD (SQLite)
-  config/folders.config.ts           # OneDrive folder URLs + optional local paths
   config/invites.config.ts           # Hardcoded invite list (email + role)
   routes/auth.router.ts              # /api/auth (register, login, logout, me)
   routes/folders.router.ts           # /api/folders (protected)
+  routes/folders-admin.router.ts     # /api/admin/folders (admin-only CRUD + export/import)
   routes/photos.router.ts            # /api/photos (catalog + import)
   routes/relations.router.ts         # /api/relations (CRUD with inverse)
   routes/series.router.ts            # /api/series (CRUD + members)
@@ -52,9 +54,10 @@ packages/server/scripts/
 packages/client/src/
   app.tsx                            # Root: QueryClient + AuthQuery + Router
   router/index.tsx                   # Routes: /login, /register, / (protected)
-  app/features/auth/                 # Auth pages, service, queries, guard
+  app/features/auth/                 # Auth pages, service, queries, guards
   app/features/photos/               # Viewer page, folder selector, controls
-  components/ui/                     # shadcn components (button, card, input, label, select)
+  app/features/admin/                # Admin pages (folder configuration)
+  components/ui/                     # shadcn components (button, card, input, label, select, dialog, alert-dialog, table)
   components/layout/viewer-layout.tsx # CSS Grid shell (header/viewer/toolbar/panel)
 ```
 
@@ -69,7 +72,7 @@ Server env lives in `packages/server/.env` (gitignored):
 
 SQLite with sequential migrations defined in `packages/server/src/db/database.ts`. Add new migrations to the `migrations` array — they run automatically on server startup. The database file is gitignored.
 
-Tables: `users`, `photos` (content-addressed by SHA-256 hash), `photo_locations` (multiple locations per photo), `photo_relations` (directional pairs with auto-inverse), `photo_series` + `photo_series_members` (ordered groups).
+Tables: `users`, `photos` (content-addressed by SHA-256 hash), `photo_locations` (multiple locations per photo), `photo_relations` (directional pairs with auto-inverse), `photo_series` + `photo_series_members` (ordered groups), `folders` (admin-editable folder config, seeded once from `folders.seed.ts`).
 
 ## Auth Flow
 

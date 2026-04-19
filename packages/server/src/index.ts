@@ -5,11 +5,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { requireAuth } from './auth/auth.middleware.js';
 import { MsalService } from './auth/msal.service.js';
-import { FOLDERS } from './config/folders.config.js';
 import { initDb } from './db/database.js';
+import { listFolders, seedFoldersIfEmpty } from './db/folders.store.js';
 import { importManifest, type ManifestRelationEntry, type PhotoManifestEntry } from './db/photos.store.js';
 import { createAuthRouter } from './routes/auth.router.js';
 import { createFavoritesRouter } from './routes/favorites.router.js';
+import { createFoldersAdminRouter } from './routes/folders-admin.router.js';
 import { createFoldersRouter } from './routes/folders.router.js';
 import { createPhotosRouter } from './routes/photos.router.js';
 import { createRatingsRouter } from './routes/ratings.router.js';
@@ -17,17 +18,9 @@ import { createRelationsRouter } from './routes/relations.router.js';
 import { createSeriesRouter } from './routes/series.router.js';
 import { OneDriveService } from './services/onedrive.service.js';
 
-assertUniqueFolderSlugs();
 initDb();
+seedFoldersIfEmpty();
 loadManifest();
-
-function assertUniqueFolderSlugs(): void {
-    const slugs = FOLDERS.map((f) => f.slug);
-    const dupes = slugs.filter((s, i) => slugs.indexOf(s) !== i);
-    if (dupes.length) {
-        throw new Error(`Duplicate folder slugs in folders.config.ts: ${[...new Set(dupes)].join(', ')}`);
-    }
-}
 
 function loadManifest(): void {
     const manifestPath = process.env.KOSH_DATA_DIR
@@ -52,7 +45,7 @@ function loadManifest(): void {
     const result = importManifest(
         raw.photos!,
         raw.relations,
-        FOLDERS.map((f) => f.folderPath),
+        listFolders().map((f) => f.folderPath),
     );
     console.log(
         `Manifest import: ${result.created} new photos, ${result.existing} already known, ` +
@@ -78,6 +71,7 @@ const oneDriveService = new OneDriveService(msalService);
 app.use(express.json({ limit: '10mb' }));
 app.use(cookieParser());
 app.use('/api/auth', createAuthRouter());
+app.use('/api/admin/folders', requireAuth, createFoldersAdminRouter(oneDriveService));
 app.use('/api/favorites', requireAuth, createFavoritesRouter(oneDriveService));
 app.use('/api/folders', requireAuth, createFoldersRouter(oneDriveService));
 app.use('/api/photos', requireAuth, createPhotosRouter());
@@ -90,8 +84,19 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const clientDist = path.join(__dirname, '../../client/dist');
 
 if (process.env.NODE_ENV === 'production') {
-    app.use(express.static(clientDist));
+    app.use(
+        express.static(clientDist, {
+            setHeaders: (res, filePath) => {
+                if (filePath.endsWith('index.html')) {
+                    res.setHeader('Cache-Control', 'no-cache');
+                } else if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+                    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+                }
+            },
+        }),
+    );
     app.get('*', (_req, res) => {
+        res.setHeader('Cache-Control', 'no-cache');
         res.sendFile(path.join(clientDist, 'index.html'));
     });
 }

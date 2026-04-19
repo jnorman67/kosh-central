@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { FOLDERS } from '../config/folders.config.js';
+import { listFolders, type StoredFolder } from '../db/folders.store.js';
 import { getPhotoLocations } from '../db/photos.store.js';
 import { getFavoritePhotosForUser } from '../db/ratings.store.js';
 import { getRelationsForPhoto } from '../db/relations.store.js';
@@ -25,34 +25,48 @@ export function createFavoritesRouter(oneDriveService: OneDriveService): Router 
 
         const { rows, total } = getFavoritePhotosForUser(req.user!.userId, offset, limit);
 
-        // Map each favorite to the configured folder it lives in (first matching location wins).
-        // Keys are lowercased because photo_locations.folder_name casing doesn't always match
-        // folders.config.ts (the existing folder lookup uses SQL COLLATE NOCASE for the same reason).
-        const folderByFolderPath = new Map(FOLDERS.map((f) => [f.folderPath.toLowerCase(), f]));
+        // Map each favorite to the configured folder it lives under (longest folderPath
+        // prefix of the photo's location.folderName). This handles photos that live in
+        // subfolders of a configured album, not just at the album root.
+        // Lowercased because photo_locations.folder_name casing doesn't always match
+        // the configured folder path (the existing folder lookup uses SQL COLLATE NOCASE for the same reason).
+        const sortedFolders = [...listFolders()].sort((a, b) => b.folderPath.length - a.folderPath.length);
+        const findFolderForLocation = (folderName: string) => {
+            const lower = folderName.toLowerCase();
+            return sortedFolders.find((f) => {
+                const p = f.folderPath.toLowerCase();
+                return lower === p || lower.startsWith(p + '/');
+            });
+        };
         const assignments = rows.map((row) => {
             const locations = getPhotoLocations(row.photoId);
-            const match = locations
-                .map((l) => (l.folderName ? folderByFolderPath.get(l.folderName.toLowerCase()) : undefined))
-                .find((f): f is (typeof FOLDERS)[number] => !!f);
-            return { row, folder: match };
+            for (const l of locations) {
+                if (!l.folderName) continue;
+                const folder = findFolderForLocation(l.folderName);
+                if (folder) return { row, folder, locationFolderName: l.folderName };
+            }
+            return { row, folder: undefined, locationFolderName: undefined };
         });
 
         // Fetch OneDrive data for each unique folder in parallel (OneDriveService caches per URL).
-        const uniqueFolders = Array.from(new Set(assignments.map((a) => a.folder).filter((f): f is (typeof FOLDERS)[number] => !!f)));
+        const uniqueFolders = Array.from(new Set(assignments.map((a) => a.folder).filter((f): f is StoredFolder => !!f)));
         const folderResults = await Promise.allSettled(uniqueFolders.map((f) => oneDriveService.getPhotos(f.sharingUrl)));
-        const byFolderPath = new Map<string, Map<string, Awaited<ReturnType<OneDriveService['getPhotos']>>[number]>>();
+        // Key: lowercase `${folder.folderPath}/${subfolderPath}/${fileName}` (slashes collapsed
+        // when subfolderPath is empty). One flat map across all fetched folders.
+        const photoByFullPath = new Map<string, Awaited<ReturnType<OneDriveService['getPhotos']>>[number]>();
         uniqueFolders.forEach((folder, idx) => {
             const result = folderResults[idx];
             if (result.status !== 'fulfilled') return;
-            const byName = new Map<string, (typeof result.value)[number]>();
-            for (const p of result.value) byName.set(p.name.toLowerCase(), p);
-            byFolderPath.set(folder.folderPath.toLowerCase(), byName);
+            for (const p of result.value) {
+                const dir = p.subfolderPath ? `${folder.folderPath}/${p.subfolderPath}` : folder.folderPath;
+                photoByFullPath.set(`${dir.toLowerCase()}/${p.name.toLowerCase()}`, p);
+            }
         });
 
         const photos = assignments
-            .map(({ row, folder }) => {
-                if (!folder) return null;
-                const odPhoto = byFolderPath.get(folder.folderPath.toLowerCase())?.get(row.fileName.toLowerCase());
+            .map(({ row, folder, locationFolderName }) => {
+                if (!folder || !locationFolderName) return null;
+                const odPhoto = photoByFullPath.get(`${locationFolderName.toLowerCase()}/${row.fileName.toLowerCase()}`);
                 if (!odPhoto) return null;
                 return {
                     id: odPhoto.id,

@@ -3,18 +3,28 @@ import type { ReactNode } from 'react';
 interface ViewerLayoutProps {
     header: ReactNode;
     viewer: ReactNode;
-    toolbar: ReactNode;
+    toolbar?: ReactNode;
     rightPanel?: ReactNode;
 }
 
 export function ViewerLayout({ header, viewer, toolbar, rightPanel }: ViewerLayoutProps) {
+    const hasToolbar = toolbar !== undefined;
+    const rows = hasToolbar ? 'auto 1fr auto' : 'auto 1fr';
+    const areas = rightPanel
+        ? hasToolbar
+            ? '"header header" "viewer panel" "toolbar toolbar"'
+            : '"header header" "viewer panel"'
+        : hasToolbar
+          ? '"header" "viewer" "toolbar"'
+          : '"header" "viewer"';
+
     return (
         <div
             className="grid h-screen"
             style={{
-                gridTemplateRows: 'auto 1fr auto',
+                gridTemplateRows: rows,
                 gridTemplateColumns: rightPanel ? '1fr auto' : '1fr',
-                gridTemplateAreas: rightPanel ? '"header header" "viewer panel" "toolbar toolbar"' : '"header" "viewer" "toolbar"',
+                gridTemplateAreas: areas,
             }}
         >
             <header style={{ gridArea: 'header' }} className="border-b bg-background">
@@ -28,9 +38,11 @@ export function ViewerLayout({ header, viewer, toolbar, rightPanel }: ViewerLayo
                     {rightPanel}
                 </aside>
             )}
-            <div style={{ gridArea: 'toolbar' }} className="border-t bg-background">
-                {toolbar}
-            </div>
+            {hasToolbar && (
+                <div style={{ gridArea: 'toolbar' }} className="border-t bg-background">
+                    {toolbar}
+                </div>
+            )}
         </div>
     );
 }

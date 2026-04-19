@@ -1,8 +1,24 @@
 import type { MsalService } from '../auth/msal.service.js';
 
+/** Thrown when a OneDrive sharing URL fails to resolve to a valid shared folder. */
+export class ShareValidationError extends Error {
+    constructor(
+        message: string,
+        public detail?: string,
+    ) {
+        super(message);
+        this.name = 'ShareValidationError';
+    }
+}
+
 export interface Photo {
     id: string;
     name: string;
+    /**
+     * Path from the album root to the file's containing folder, forward-slashed.
+     * Empty string when the photo sits directly in the album root.
+     */
+    subfolderPath: string;
     downloadUrl: string;
     thumbnailUrl?: string;
     mimeType: string;
@@ -29,6 +45,31 @@ export class OneDriveService {
         return `u!${base64url}`;
     }
 
+    /**
+     * Lightweight probe to confirm a sharing URL resolves to a shared folder.
+     * Used by the admin UI before persisting a new/edited folder config so bad
+     * URLs are caught at save time rather than when users try to browse.
+     */
+    async validateSharingUrl(sharingUrl: string): Promise<void> {
+        const accessToken = await this.msalService.getAccessToken();
+        const encoded = this.encodeSharingUrl(sharingUrl);
+        const url = `https://graph.microsoft.com/v1.0/shares/${encoded}/driveItem?$select=id,folder`;
+        const res = await fetch(url, {
+            headers: {
+                Accept: 'application/json',
+                Authorization: `Bearer ${accessToken}`,
+            },
+        });
+        if (!res.ok) {
+            const body = await res.text().catch(() => '');
+            throw new ShareValidationError(`Share URL not reachable: ${res.status} ${res.statusText}`, body);
+        }
+        const json = (await res.json()) as { folder?: unknown };
+        if (!json.folder) {
+            throw new ShareValidationError('Share URL resolves to a non-folder item');
+        }
+    }
+
     async getPhotos(sharingUrl: string): Promise<Photo[]> {
         const cached = this.cache.get(sharingUrl);
         if (cached && Date.now() < cached.expiresAt) {
@@ -37,15 +78,31 @@ export class OneDriveService {
 
         const accessToken = await this.msalService.getAccessToken();
         const encoded = this.encodeSharingUrl(sharingUrl);
-        const graphUrl = `https://graph.microsoft.com/v1.0/shares/${encoded}/driveItem/children?$expand=thumbnails`;
+        const rootChildrenUrl = `https://graph.microsoft.com/v1.0/shares/${encoded}/driveItem/children?$expand=thumbnails`;
 
-        const response = await fetch(graphUrl, {
+        const photos: Photo[] = [];
+        await this.collectPhotos(rootChildrenUrl, accessToken, '', photos);
+
+        this.cache.set(sharingUrl, { data: photos, expiresAt: Date.now() + this.TTL_MS });
+        return photos;
+    }
+
+    /**
+     * Walk a children listing, appending image items to `out` and recursing
+     * into folder items. Follows `@odata.nextLink` for paginated listings.
+     */
+    private async collectPhotos(
+        childrenUrl: string,
+        accessToken: string,
+        subfolderPath: string,
+        out: Photo[],
+    ): Promise<void> {
+        const response = await fetch(childrenUrl, {
             headers: {
                 Accept: 'application/json',
                 Authorization: `Bearer ${accessToken}`,
             },
         });
-
         if (!response.ok) {
             throw new Error(`Graph API error: ${response.status} ${response.statusText}`);
         }
@@ -55,34 +112,43 @@ export class OneDriveService {
             medium?: { url: string };
             large?: { url: string };
         };
-        const json = (await response.json()) as {
-            value?: Array<{
-                id: string;
-                name: string;
-                '@microsoft.graph.downloadUrl'?: string;
-                file?: { mimeType: string };
-                thumbnails?: ThumbnailSet[];
-                parentReference?: { driveId?: string };
-            }>;
+        type Item = {
+            id: string;
+            name: string;
+            '@microsoft.graph.downloadUrl'?: string;
+            file?: { mimeType: string };
+            folder?: { childCount?: number };
+            thumbnails?: ThumbnailSet[];
+            parentReference?: { driveId?: string };
         };
+        const json = (await response.json()) as { value?: Item[]; '@odata.nextLink'?: string };
 
-        const photos: Photo[] = (json.value ?? [])
-            .filter((item) => item.file?.mimeType?.startsWith('image/'))
-            .filter((item) => !!item.parentReference?.driveId)
-            .map((item) => {
-                const thumb = item.thumbnails?.[0];
-                return {
-                    id: item.id,
-                    name: item.name,
-                    downloadUrl: item['@microsoft.graph.downloadUrl'] ?? '',
-                    thumbnailUrl: thumb?.large?.url ?? thumb?.medium?.url ?? thumb?.small?.url,
-                    mimeType: item.file!.mimeType,
-                    driveId: item.parentReference!.driveId!,
-                };
+        for (const item of json.value ?? []) {
+            if (item.folder) {
+                const driveId = item.parentReference?.driveId;
+                if (!driveId) continue;
+                const childUrl = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${item.id}/children?$expand=thumbnails`;
+                const nextSub = subfolderPath ? `${subfolderPath}/${item.name}` : item.name;
+                await this.collectPhotos(childUrl, accessToken, nextSub, out);
+                continue;
+            }
+            if (!item.file?.mimeType?.startsWith('image/')) continue;
+            if (!item.parentReference?.driveId) continue;
+            const thumb = item.thumbnails?.[0];
+            out.push({
+                id: item.id,
+                name: item.name,
+                subfolderPath,
+                downloadUrl: item['@microsoft.graph.downloadUrl'] ?? '',
+                thumbnailUrl: thumb?.large?.url ?? thumb?.medium?.url ?? thumb?.small?.url,
+                mimeType: item.file.mimeType,
+                driveId: item.parentReference.driveId,
             });
+        }
 
-        this.cache.set(sharingUrl, { data: photos, expiresAt: Date.now() + this.TTL_MS });
-        return photos;
+        if (json['@odata.nextLink']) {
+            await this.collectPhotos(json['@odata.nextLink'], accessToken, subfolderPath, out);
+        }
     }
 
     /**

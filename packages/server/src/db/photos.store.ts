@@ -100,8 +100,8 @@ export function getPhotoLocations(photoId: string): StoredPhotoLocation[] {
 /**
  * Look up a cataloged photo by its (folderName, fileName) location pair.
  * Used to join OneDrive listings with the local catalog. Matching is
- * case-insensitive so minor casing differences between the FolderConfig
- * and the scanned path don't break the join.
+ * case-insensitive so minor casing differences between the configured
+ * folder path and the scanned path don't break the join.
  */
 export function findPhotoByFolderAndName(folderName: string, fileName: string): StoredPhoto | undefined {
     const row = getDb()

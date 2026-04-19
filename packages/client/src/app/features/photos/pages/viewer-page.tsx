@@ -11,7 +11,7 @@ import { useViewerState } from '@/app/features/photos/hooks/use-viewer-state';
 import type { Photo } from '@/app/features/photos/models/photos.models';
 import { ViewerLayout } from '@/components/layout/viewer-layout';
 import { Button } from '@/components/ui/button';
-import { ExternalLink, Filter, Heart, LayoutGrid, LibraryBig, Star, StarOff } from 'lucide-react';
+import { ExternalLink, Filter, FolderCog, Heart, LayoutGrid, LibraryBig, Star, StarOff } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
@@ -167,6 +167,18 @@ export function ViewerPage() {
                                 <Heart className="mr-2 h-4 w-4" />
                                 Favorites
                             </Button>
+                            {isAdmin && (
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => navigate('/admin/folders')}
+                                    title="Manage folders"
+                                    aria-label="Manage folders"
+                                >
+                                    <FolderCog className="mr-2 h-4 w-4" />
+                                    Folders
+                                </Button>
+                            )}
                             {isPhoto && (
                                 <Button variant="ghost" size="sm" onClick={backToGallery}>
                                     <LayoutGrid className="mr-2 h-4 w-4" />

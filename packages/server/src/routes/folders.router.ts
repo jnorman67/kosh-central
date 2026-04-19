@@ -1,15 +1,15 @@
 import { Router } from 'express';
 import { requireAdmin } from '../auth/auth.middleware.js';
-import { FOLDERS, type FolderConfig } from '../config/folders.config.js';
 import { clearFolderCover, getAllFolderCovers, setFolderCover } from '../db/folder-covers.store.js';
+import { findFolderBySlug as storeFindFolderBySlug, listFolders, type StoredFolder } from '../db/folders.store.js';
 import { findPhotoByFolderAndName } from '../db/photos.store.js';
 import { getRatingsByUserForPhotos } from '../db/ratings.store.js';
 import { getRelationsForPhoto } from '../db/relations.store.js';
 import { OneDriveService } from '../services/onedrive.service.js';
 
-function findFolderBySlug(slug: string | string[] | undefined): FolderConfig | null {
+function findFolderBySlug(slug: string | string[] | undefined): StoredFolder | null {
     if (typeof slug !== 'string') return null;
-    return FOLDERS.find((f) => f.slug === slug) ?? null;
+    return storeFindFolderBySlug(slug) ?? null;
 }
 
 export function createFoldersRouter(oneDriveService: OneDriveService): Router {
@@ -17,7 +17,7 @@ export function createFoldersRouter(oneDriveService: OneDriveService): Router {
 
     router.get('/', (_req, res) => {
         const covers = getAllFolderCovers();
-        const result = FOLDERS.map((f) => ({
+        const result = listFolders().map((f) => ({
             id: f.slug,
             displayName: f.displayName,
             coverFileName: covers.get(f.folderPath),
@@ -37,8 +37,11 @@ export function createFoldersRouter(oneDriveService: OneDriveService): Router {
             // Enrich each OneDrive photo with local catalog data by matching
             // on (folderPath, fileName). See README "Local Catalog & Matching
             // Strategy" for why name-based matching is the current approach.
+            // Photos in subfolders contribute their `subfolderPath` so the
+            // join key is the full directory each photo actually lives in.
             const withCatalog = photos.map((p) => {
-                const cataloged = findPhotoByFolderAndName(folder.folderPath, p.name);
+                const fullFolder = p.subfolderPath ? `${folder.folderPath}/${p.subfolderPath}` : folder.folderPath;
+                const cataloged = findPhotoByFolderAndName(fullFolder, p.name);
                 return { photo: p, cataloged };
             });
 
