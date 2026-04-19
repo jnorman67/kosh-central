@@ -1,7 +1,7 @@
-import { useAuthQueries } from '@/app/features/auth/contexts/auth-query.context';
 import { PhotoGallery } from '@/app/features/photos/components/photo-gallery';
 import { usePhotosQueries } from '@/app/features/photos/contexts/photos-query.context';
 import { BrandMark } from '@/components/layout/brand-mark';
+import { UserMenu } from '@/components/layout/user-menu';
 import { ViewerLayout } from '@/components/layout/viewer-layout';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, Heart } from 'lucide-react';
@@ -13,9 +13,6 @@ const PAGE_SIZE = 24;
 export function FavoritesPage() {
     const navigate = useNavigate();
     const { useGetFavorites } = usePhotosQueries();
-    const { useGetMe, useLogout } = useAuthQueries();
-    const { data: me } = useGetMe();
-    const logout = useLogout();
 
     const [searchParams, setSearchParams] = useSearchParams();
     const page = Math.max(0, parseInt(searchParams.get('page') ?? '0', 10) || 0);
@@ -37,10 +34,6 @@ export function FavoritesPage() {
 
     function setPage(next: number) {
         setSearchParams({ page: String(next) });
-    }
-
-    function handleLogout() {
-        logout.mutate(undefined, { onSuccess: () => navigate('/login', { replace: true }) });
     }
 
     function openFavorite(index: number) {
@@ -65,10 +58,7 @@ export function FavoritesPage() {
                         </div>
                     </div>
                     <div className="flex items-center gap-3 px-4">
-                        <span className="text-sm text-muted-foreground">{me?.displayName}</span>
-                        <Button variant="ghost" size="sm" onClick={handleLogout}>
-                            Sign out
-                        </Button>
+                        <UserMenu />
                     </div>
                 </div>
             }

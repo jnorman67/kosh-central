@@ -3,7 +3,7 @@ import { ImportDialog } from '@/app/features/admin/components/import-dialog';
 import { SortableFolderRow } from '@/app/features/admin/components/sortable-folder-row';
 import { useAdminFoldersQueries, useAdminFoldersService } from '@/app/features/admin/contexts/admin-query.context';
 import type { AdminFolder, FolderInput } from '@/app/features/admin/models/folder.models';
-import { useAuthQueries } from '@/app/features/auth/contexts/auth-query.context';
+import { UserMenu } from '@/components/layout/user-menu';
 import { ViewerLayout } from '@/components/layout/viewer-layout';
 import {
     AlertDialog,
@@ -25,9 +25,6 @@ import { useNavigate } from 'react-router-dom';
 
 export function FoldersAdminPage() {
     const navigate = useNavigate();
-    const { useGetMe, useLogout } = useAuthQueries();
-    const { data: me } = useGetMe();
-    const logout = useLogout();
     const { useListFolders, useCreateFolder, useUpdateFolder, useDeleteFolder, useImportFolders, useReorderFolders } =
         useAdminFoldersQueries();
     const service = useAdminFoldersService();
@@ -117,10 +114,6 @@ export function FoldersAdminPage() {
         return result;
     }
 
-    function handleLogout() {
-        logout.mutate(undefined, { onSuccess: () => navigate('/login', { replace: true }) });
-    }
-
     return (
         <ViewerLayout
             header={
@@ -132,10 +125,7 @@ export function FoldersAdminPage() {
                         <div className="px-2 py-2 text-sm font-medium">Folder configuration</div>
                     </div>
                     <div className="flex items-center gap-3 px-4">
-                        <span className="text-sm text-muted-foreground">{me?.displayName}</span>
-                        <Button variant="ghost" size="sm" onClick={handleLogout}>
-                            Sign out
-                        </Button>
+                        <UserMenu />
                     </div>
                 </div>
             }

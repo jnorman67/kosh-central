@@ -10,9 +10,10 @@ import { usePhotosQueries } from '@/app/features/photos/contexts/photos-query.co
 import { useViewerState } from '@/app/features/photos/hooks/use-viewer-state';
 import type { Photo } from '@/app/features/photos/models/photos.models';
 import { BrandMark } from '@/components/layout/brand-mark';
+import { UserMenu } from '@/components/layout/user-menu';
 import { ViewerLayout } from '@/components/layout/viewer-layout';
 import { Button } from '@/components/ui/button';
-import { Check, ExternalLink, Filter, FolderCog, Heart, LayoutGrid, Star, StarOff, X } from 'lucide-react';
+import { Check, ExternalLink, Filter, Heart, LayoutGrid, Star, StarOff, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
@@ -51,9 +52,8 @@ export function ViewerPage() {
     const clearCover = useClearFolderCover();
     const setPreferred = useSetPreferredPhoto();
     const ratePhoto = useRatePhoto();
-    const { useGetMe, useLogout } = useAuthQueries();
+    const { useGetMe } = useAuthQueries();
     const { data: me } = useGetMe();
-    const logout = useLogout();
     const [enlargedRelatedId, setEnlargedRelatedId] = useState<string | null>(null);
     const [uncatalogedOnly, setUncatalogedOnly] = useState(false);
 
@@ -112,12 +112,6 @@ export function ViewerPage() {
 
     const handleNext = useCallback(() => nextPhoto(), [nextPhoto]);
     const handlePrev = useCallback(() => prevPhoto(), [prevPhoto]);
-
-    function handleLogout() {
-        logout.mutate(undefined, {
-            onSuccess: () => navigate('/login', { replace: true }),
-        });
-    }
 
     const displayPhoto = enlargedRelated ? enlargedRelated.photo : currentPhoto;
     // Anonymous view link for the displayed photo — fetched lazily and cached forever.
@@ -182,18 +176,6 @@ export function ViewerPage() {
                                 <Heart className="h-4 w-4 fill-rose-500 text-rose-500" />
                                 Favorites
                             </Button>
-                            {isAdmin && (
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => navigate('/admin/folders')}
-                                    title="Manage folders"
-                                    aria-label="Manage folders"
-                                >
-                                    <FolderCog className="h-4 w-4" />
-                                    Folders
-                                </Button>
-                            )}
                             {isPhoto && (
                                 <Button variant="ghost" size="sm" onClick={backToGallery}>
                                     <LayoutGrid className="h-4 w-4" />
@@ -232,10 +214,7 @@ export function ViewerPage() {
                                     Set as preferred
                                 </Button>
                             )}
-                            <span className="text-sm text-muted-foreground">{me?.displayName}</span>
-                            <Button variant="ghost" size="sm" onClick={handleLogout}>
-                                Sign out
-                            </Button>
+                            <UserMenu />
                         </div>
                     </div>
                 }
