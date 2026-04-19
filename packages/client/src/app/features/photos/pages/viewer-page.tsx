@@ -11,7 +11,7 @@ import { useViewerState } from '@/app/features/photos/hooks/use-viewer-state';
 import type { Photo } from '@/app/features/photos/models/photos.models';
 import { ViewerLayout } from '@/components/layout/viewer-layout';
 import { Button } from '@/components/ui/button';
-import { ExternalLink, Filter, LayoutGrid, LibraryBig, Star, StarOff } from 'lucide-react';
+import { ExternalLink, Filter, Heart, LayoutGrid, LibraryBig, Star, StarOff } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -39,7 +39,7 @@ function findRelatedPhotos(main: Photo, allPhotos: Photo[]): RelatedPhoto[] {
 
 export function ViewerPage() {
     const navigate = useNavigate();
-    const { useGetFolders, useGetPhotos, useSetFolderCover, useClearFolderCover, useRatePhoto } = usePhotosQueries();
+    const { useGetFolders, useGetPhotos, useSetFolderCover, useClearFolderCover, useRatePhoto, useGetShareLink } = usePhotosQueries();
     const setCover = useSetFolderCover();
     const clearCover = useClearFolderCover();
     const ratePhoto = useRatePhoto();
@@ -106,6 +106,8 @@ export function ViewerPage() {
     }
 
     const displayPhoto = enlargedRelated ? enlargedRelated.photo : currentPhoto;
+    // Anonymous view link for the displayed photo — fetched lazily and cached forever.
+    const { data: shareLink } = useGetShareLink(currentFolder?.id ?? null, displayPhoto?.id ?? null);
     const isAlbums = view === 'albums';
     const isGallery = view === 'gallery';
     const isPhoto = view === 'photo';
@@ -154,6 +156,16 @@ export function ViewerPage() {
                             </div>
                         )}
                         <div className="flex items-center gap-3 px-4">
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => navigate('/favorites')}
+                                title="My favorites"
+                                aria-label="My favorites"
+                            >
+                                <Heart className="mr-2 h-4 w-4" />
+                                Favorites
+                            </Button>
                             {isPhoto && (
                                 <Button variant="ghost" size="sm" onClick={backToGallery}>
                                     <LayoutGrid className="mr-2 h-4 w-4" />
@@ -249,9 +261,9 @@ export function ViewerPage() {
                                     {displayPhoto.name}
                                 </span>
                             )}
-                            {displayPhoto?.webUrl && (
+                            {shareLink && (
                                 <Button variant="ghost" size="sm" asChild>
-                                    <a href={displayPhoto.webUrl} target="_blank" rel="noreferrer" title="Open in OneDrive">
+                                    <a href={shareLink} target="_blank" rel="noreferrer" title="Open in OneDrive">
                                         <ExternalLink className="mr-2 h-4 w-4" />
                                         Open in OneDrive
                                     </a>

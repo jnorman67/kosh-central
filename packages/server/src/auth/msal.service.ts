@@ -26,7 +26,9 @@ function ensureSeededCache(): void {
     }
 }
 
-const SCOPES = ['Files.Read.All'];
+// Files.ReadWrite is required by /createLink to mint the anonymous view URLs
+// surfaced by the "Open in OneDrive" button. Read-only scopes reject that call.
+const SCOPES = ['Files.ReadWrite'];
 
 export class MsalService {
     private pca: PublicClientApplication;

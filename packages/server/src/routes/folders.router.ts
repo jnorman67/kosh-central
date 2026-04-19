@@ -49,9 +49,11 @@ export function createFoldersRouter(oneDriveService: OneDriveService): Router {
             const myRatings = getRatingsByUserForPhotos(req.user!.userId, catalogedIds);
 
             const enriched = withCatalog.map(({ photo, cataloged }) => {
-                if (!cataloged) return { ...photo, relations: [] };
+                // Strip driveId — it's server-internal, only used for creating share links.
+                const { driveId: _driveId, ...rest } = photo;
+                if (!cataloged) return { ...rest, relations: [] };
                 return {
-                    ...photo,
+                    ...rest,
                     catalogId: cataloged.id,
                     contentHash: cataloged.contentHash,
                     relations: getRelationsForPhoto(cataloged.id),
@@ -63,6 +65,28 @@ export function createFoldersRouter(oneDriveService: OneDriveService): Router {
         } catch (err) {
             console.error('OneDrive error:', err);
             res.status(502).json({ error: 'Failed to fetch photos from OneDrive' });
+        }
+    });
+
+    router.get('/:folderId/photos/:itemId/share-link', async (req, res) => {
+        const index = parseFolderIndex(req.params.folderId);
+        if (index === null) {
+            res.status(404).json({ error: 'Folder not found' });
+            return;
+        }
+        const folder = FOLDERS[index];
+        try {
+            const photos = await oneDriveService.getPhotos(folder.sharingUrl);
+            const photo = photos.find((p) => p.id === req.params.itemId);
+            if (!photo) {
+                res.status(404).json({ error: 'Photo not found in folder' });
+                return;
+            }
+            const webUrl = await oneDriveService.getOrCreateShareLink(photo.driveId, photo.id);
+            res.json({ webUrl });
+        } catch (err) {
+            console.error('Share link error:', err);
+            res.status(502).json({ error: 'Failed to create share link' });
         }
     });
 

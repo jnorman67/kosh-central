@@ -1,4 +1,4 @@
-import type { Photo, PhotoFolder } from '@/app/features/photos/models/photos.models';
+import type { FavoritesPage, Photo, PhotoFolder } from '@/app/features/photos/models/photos.models';
 
 export class PhotosService {
     async getFolders(): Promise<PhotoFolder[]> {
@@ -39,5 +39,18 @@ export class PhotosService {
     async clearRating(catalogId: string): Promise<void> {
         const res = await fetch(`/api/ratings/photo/${catalogId}`, { method: 'DELETE' });
         if (!res.ok) throw new Error('Failed to clear rating');
+    }
+
+    async getFavorites(offset: number, limit: number): Promise<FavoritesPage> {
+        const res = await fetch(`/api/favorites?offset=${offset}&limit=${limit}`);
+        if (!res.ok) throw new Error('Failed to fetch favorites');
+        return res.json();
+    }
+
+    async getShareLink(folderId: string, itemId: string): Promise<string> {
+        const res = await fetch(`/api/folders/${folderId}/photos/${encodeURIComponent(itemId)}/share-link`);
+        if (!res.ok) throw new Error('Failed to fetch share link');
+        const body = (await res.json()) as { webUrl: string };
+        return body.webUrl;
     }
 }

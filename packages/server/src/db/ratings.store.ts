@@ -65,6 +65,60 @@ export function setRating(photoId: string, userId: string, rating: number): Stor
     return getRating(photoId, userId)!;
 }
 
+export interface FavoritePhotoRow {
+    photoId: string;
+    fileName: string;
+    mimeType: string;
+    contentHash: string;
+    rating: number;
+    updatedAt: string;
+}
+
+/**
+ * Paginated list of a user's rated photos (rating > 0), ordered by rating
+ * descending then most recently updated. Returns joined photo metadata so the
+ * caller doesn't have to round-trip to the photos store.
+ */
+export function getFavoritePhotosForUser(
+    userId: string,
+    offset: number,
+    limit: number,
+): { rows: FavoritePhotoRow[]; total: number } {
+    const db = getDb();
+    const totalRow = db
+        .prepare('SELECT COUNT(*) AS c FROM photo_ratings WHERE user_id = ? AND rating > 0')
+        .get(userId) as { c: number };
+    const rows = db
+        .prepare(
+            `SELECT p.id AS photo_id, p.file_name, p.mime_type, p.content_hash,
+                    r.rating, r.updated_at
+             FROM photo_ratings r
+             JOIN photos p ON p.id = r.photo_id
+             WHERE r.user_id = ? AND r.rating > 0
+             ORDER BY r.rating DESC, r.updated_at DESC, p.file_name ASC
+             LIMIT ? OFFSET ?`,
+        )
+        .all(userId, limit, offset) as Array<{
+        photo_id: string;
+        file_name: string;
+        mime_type: string;
+        content_hash: string;
+        rating: number;
+        updated_at: string;
+    }>;
+    return {
+        total: totalRow.c,
+        rows: rows.map((r) => ({
+            photoId: r.photo_id,
+            fileName: r.file_name,
+            mimeType: r.mime_type,
+            contentHash: r.content_hash,
+            rating: r.rating,
+            updatedAt: r.updated_at,
+        })),
+    };
+}
+
 export function deleteRating(photoId: string, userId: string): boolean {
     const result = getDb()
         .prepare('DELETE FROM photo_ratings WHERE photo_id = ? AND user_id = ?')

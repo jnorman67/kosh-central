@@ -19,8 +19,6 @@ export interface Photo {
     name: string;
     downloadUrl: string;
     thumbnailUrl?: string;
-    /** OneDrive web URL — opens this photo in the OneDrive UI. */
-    webUrl?: string;
     mimeType: string;
     /** Catalog UUID, present when the OneDrive file matched a row in the local catalog. */
     catalogId?: string;
@@ -29,4 +27,17 @@ export interface Photo {
     relations: PhotoRelation[];
     /** Current user's rating (0–5), or null if unrated. Absent for uncataloged photos. */
     rating?: number | null;
+}
+
+export interface FavoritePhoto extends Photo {
+    /** Configured folder id (index) this favorite lives in. */
+    folderId: string;
+    folderDisplayName: string;
+}
+
+export interface FavoritesPage {
+    photos: FavoritePhoto[];
+    total: number;
+    offset: number;
+    limit: number;
 }

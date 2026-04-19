@@ -4,6 +4,9 @@ import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/rea
 export const PhotosQueryKeys = {
     folders: ['Photos', 'Folders'] as const,
     photos: (folderId: string) => ['Photos', 'Photos', folderId] as const,
+    favorites: (offset: number, limit: number) => ['Photos', 'Favorites', offset, limit] as const,
+    favoritesAll: ['Photos', 'Favorites'] as const,
+    shareLink: (folderId: string, itemId: string) => ['Photos', 'ShareLink', folderId, itemId] as const,
 } as const;
 
 export const createPhotosQueries = (service: PhotosService) => {
@@ -53,9 +56,29 @@ export const createPhotosQueries = (service: PhotosService) => {
     const useRatePhoto = () => {
         const qc = useQueryClient();
         return useMutation({
-            mutationFn: ({ catalogId, rating }: { catalogId: string; folderId: string; rating: number }) =>
+            mutationFn: ({ catalogId, rating }: { catalogId: string; folderId?: string; rating: number }) =>
                 rating === 0 ? service.clearRating(catalogId) : service.ratePhoto(catalogId, rating),
-            onSuccess: (_, { folderId }) => qc.invalidateQueries({ queryKey: PhotosQueryKeys.photos(folderId) }),
+            onSuccess: (_, { folderId }) => {
+                if (folderId) qc.invalidateQueries({ queryKey: PhotosQueryKeys.photos(folderId) });
+                qc.invalidateQueries({ queryKey: PhotosQueryKeys.favoritesAll });
+            },
+        });
+    };
+
+    const useGetFavorites = (offset: number, limit: number) => {
+        return useQuery({
+            queryKey: PhotosQueryKeys.favorites(offset, limit),
+            queryFn: () => service.getFavorites(offset, limit),
+            staleTime: 5 * 60 * 1000,
+        });
+    };
+
+    const useGetShareLink = (folderId: string | null, itemId: string | null) => {
+        return useQuery({
+            queryKey: PhotosQueryKeys.shareLink(folderId!, itemId!),
+            queryFn: () => service.getShareLink(folderId!, itemId!),
+            enabled: !!folderId && !!itemId,
+            staleTime: Infinity,
         });
     };
 
@@ -66,6 +89,8 @@ export const createPhotosQueries = (service: PhotosService) => {
         useSetFolderCover,
         useClearFolderCover,
         useRatePhoto,
+        useGetFavorites,
+        useGetShareLink,
     };
 };
 
