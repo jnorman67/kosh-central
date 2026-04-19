@@ -62,12 +62,18 @@ export function findFolderBySlug(slug: string): StoredFolder | undefined {
 }
 
 export function createFolder(input: FolderInput): StoredFolder {
-    getDb()
-        .prepare(
-            `INSERT INTO folders (slug, display_name, sharing_url, folder_path, sort_order)
-             VALUES (?, ?, ?, ?, ?)`,
-        )
-        .run(input.slug, input.displayName, input.sharingUrl, input.folderPath, input.sortOrder ?? 0);
+    // Place new folders at the end unless the caller specifies a position.
+    // Drag-and-drop reorders at 10-unit intervals, so +10 from the current max
+    // leaves a new folder visually last without colliding.
+    const db = getDb();
+    const sortOrder =
+        input.sortOrder && input.sortOrder > 0
+            ? input.sortOrder
+            : ((db.prepare('SELECT COALESCE(MAX(sort_order), 0) as m FROM folders').get() as { m: number }).m + 10);
+    db.prepare(
+        `INSERT INTO folders (slug, display_name, sharing_url, folder_path, sort_order)
+         VALUES (?, ?, ?, ?, ?)`,
+    ).run(input.slug, input.displayName, input.sharingUrl, input.folderPath, sortOrder);
     invalidate();
     return findFolderBySlug(input.slug)!;
 }
@@ -132,6 +138,26 @@ export function upsertFolders(folders: FolderInput[]): ImportResult {
     txn();
     invalidate();
     return { created, updated };
+}
+
+/**
+ * Rewrite sort_order for every folder based on the given slug ordering.
+ * Unknown slugs are ignored; existing folders not named in `slugs` keep
+ * their current order relative to each other, placed after the named rows.
+ * Assigns multiples of 10 so future inserts between rows are cheap.
+ */
+export function reorderFolders(slugs: string[]): void {
+    const db = getDb();
+    const update = db.prepare(
+        "UPDATE folders SET sort_order = ?, updated_at = datetime('now') WHERE slug = ?",
+    );
+    const txn = db.transaction(() => {
+        slugs.forEach((slug, i) => {
+            update.run((i + 1) * 10, slug);
+        });
+    });
+    txn();
+    invalidate();
 }
 
 /** Full replace: wipes the table and inserts the payload. */

@@ -20,7 +20,7 @@ npm install
 npm run dev
 ```
 
-This starts both the Express server (port 3001) and Vite dev server (port 5173) concurrently. The Vite dev server proxies `/api` requests to the Express server.
+This starts both the Express server (port 3001) and Vite dev server (port 5273) concurrently. The Vite dev server proxies `/api` requests to the Express server.
 
 On first run, the server console will print a device code and URL. Open the URL in a browser, sign in with the Microsoft account that owns the OneDrive photos, and enter the code. Subsequent starts reuse cached credentials automatically.
 

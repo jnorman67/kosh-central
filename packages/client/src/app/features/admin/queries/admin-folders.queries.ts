@@ -56,7 +56,15 @@ export const createAdminFoldersQueries = (service: AdminFoldersService) => {
         });
     };
 
-    return { useListFolders, useCreateFolder, useUpdateFolder, useDeleteFolder, useImportFolders };
+    const useReorderFolders = () => {
+        const queryClient = useQueryClient();
+        return useMutation({
+            mutationFn: (slugs: string[]) => service.reorder(slugs),
+            onSuccess: () => invalidateFolderCaches(queryClient),
+        });
+    };
+
+    return { useListFolders, useCreateFolder, useUpdateFolder, useDeleteFolder, useImportFolders, useReorderFolders };
 };
 
 export type AdminFoldersQueries = ReturnType<typeof createAdminFoldersQueries>;

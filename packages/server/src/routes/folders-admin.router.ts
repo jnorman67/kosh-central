@@ -5,6 +5,7 @@ import {
     deleteFolder,
     findFolderBySlug,
     listFolders,
+    reorderFolders,
     replaceAllFolders,
     updateFolder,
     upsertFolders,
@@ -140,6 +141,18 @@ export function createFoldersAdminRouter(oneDriveService: OneDriveService): Rout
             console.error('Update folder error:', err);
             res.status(500).json({ error: 'Failed to update folder' });
         }
+    });
+
+    router.post('/reorder', (req, res) => {
+        const body = req.body as { slugs?: unknown };
+        if (!Array.isArray(body.slugs) || !body.slugs.every((s) => typeof s === 'string')) {
+            res.status(400).json({ error: 'Request body must have a "slugs" array of strings' });
+            return;
+        }
+        const known = new Set(listFolders().map((f) => f.slug));
+        const filtered = (body.slugs as string[]).filter((s) => known.has(s));
+        reorderFolders(filtered);
+        res.json(listFolders());
     });
 
     router.delete('/:slug', (req, res) => {

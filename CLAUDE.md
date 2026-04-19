@@ -20,10 +20,10 @@ Monorepo with npm workspaces:
 ## Commands
 
 ```bash
-npm run dev        # Start both client (5173) and server (3001) with hot reload
+npm run dev        # Start both client (5273) and server (3001) with hot reload
 npm run build      # Build both packages for production
 npm run lint       # ESLint + Prettier (client only)
-npm run kill       # Kill any processes on ports 3001/5173
+npm run kill       # Kill any processes on ports 3001/5273
 ```
 
 ## Project Structure

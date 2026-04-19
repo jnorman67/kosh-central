@@ -1,3 +1,4 @@
+import { slugify } from '@/app/features/admin/lib/slug';
 import type { AdminFolder, FolderInput } from '@/app/features/admin/models/folder.models';
 import { AdminFoldersError } from '@/app/features/admin/services/admin-folders.service';
 import { Button } from '@/components/ui/button';
@@ -21,6 +22,9 @@ export function FolderFormDialog({ open, onOpenChange, mode, initial, onSubmit }
     const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
     const [formError, setFormError] = useState<string | null>(null);
     const [saving, setSaving] = useState(false);
+    // Flips to true the first time the user edits the slug field directly; while false
+    // (create mode only) the slug auto-syncs from displayName.
+    const [slugTouched, setSlugTouched] = useState(false);
 
     // Reset form state whenever the dialog is (re-)opened.
     useEffect(() => {
@@ -33,23 +37,46 @@ export function FolderFormDialog({ open, onOpenChange, mode, initial, onSubmit }
                 folderPath: initial.folderPath,
                 sortOrder: initial.sortOrder,
             });
+            setSlugTouched(true); // never auto-overwrite an existing slug
         } else {
             setForm(EMPTY);
+            setSlugTouched(false);
         }
         setFieldErrors({});
         setFormError(null);
         setSaving(false);
     }, [open, mode, initial]);
 
-    const handleChange = (key: keyof FolderInput) => (e: React.ChangeEvent<HTMLInputElement>) => {
-        const value = key === 'sortOrder' ? Number(e.target.value) || 0 : e.target.value;
-        setForm((f) => ({ ...f, [key]: value }));
+    function clearFieldError(key: string) {
         setFieldErrors((prev) => {
             if (!prev[key]) return prev;
             const next = { ...prev };
             delete next[key];
             return next;
         });
+    }
+
+    function handleDisplayNameChange(e: React.ChangeEvent<HTMLInputElement>) {
+        const displayName = e.target.value;
+        setForm((f) => ({
+            ...f,
+            displayName,
+            // Suggest slug from displayName until the user edits the slug directly.
+            slug: slugTouched ? f.slug : slugify(displayName),
+        }));
+        clearFieldError('displayName');
+        if (!slugTouched) clearFieldError('slug');
+    }
+
+    function handleSlugChange(e: React.ChangeEvent<HTMLInputElement>) {
+        if (!slugTouched) setSlugTouched(true);
+        setForm((f) => ({ ...f, slug: e.target.value }));
+        clearFieldError('slug');
+    }
+
+    const handleChange = (key: 'sharingUrl' | 'folderPath') => (e: React.ChangeEvent<HTMLInputElement>) => {
+        setForm((f) => ({ ...f, [key]: e.target.value }));
+        clearFieldError(key);
     };
 
     const showFolderPathWarning =
@@ -93,23 +120,20 @@ export function FolderFormDialog({ open, onOpenChange, mode, initial, onSubmit }
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div className="space-y-1.5">
-                        <Label htmlFor="slug">Slug</Label>
-                        <Input
-                            id="slug"
-                            value={form.slug}
-                            onChange={handleChange('slug')}
-                            placeholder="album-21"
-                            autoComplete="off"
-                            required
-                        />
-                        <p className="text-xs text-muted-foreground">Lowercase letters, digits, and hyphens. Used in URLs.</p>
-                        {fieldErrors.slug && <p className="text-xs text-destructive">{fieldErrors.slug}</p>}
+                        <Label htmlFor="displayName">Display name</Label>
+                        <Input id="displayName" value={form.displayName} onChange={handleDisplayNameChange} required />
+                        {fieldErrors.displayName && <p className="text-xs text-destructive">{fieldErrors.displayName}</p>}
                     </div>
 
                     <div className="space-y-1.5">
-                        <Label htmlFor="displayName">Display name</Label>
-                        <Input id="displayName" value={form.displayName} onChange={handleChange('displayName')} required />
-                        {fieldErrors.displayName && <p className="text-xs text-destructive">{fieldErrors.displayName}</p>}
+                        <Label htmlFor="slug">Slug</Label>
+                        <Input id="slug" value={form.slug} onChange={handleSlugChange} placeholder="album-21" autoComplete="off" required />
+                        <p className="text-xs text-muted-foreground">
+                            {mode === 'create' && !slugTouched
+                                ? 'Auto-generated from display name. Edit to override.'
+                                : 'Lowercase letters, digits, and hyphens. Used in URLs.'}
+                        </p>
+                        {fieldErrors.slug && <p className="text-xs text-destructive">{fieldErrors.slug}</p>}
                     </div>
 
                     <div className="space-y-1.5">
@@ -143,12 +167,6 @@ export function FolderFormDialog({ open, onOpenChange, mode, initial, onSubmit }
                                 re-imported.
                             </p>
                         )}
-                    </div>
-
-                    <div className="space-y-1.5">
-                        <Label htmlFor="sortOrder">Sort order</Label>
-                        <Input id="sortOrder" type="number" value={form.sortOrder} onChange={handleChange('sortOrder')} />
-                        <p className="text-xs text-muted-foreground">Lower numbers appear first.</p>
                     </div>
 
                     {formError && <p className="text-sm text-destructive">{formError}</p>}

@@ -54,6 +54,15 @@ export class AdminFoldersService {
         }
     }
 
+    async reorder(slugs: string[]): Promise<AdminFolder[]> {
+        const res = await fetch('/api/admin/folders/reorder', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ slugs }),
+        });
+        return parseOrThrow<AdminFolder[]>(res);
+    }
+
     async importFolders(folders: FolderInput[], mode: 'upsert' | 'replace'): Promise<ImportResponse> {
         const res = await fetch('/api/admin/folders/import', {
             method: 'POST',

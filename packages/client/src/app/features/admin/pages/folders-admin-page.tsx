@@ -1,5 +1,6 @@
 import { FolderFormDialog } from '@/app/features/admin/components/folder-form-dialog';
 import { ImportDialog } from '@/app/features/admin/components/import-dialog';
+import { SortableFolderRow } from '@/app/features/admin/components/sortable-folder-row';
 import { useAdminFoldersQueries, useAdminFoldersService } from '@/app/features/admin/contexts/admin-query.context';
 import type { AdminFolder, FolderInput } from '@/app/features/admin/models/folder.models';
 import { useAuthQueries } from '@/app/features/auth/contexts/auth-query.context';
@@ -16,8 +17,10 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowLeft, Download, Pencil, Plus, Trash2, Upload } from 'lucide-react';
-import { useState } from 'react';
+import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { ArrowLeft, Download, Plus, Upload } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 export function FoldersAdminPage() {
@@ -25,7 +28,8 @@ export function FoldersAdminPage() {
     const { useGetMe, useLogout } = useAuthQueries();
     const { data: me } = useGetMe();
     const logout = useLogout();
-    const { useListFolders, useCreateFolder, useUpdateFolder, useDeleteFolder, useImportFolders } = useAdminFoldersQueries();
+    const { useListFolders, useCreateFolder, useUpdateFolder, useDeleteFolder, useImportFolders, useReorderFolders } =
+        useAdminFoldersQueries();
     const service = useAdminFoldersService();
 
     const { data: folders = [], isLoading, error } = useListFolders();
@@ -33,12 +37,44 @@ export function FoldersAdminPage() {
     const updateFolder = useUpdateFolder();
     const deleteFolder = useDeleteFolder();
     const importFolders = useImportFolders();
+    const reorderFolders = useReorderFolders();
 
     const [formMode, setFormMode] = useState<'create' | 'edit' | null>(null);
     const [editing, setEditing] = useState<AdminFolder | null>(null);
     const [importOpen, setImportOpen] = useState(false);
     const [deleting, setDeleting] = useState<AdminFolder | null>(null);
     const [toast, setToast] = useState<string | null>(null);
+    // Local copy of the list so drags reorder immediately without waiting on the server.
+    const [ordered, setOrdered] = useState<AdminFolder[]>(folders);
+
+    // Keep local order in sync with the server list (fetch, import, create, delete, etc.).
+    useEffect(() => {
+        setOrdered(folders);
+    }, [folders]);
+
+    const sensors = useSensors(
+        useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+        useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+    );
+
+    function handleDragEnd(event: DragEndEvent) {
+        const { active, over } = event;
+        if (!over || active.id === over.id) return;
+        const oldIndex = ordered.findIndex((f) => f.slug === active.id);
+        const newIndex = ordered.findIndex((f) => f.slug === over.id);
+        if (oldIndex < 0 || newIndex < 0) return;
+        const next = arrayMove(ordered, oldIndex, newIndex);
+        setOrdered(next);
+        reorderFolders.mutate(
+            next.map((f) => f.slug),
+            {
+                onError: () => {
+                    setOrdered(folders);
+                    setToast('Failed to save new order — reverted');
+                },
+            },
+        );
+    }
 
     function openCreate() {
         setEditing(null);
@@ -142,57 +178,49 @@ export function FoldersAdminPage() {
                         )}
 
                         <div className="rounded-md border">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead className="w-20">Order</TableHead>
-                                        <TableHead>Slug</TableHead>
-                                        <TableHead>Display name</TableHead>
-                                        <TableHead>Folder path</TableHead>
-                                        <TableHead className="w-24 text-right">Actions</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {isLoading ? (
+                            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                                <Table>
+                                    <TableHeader>
                                         <TableRow>
-                                            <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
-                                                Loading...
-                                            </TableCell>
+                                            <TableHead className="w-10" />
+                                            <TableHead>Slug</TableHead>
+                                            <TableHead>Display name</TableHead>
+                                            <TableHead>Folder path</TableHead>
+                                            <TableHead className="w-24 text-right">Actions</TableHead>
                                         </TableRow>
-                                    ) : folders.length === 0 ? (
-                                        <TableRow>
-                                            <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
-                                                No folders configured yet.
-                                            </TableCell>
-                                        </TableRow>
-                                    ) : (
-                                        folders.map((folder) => (
-                                            <TableRow key={folder.slug}>
-                                                <TableCell className="text-muted-foreground">{folder.sortOrder}</TableCell>
-                                                <TableCell className="font-mono text-xs">{folder.slug}</TableCell>
-                                                <TableCell>{folder.displayName}</TableCell>
-                                                <TableCell className="text-xs text-muted-foreground">{folder.folderPath}</TableCell>
-                                                <TableCell className="text-right">
-                                                    <div className="flex justify-end gap-1">
-                                                        <Button variant="ghost" size="icon" onClick={() => openEdit(folder)} title="Edit">
-                                                            <Pencil className="h-4 w-4" />
-                                                        </Button>
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            onClick={() => setDeleting(folder)}
-                                                            title="Delete"
-                                                        >
-                                                            <Trash2 className="h-4 w-4" />
-                                                        </Button>
-                                                    </div>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {isLoading ? (
+                                            <TableRow>
+                                                <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                                                    Loading...
                                                 </TableCell>
                                             </TableRow>
-                                        ))
-                                    )}
-                                </TableBody>
-                            </Table>
+                                        ) : ordered.length === 0 ? (
+                                            <TableRow>
+                                                <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                                                    No folders configured yet.
+                                                </TableCell>
+                                            </TableRow>
+                                        ) : (
+                                            <SortableContext items={ordered.map((f) => f.slug)} strategy={verticalListSortingStrategy}>
+                                                {ordered.map((folder) => (
+                                                    <SortableFolderRow
+                                                        key={folder.slug}
+                                                        folder={folder}
+                                                        onEdit={openEdit}
+                                                        onDelete={setDeleting}
+                                                    />
+                                                ))}
+                                            </SortableContext>
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </DndContext>
                         </div>
+                        <p className="text-xs text-muted-foreground">
+                            Drag the grip handle on the left of any row to reorder folders. The new order is saved automatically.
+                        </p>
 
                         <FolderFormDialog
                             open={formMode !== null}
