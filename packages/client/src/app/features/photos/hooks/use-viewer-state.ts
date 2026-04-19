@@ -1,78 +1,114 @@
-import { useEffect, useReducer } from 'react';
-
-const FOLDER_INDEX_KEY = 'kosh.selectedFolderIndex';
+import type { Photo, PhotoFolder } from '@/app/features/photos/models/photos.models';
+import { useCallback, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 
 type ViewMode = 'albums' | 'gallery' | 'photo';
 
-interface ViewerState {
-    currentFolderIndex: number;
-    currentPhotoIndex: number;
-    view: ViewMode;
+const FOLDER_PARAM = 'folder';
+const PHOTO_PARAM = 'photo';
+
+/** Stable identifier for a photo within a folder — content hash if cataloged, else file name. */
+function photoKey(photo: Photo): string {
+    return photo.contentHash ?? photo.name;
 }
 
-type ViewerAction =
-    | { type: 'SET_FOLDER'; index: number }
-    | { type: 'OPEN_PHOTO'; index: number }
-    | { type: 'BACK_TO_GALLERY' }
-    | { type: 'GO_TO_ALBUMS' }
-    | { type: 'NEXT_PHOTO'; photoCount: number }
-    | { type: 'PREV_PHOTO'; photoCount: number };
-
-function viewerReducer(state: ViewerState, action: ViewerAction): ViewerState {
-    switch (action.type) {
-        case 'SET_FOLDER':
-            return { currentFolderIndex: action.index, currentPhotoIndex: 0, view: 'gallery' };
-        case 'OPEN_PHOTO':
-            return { ...state, currentPhotoIndex: action.index, view: 'photo' };
-        case 'BACK_TO_GALLERY':
-            return { ...state, view: 'gallery' };
-        case 'GO_TO_ALBUMS':
-            return { ...state, view: 'albums' };
-        case 'NEXT_PHOTO':
-            if (action.photoCount === 0) return state;
-            return { ...state, currentPhotoIndex: (state.currentPhotoIndex + 1) % action.photoCount };
-        case 'PREV_PHOTO':
-            if (action.photoCount === 0) return state;
-            return { ...state, currentPhotoIndex: (state.currentPhotoIndex - 1 + action.photoCount) % action.photoCount };
-    }
+function findPhotoIndex(photos: Photo[], key: string): number {
+    const byHash = photos.findIndex((p) => p.contentHash === key);
+    if (byHash !== -1) return byHash;
+    return photos.findIndex((p) => p.name === key);
 }
 
-function readSavedFolderIndex(): number {
-    try {
-        const raw = localStorage.getItem(FOLDER_INDEX_KEY);
-        if (raw === null) return 0;
-        const n = Number.parseInt(raw, 10);
-        return Number.isInteger(n) && n >= 0 ? n : 0;
-    } catch {
-        return 0;
-    }
+interface UseViewerStateArgs {
+    folders: PhotoFolder[];
+    viewablePhotos: Photo[];
 }
 
-export function useViewerState() {
-    const [state, dispatch] = useReducer(viewerReducer, undefined, () => ({
-        currentFolderIndex: readSavedFolderIndex(),
-        currentPhotoIndex: 0,
-        view: 'gallery' as ViewMode,
-    }));
+export function useViewerState({ folders, viewablePhotos }: UseViewerStateArgs) {
+    const [params, setParams] = useSearchParams();
 
-    // Persist folder selection across reloads.
-    useEffect(() => {
-        try {
-            localStorage.setItem(FOLDER_INDEX_KEY, String(state.currentFolderIndex));
-        } catch {
-            // storage disabled / full — non-fatal
-        }
-    }, [state.currentFolderIndex]);
+    const folderParam = params.get(FOLDER_PARAM);
+    const photoParam = params.get(PHOTO_PARAM);
+
+    const currentFolder = useMemo(() => (folderParam ? (folders.find((f) => f.id === folderParam) ?? null) : null), [folders, folderParam]);
+
+    const currentPhotoIndex = useMemo(() => {
+        if (!photoParam || viewablePhotos.length === 0) return 0;
+        const idx = findPhotoIndex(viewablePhotos, photoParam);
+        return idx === -1 ? 0 : idx;
+    }, [viewablePhotos, photoParam]);
+
+    const photoParamResolvesToPhoto = useMemo(() => {
+        if (!photoParam) return false;
+        return findPhotoIndex(viewablePhotos, photoParam) !== -1;
+    }, [viewablePhotos, photoParam]);
+
+    const view: ViewMode = !currentFolder ? 'albums' : photoParamResolvesToPhoto ? 'photo' : 'gallery';
+
+    const updateParams = useCallback(
+        (next: URLSearchParams, opts?: { replace?: boolean }) => {
+            setParams(next, { replace: opts?.replace ?? false });
+        },
+        [setParams],
+    );
+
+    const setFolder = useCallback(
+        (folderId: string) => {
+            const next = new URLSearchParams();
+            next.set(FOLDER_PARAM, folderId);
+            updateParams(next);
+        },
+        [updateParams],
+    );
+
+    const openPhoto = useCallback(
+        (index: number) => {
+            const photo = viewablePhotos[index];
+            if (!photo || !folderParam) return;
+            const next = new URLSearchParams();
+            next.set(FOLDER_PARAM, folderParam);
+            next.set(PHOTO_PARAM, photoKey(photo));
+            updateParams(next);
+        },
+        [viewablePhotos, folderParam, updateParams],
+    );
+
+    const backToGallery = useCallback(() => {
+        if (!folderParam) return;
+        const next = new URLSearchParams();
+        next.set(FOLDER_PARAM, folderParam);
+        updateParams(next, { replace: true });
+    }, [folderParam, updateParams]);
+
+    const goToAlbums = useCallback(() => {
+        updateParams(new URLSearchParams());
+    }, [updateParams]);
+
+    const stepPhoto = useCallback(
+        (delta: number) => {
+            if (viewablePhotos.length === 0 || !folderParam) return;
+            const nextIndex = (currentPhotoIndex + delta + viewablePhotos.length) % viewablePhotos.length;
+            const photo = viewablePhotos[nextIndex];
+            if (!photo) return;
+            const next = new URLSearchParams();
+            next.set(FOLDER_PARAM, folderParam);
+            next.set(PHOTO_PARAM, photoKey(photo));
+            updateParams(next, { replace: true });
+        },
+        [viewablePhotos, currentPhotoIndex, folderParam, updateParams],
+    );
+
+    const nextPhoto = useCallback(() => stepPhoto(1), [stepPhoto]);
+    const prevPhoto = useCallback(() => stepPhoto(-1), [stepPhoto]);
 
     return {
-        currentFolderIndex: state.currentFolderIndex,
-        currentPhotoIndex: state.currentPhotoIndex,
-        view: state.view,
-        setFolder: (index: number) => dispatch({ type: 'SET_FOLDER', index }),
-        openPhoto: (index: number) => dispatch({ type: 'OPEN_PHOTO', index }),
-        backToGallery: () => dispatch({ type: 'BACK_TO_GALLERY' }),
-        goToAlbums: () => dispatch({ type: 'GO_TO_ALBUMS' }),
-        nextPhoto: (photoCount: number) => dispatch({ type: 'NEXT_PHOTO', photoCount }),
-        prevPhoto: (photoCount: number) => dispatch({ type: 'PREV_PHOTO', photoCount }),
+        currentFolder,
+        currentPhotoIndex,
+        view,
+        setFolder,
+        openPhoto,
+        backToGallery,
+        goToAlbums,
+        nextPhoto,
+        prevPhoto,
     };
 }

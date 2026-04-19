@@ -1,17 +1,15 @@
 import { Router } from 'express';
 import { requireAdmin } from '../auth/auth.middleware.js';
-import { FOLDERS } from '../config/folders.config.js';
+import { FOLDERS, type FolderConfig } from '../config/folders.config.js';
 import { clearFolderCover, getAllFolderCovers, setFolderCover } from '../db/folder-covers.store.js';
 import { findPhotoByFolderAndName } from '../db/photos.store.js';
 import { getRatingsByUserForPhotos } from '../db/ratings.store.js';
 import { getRelationsForPhoto } from '../db/relations.store.js';
 import { OneDriveService } from '../services/onedrive.service.js';
 
-function parseFolderIndex(raw: string | string[] | undefined): number | null {
-    if (typeof raw !== 'string') return null;
-    const n = parseInt(raw, 10);
-    if (isNaN(n) || n < 0 || n >= FOLDERS.length) return null;
-    return n;
+function findFolderBySlug(slug: string | string[] | undefined): FolderConfig | null {
+    if (typeof slug !== 'string') return null;
+    return FOLDERS.find((f) => f.slug === slug) ?? null;
 }
 
 export function createFoldersRouter(oneDriveService: OneDriveService): Router {
@@ -19,8 +17,8 @@ export function createFoldersRouter(oneDriveService: OneDriveService): Router {
 
     router.get('/', (_req, res) => {
         const covers = getAllFolderCovers();
-        const result = FOLDERS.map((f, i) => ({
-            id: String(i),
+        const result = FOLDERS.map((f) => ({
+            id: f.slug,
             displayName: f.displayName,
             coverFileName: covers.get(f.folderPath),
         }));
@@ -28,12 +26,11 @@ export function createFoldersRouter(oneDriveService: OneDriveService): Router {
     });
 
     router.get('/:folderId/photos', async (req, res) => {
-        const index = parseInt(req.params.folderId, 10);
-        if (isNaN(index) || index < 0 || index >= FOLDERS.length) {
+        const folder = findFolderBySlug(req.params.folderId);
+        if (!folder) {
             res.status(404).json({ error: 'Folder not found' });
             return;
         }
-        const folder = FOLDERS[index];
         try {
             const photos = await oneDriveService.getPhotos(folder.sharingUrl);
 
@@ -69,12 +66,11 @@ export function createFoldersRouter(oneDriveService: OneDriveService): Router {
     });
 
     router.get('/:folderId/photos/:itemId/share-link', async (req, res) => {
-        const index = parseFolderIndex(req.params.folderId);
-        if (index === null) {
+        const folder = findFolderBySlug(req.params.folderId);
+        if (!folder) {
             res.status(404).json({ error: 'Folder not found' });
             return;
         }
-        const folder = FOLDERS[index];
         try {
             const photos = await oneDriveService.getPhotos(folder.sharingUrl);
             const photo = photos.find((p) => p.id === req.params.itemId);
@@ -91,8 +87,8 @@ export function createFoldersRouter(oneDriveService: OneDriveService): Router {
     });
 
     router.put('/:folderId/cover', requireAdmin, (req, res) => {
-        const index = parseFolderIndex(req.params.folderId);
-        if (index === null) {
+        const folder = findFolderBySlug(req.params.folderId);
+        if (!folder) {
             res.status(404).json({ error: 'Folder not found' });
             return;
         }
@@ -101,18 +97,18 @@ export function createFoldersRouter(oneDriveService: OneDriveService): Router {
             res.status(400).json({ error: 'fileName is required' });
             return;
         }
-        setFolderCover(FOLDERS[index].folderPath, fileName, req.user!.userId);
-        res.json({ folderId: String(index), coverFileName: fileName });
+        setFolderCover(folder.folderPath, fileName, req.user!.userId);
+        res.json({ folderId: folder.slug, coverFileName: fileName });
     });
 
     router.delete('/:folderId/cover', requireAdmin, (req, res) => {
-        const index = parseFolderIndex(req.params.folderId);
-        if (index === null) {
+        const folder = findFolderBySlug(req.params.folderId);
+        if (!folder) {
             res.status(404).json({ error: 'Folder not found' });
             return;
         }
-        clearFolderCover(FOLDERS[index].folderPath);
-        res.json({ folderId: String(index), coverFileName: null });
+        clearFolderCover(folder.folderPath);
+        res.json({ folderId: folder.slug, coverFileName: null });
     });
 
     return router;

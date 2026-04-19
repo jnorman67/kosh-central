@@ -64,7 +64,7 @@ export function createFavoritesRouter(oneDriveService: OneDriveService): Router 
                     contentHash: row.contentHash,
                     relations: getRelationsForPhoto(row.photoId),
                     rating: row.rating,
-                    folderId: String(FOLDERS.indexOf(folder)),
+                    folderId: folder.slug,
                     folderDisplayName: folder.displayName,
                 };
             })

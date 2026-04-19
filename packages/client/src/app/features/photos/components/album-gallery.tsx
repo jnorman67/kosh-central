@@ -3,7 +3,7 @@ import type { Photo, PhotoFolder } from '@/app/features/photos/models/photos.mod
 
 interface AlbumGalleryProps {
     folders: PhotoFolder[];
-    onSelect: (index: number) => void;
+    onSelect: (id: string) => void;
 }
 
 function pickCover(photos: Photo[] | undefined, preferredFileName: string | undefined): Photo | null {
@@ -36,7 +36,7 @@ export function AlbumGallery({ folders, onSelect }: AlbumGalleryProps) {
                         <button
                             key={folder.id}
                             type="button"
-                            onClick={() => onSelect(i)}
+                            onClick={() => onSelect(folder.id)}
                             className="group relative aspect-[4/3] outline-none transition-transform hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-white"
                         >
                             <div

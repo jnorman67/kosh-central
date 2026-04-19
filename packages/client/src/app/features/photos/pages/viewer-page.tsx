@@ -13,7 +13,7 @@ import { ViewerLayout } from '@/components/layout/viewer-layout';
 import { Button } from '@/components/ui/button';
 import { ExternalLink, Filter, Heart, LayoutGrid, LibraryBig, Star, StarOff } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 interface RelatedPhoto {
     photo: Photo;
@@ -39,13 +39,12 @@ function findRelatedPhotos(main: Photo, allPhotos: Photo[]): RelatedPhoto[] {
 
 export function ViewerPage() {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const { useGetFolders, useGetPhotos, useSetFolderCover, useClearFolderCover, useRatePhoto, useGetShareLink } = usePhotosQueries();
     const setCover = useSetFolderCover();
     const clearCover = useClearFolderCover();
     const ratePhoto = useRatePhoto();
     const { useGetMe, useLogout } = useAuthQueries();
-    const { currentFolderIndex, currentPhotoIndex, view, setFolder, openPhoto, backToGallery, goToAlbums, nextPhoto, prevPhoto } =
-        useViewerState();
     const { data: me } = useGetMe();
     const logout = useLogout();
     const [enlargedRelatedId, setEnlargedRelatedId] = useState<string | null>(null);
@@ -53,21 +52,23 @@ export function ViewerPage() {
 
     const { data: folders = [], isLoading: foldersLoading } = useGetFolders();
 
-    // If a saved folder index is out of range (config shrank/changed), fall back to 0.
-    useEffect(() => {
-        if (folders.length > 0 && currentFolderIndex >= folders.length) {
-            setFolder(0);
-        }
-    }, [folders.length, currentFolderIndex, setFolder]);
-
-    const currentFolder = folders[currentFolderIndex];
-    const { data: allPhotos = [], isLoading: photosLoading } = useGetPhotos(currentFolder?.id ?? null);
+    // Resolve the current folder from the URL so we can fetch its photos before
+    // handing off to useViewerState (which needs viewablePhotos to resolve the photo param).
+    const folderParam = searchParams.get('folder');
+    const folderForFetch = useMemo(
+        () => (folderParam ? (folders.find((f) => f.id === folderParam) ?? null) : null),
+        [folders, folderParam],
+    );
+    const { data: allPhotos = [], isLoading: photosLoading } = useGetPhotos(folderForFetch?.id ?? null);
 
     // Hide photos that are a back or a raw — they only appear as side thumbnails.
     const viewablePhotos = useMemo(() => {
         if (uncatalogedOnly) return allPhotos.filter((p) => !p.catalogId);
         return allPhotos.filter((p) => !p.relations?.some((r) => r.relationType === 'back-of' || r.relationType === 'raw-version-of'));
     }, [allPhotos, uncatalogedOnly]);
+
+    const { currentFolder, currentPhotoIndex, view, setFolder, openPhoto, backToGallery, goToAlbums, nextPhoto, prevPhoto } =
+        useViewerState({ folders, viewablePhotos });
 
     const uncatalogedCount = useMemo(() => allPhotos.filter((p) => !p.catalogId).length, [allPhotos]);
 
@@ -96,8 +97,8 @@ export function ViewerPage() {
         return () => window.removeEventListener('keydown', onKey);
     }, [enlargedRelated, view, backToGallery]);
 
-    const handleNext = useCallback(() => nextPhoto(viewablePhotos.length), [nextPhoto, viewablePhotos.length]);
-    const handlePrev = useCallback(() => prevPhoto(viewablePhotos.length), [prevPhoto, viewablePhotos.length]);
+    const handleNext = useCallback(() => nextPhoto(), [nextPhoto]);
+    const handlePrev = useCallback(() => prevPhoto(), [prevPhoto]);
 
     function handleLogout() {
         logout.mutate(undefined, {
@@ -149,7 +150,7 @@ export function ViewerPage() {
                                 </Button>
                                 <FolderSelector
                                     folders={folders}
-                                    selectedIndex={currentFolderIndex}
+                                    selectedId={currentFolder?.id ?? null}
                                     onSelect={setFolder}
                                     isLoading={foldersLoading}
                                 />
