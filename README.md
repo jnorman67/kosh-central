@@ -96,6 +96,13 @@ To get a sharing URL: right-click a folder in OneDrive > **Share** > **Anyone wi
 
 **Future direction.** Once Graph API queries can cheaply return file hashes (Graph exposes `file.hashes.quickXorHash` and sometimes `sha1Hash`/`sha256Hash` for OneDrive Personal), we should match on content hash instead of name. That makes the join rename-proof and lets a single local record back multiple OneDrive locations. Until then, treat `folderPath` as a deployment-time contract: keep it in sync with both the scan root and the OneDrive folder structure.
 
+**Running the scanner on Windows.** Open a **cmd** terminal (not PowerShell — PowerShell's execution policy blocks the `npx.ps1` shim):
+
+```
+cd c:\vc\kosh-central
+npx tsx .\packages\server\scripts\scan-local.ts "C:\Users\jnorm\OneDrive\Photo Vault" -o .\packages\server\manifest.json
+```
+
 ## Running in Production (locally)
 
 ```bash
