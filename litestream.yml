@@ -1,0 +1,6 @@
+dbs:
+  - path: /app/data/kosh.db
+    replicas:
+      - url: abs://kosh-litestream/kosh.db
+        account-name: ${AZURE_STORAGE_ACCOUNT}
+        account-key: ${AZURE_STORAGE_KEY}

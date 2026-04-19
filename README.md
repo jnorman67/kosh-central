@@ -6,7 +6,7 @@ Photo viewer for Microsoft 365 Personal OneDrive folders. Displays photos one-by
 
 - **Frontend** (`packages/client`): Vite + React 19, TypeScript, Tailwind CSS, shadcn/ui, React Router, TanStack React Query
 - **Backend** (`packages/server`): Express on Node.js, resolves OneDrive sharing URLs via Microsoft Graph API with MSAL authentication
-- **Infrastructure**: Azure App Service (Linux, Node 22) via Bicep
+- **Infrastructure**: Azure Container Apps (Node 22), with the SQLite database replicated to Azure Blob Storage by Litestream
 
 ## Prerequisites
 
@@ -53,30 +53,19 @@ The server stores authentication credentials in `packages/server/.msal-cache.jso
 
 **Local development:** The cache file is created automatically on first authentication and persists across server restarts. You should rarely need to re-authenticate.
 
-**Azure deployment:** The F1 (Free) App Service tier does not support SSH, so you cannot run device code flow on the server directly. Instead:
+**Azure deployment:** The cache lives at `/data/.msal-cache.json` on the Container App's Azure File share, and the deployed server reads/writes it directly. To prime the cache or refresh credentials:
 
-1. Authenticate locally first (`npm run dev`, then trigger an API request)
-2. Include `packages/server/.msal-cache.json` in the deployment zip (the deploy command in this README already does this)
-3. The deployed server picks up the cached refresh token and operates normally
+1. Authenticate locally first (`npm run dev`, then trigger an API request to populate `packages/server/.msal-cache.json`)
+2. Upload that file to the `kosh-data` share in the `koshcentralstor` storage account (Azure Portal → Storage → File shares, or `az storage file upload`)
+3. Restart or scale the Container App; on next start it picks up the cached refresh token
 
 **When you need to re-authenticate:**
 
 - If the app hasn't made a Graph API request in 90+ days, the refresh token expires
 - If you revoke the app's permissions in your Microsoft account settings
-- If you delete or lose the `.msal-cache.json` file
+- If you delete or lose the cached `.msal-cache.json`
 
-In any of these cases, re-authenticate locally and redeploy:
-
-```bash
-# Delete the stale cache
-rm packages/server/.msal-cache.json
-
-# Start the dev server and hit http://localhost:5173 to trigger auth
-npm run dev
-
-# After authenticating in the browser, redeploy
-npm run deploy
-```
+In any of these cases, re-authenticate locally and re-upload as above.
 
 ## Adding Photo Folders
 
@@ -120,57 +109,36 @@ Then visit http://localhost:3001. The Express server serves the built client as 
 
 ## Deploying to Azure
 
-The app is hosted at https://kosh-central.azurewebsites.net (App Service, legacy) and is migrating to **Azure Container Apps**. During the transition both paths exist.
+The app is hosted at https://photos.kosh-central.com on **Azure Container Apps**, with the SQLite database replicated to Azure Blob Storage by **Litestream**.
 
-### Container Apps (new — preferred)
+### Domain
 
-After the one-time migration (see below), every deploy is:
+`kosh-central.com` is registered through Cloudflare Registrar (purchased 2026-04-18, auto-renews ~$11/yr). DNS is hosted at Cloudflare. The `photos` subdomain is bound to the Container App with a free Azure-managed certificate (auto-renews).
+
+### Deploying
 
 ```bash
 npm run deploy:container
 ```
 
-This runs two steps:
-1. `npm run deploy:image` — `az acr build` uploads the source and builds the Docker image on Azure's side.
-2. `npm run deploy:restart` — `az containerapp update` rolls to the new image.
+This runs:
+1. `npm run deploy:image` — builds the Docker image locally and pushes to ACR (`koshcentralacr.azurecr.io/kosh-central:latest`).
+2. `npm run deploy:restart` — `az containerapp update` with a timestamped `--revision-suffix` so a fresh revision is created and the new image is pulled.
 
-Typical deploy: ~60-90 seconds. No zip, no extraction, no Kudu.
+Typical deploy: ~60–90 seconds.
 
-#### Data layout
+### Data layout
 
-The Container App mounts an Azure File share at `/data`. Everything the app writes goes there:
+The Container App has two storage backends:
 
-- `/data/kosh.db` — SQLite database (users, photos, relations, series)
-- `/data/.msal-cache.json` — OneDrive OAuth token cache
-- `/data/manifest.json` — photo scan manifest consumed on startup
+- **Local container disk at `/app/data/kosh.db`** — SQLite database (users, photos, relations, series). Replicated to Azure Blob Storage (`abs://kosh-litestream/kosh.db`) by Litestream. On container start, [docker-entrypoint.sh](docker-entrypoint.sh) restores the DB from blob if a replica exists, then `exec`s `litestream replicate -exec node …` so the Node app runs as a child of Litestream and replication streams live.
+- **Azure File share mounted at `/data`** — non-SQLite state:
+  - `/data/.msal-cache.json` — OneDrive OAuth token cache
+  - `/data/manifest.json` — photo scan manifest consumed on startup
 
-The Docker image sets `KOSH_DATA_DIR=/data` so [database.ts](packages/server/src/db/database.ts) and [msal.service.ts](packages/server/src/auth/msal.service.ts) route file I/O to the mount. In dev (no `KOSH_DATA_DIR`), paths fall back to `packages/server/...` as before.
+The Docker image sets `KOSH_DATA_DIR=/data` and `KOSH_DB_PATH=/app/data/kosh.db`. In dev (neither set), paths fall back to `packages/server/...`.
 
-#### First-time migration
-
-One-time provisioning (creates ACR, Storage Account + file share, Container Apps Environment, first image, and the Container App):
-
-```bash
-export AZURE_CLIENT_ID=<same value as current App Service setting>
-export JWT_SECRET=<same value as current App Service setting>
-bash scripts/azure-provision.sh
-```
-
-Then copy current production data onto the new file share (pulls `/home/kosh.db` and the MSAL cache from App Service via Kudu, uploads with your local manifest):
-
-```bash
-bash scripts/azure-migrate-data.sh
-```
-
-Verify the Container App URL works, flip any custom domain, then stop the old App Service (`az webapp stop --resource-group kosh-central-rg --name kosh-central`). Keep it stopped-but-alive for ~1 week as a rollback path before deleting.
-
-### App Service (legacy — rollback only)
-
-```bash
-npm run deploy
-```
-
-Still works. Uses the zip-upload path; subject to 504 timeouts on large pushes. Once the Container App is verified, delete the App Service and remove these scripts.
+**Why split storage?** SQLite cannot run on Azure Files (SMB): SQLite's POSIX advisory locks don't work reliably over SMB, so write transactions hang or fail with `SQLITE_BUSY`. Litestream gives us durability for the DB by replicating from local disk to blob storage. Plain JSON files (manifest, MSAL cache) are fine on the SMB share.
 
 ## Project Structure
 
@@ -188,5 +156,4 @@ packages/
       config/       Hardcoded folder URLs
       routes/       API route handlers
       services/     OneDrive/Graph API integration
-infra/              Azure Bicep templates
 ```

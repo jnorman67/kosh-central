@@ -1,5 +1,8 @@
 # syntax=docker/dockerfile:1.7
 
+# ---- litestream: source for the Litestream binary ----
+FROM litestream/litestream:latest AS litestream
+
 # ---- builder: compile TypeScript ----
 FROM node:22 AS builder
 WORKDIR /app
@@ -24,6 +27,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3001
 ENV KOSH_DATA_DIR=/data
+ENV KOSH_DB_PATH=/app/data/kosh.db
 
 # Static artifacts + prod deps
 COPY --from=builder /app/packages/server/dist packages/server/dist
@@ -33,8 +37,14 @@ COPY package.json ./
 COPY packages/server/package.json packages/server/
 COPY packages/client/package.json packages/client/
 
-# /data is the mount point for the Azure File share (manifest, SQLite DB, MSAL cache).
+# Litestream: replicate the SQLite DB on local disk to Azure Blob Storage.
+COPY --from=litestream /usr/local/bin/litestream /usr/local/bin/litestream
+COPY litestream.yml /etc/litestream.yml
+COPY docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
+
+# /data is the Azure File share for non-SQLite state (manifest.json, MSAL cache).
 VOLUME ["/data"]
 
 EXPOSE 3001
-CMD ["node", "packages/server/dist/index.js"]
+ENTRYPOINT ["/docker-entrypoint.sh"]

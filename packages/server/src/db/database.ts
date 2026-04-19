@@ -4,9 +4,10 @@ import path from 'node:path';
 const DB_FILENAME = 'kosh.db';
 
 function getDbPath(): string {
-    // Preferred: explicit data directory (Container Apps file-share mount, etc.)
-    if (process.env.KOSH_DATA_DIR) {
-        return path.join(process.env.KOSH_DATA_DIR, DB_FILENAME);
+    // Container Apps: DB lives on local container disk and is replicated to
+    // blob storage by Litestream. Cannot live on the SMB-backed file share.
+    if (process.env.KOSH_DB_PATH) {
+        return process.env.KOSH_DB_PATH;
     }
     // Legacy: App Service persists /home across deploys
     if (process.env.NODE_ENV === 'production') {
