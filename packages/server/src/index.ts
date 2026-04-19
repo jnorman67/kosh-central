@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { requireAuth } from './auth/auth.middleware.js';
 import { MsalService } from './auth/msal.service.js';
+import { FOLDERS } from './config/folders.config.js';
 import { initDb } from './db/database.js';
 import { importManifest, type ManifestRelationEntry, type PhotoManifestEntry } from './db/photos.store.js';
 import { createAuthRouter } from './routes/auth.router.js';
@@ -16,8 +17,17 @@ import { createRelationsRouter } from './routes/relations.router.js';
 import { createSeriesRouter } from './routes/series.router.js';
 import { OneDriveService } from './services/onedrive.service.js';
 
+assertUniqueFolderSlugs();
 initDb();
 loadManifest();
+
+function assertUniqueFolderSlugs(): void {
+    const slugs = FOLDERS.map((f) => f.slug);
+    const dupes = slugs.filter((s, i) => slugs.indexOf(s) !== i);
+    if (dupes.length) {
+        throw new Error(`Duplicate folder slugs in folders.config.ts: ${[...new Set(dupes)].join(', ')}`);
+    }
+}
 
 function loadManifest(): void {
     const manifestPath = process.env.KOSH_DATA_DIR
@@ -39,10 +49,15 @@ function loadManifest(): void {
 
     if (!photoCount) return;
 
-    const result = importManifest(raw.photos!, raw.relations);
+    const result = importManifest(
+        raw.photos!,
+        raw.relations,
+        FOLDERS.map((f) => f.folderPath),
+    );
     console.log(
         `Manifest import: ${result.created} new photos, ${result.existing} already known, ` +
-            `${result.relations} new relations (of ${relationCount} in manifest)`,
+            `${result.relations} new relations (of ${relationCount} in manifest), ` +
+            `${result.seriesMembers} folder-series memberships`,
     );
 }
 

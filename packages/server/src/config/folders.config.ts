@@ -35,6 +35,13 @@ export const FOLDERS: FolderConfig[] = [
     folderPath: "Dorothy's Albums/album03",
   },
   {
+    slug: "album-04-portraits",
+    displayName: "Dorothy's Album 4 - portraits",
+    sharingUrl:
+      "https://1drv.ms/f/c/cd2c0c2b50d77f00/IgAAf9dQKwwsIIDNKMcAAAAAAUz47gWGAnFK-SH5WOlO--0?e=kntTDM",
+    folderPath: "Dorothy's Albums/album04",
+  },
+  {
     slug: "album-05",
     displayName: "Dorothy's Album 5",
     sharingUrl:

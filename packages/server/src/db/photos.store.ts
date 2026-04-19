@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { getDb } from './database.js';
 import { createRelation, type RelationType } from './relations.store.js';
+import { addSeriesMember, upsertFolderSeries } from './series.store.js';
 
 export interface StoredPhoto {
     id: string;
@@ -143,16 +144,41 @@ export interface ManifestRelationEntry {
     relationType: RelationType;
 }
 
+/**
+ * If `entry.folderName` lies under one of the configured `folderRoots`, return
+ * the leaf segment of the relative subfolder path (used as a series name).
+ * Returns null when the photo sits directly in a configured root or in no
+ * configured root at all.
+ */
+function deriveSubfolderLeaf(folderName: string, folderRoots: string[]): string | null {
+    const lower = folderName.toLowerCase();
+    const match = folderRoots.find(
+        (r) => lower === r.toLowerCase() || lower.startsWith(r.toLowerCase() + '/'),
+    );
+    if (!match) return null;
+    const suffix = folderName.slice(match.length).replace(/^\//, '');
+    if (!suffix) return null;
+    return suffix.split('/').pop() ?? null;
+}
+
 /** Bulk-import photos from a scan manifest. Returns counts of new vs existing. */
 export function importManifest(
     entries: PhotoManifestEntry[],
     relations?: ManifestRelationEntry[],
-): { created: number; existing: number; locations: number; relations: number } {
+    folderRoots?: string[],
+): {
+    created: number;
+    existing: number;
+    locations: number;
+    relations: number;
+    seriesMembers: number;
+} {
     const db = getDb();
     let created = 0;
     let existing = 0;
     let locations = 0;
     let relationsCreated = 0;
+    let seriesMembers = 0;
 
     const importAll = db.transaction(() => {
         for (const entry of entries) {
@@ -180,6 +206,15 @@ export function importManifest(
                 localPath: entry.localPath ?? null,
             });
             locations++;
+
+            if (folderRoots) {
+                const leaf = deriveSubfolderLeaf(entry.folderName, folderRoots);
+                if (leaf) {
+                    const series = upsertFolderSeries(entry.folderName, leaf);
+                    addSeriesMember(series.id, photo.id, 0);
+                    seriesMembers++;
+                }
+            }
         }
 
         if (relations) {
@@ -203,5 +238,5 @@ export function importManifest(
     });
 
     importAll();
-    return { created, existing, locations, relations: relationsCreated };
+    return { created, existing, locations, relations: relationsCreated, seriesMembers };
 }

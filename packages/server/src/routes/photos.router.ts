@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { FOLDERS } from '../config/folders.config.js';
 import {
     findPhotoById,
     getPhotoLocations,
@@ -40,7 +41,11 @@ export function createPhotosRouter(): Router {
             res.status(400).json({ error: 'Request body must have a "photos" array' });
             return;
         }
-        const result = importManifest(body.photos, body.relations);
+        const result = importManifest(
+            body.photos,
+            body.relations,
+            FOLDERS.map((f) => f.folderPath),
+        );
         res.json(result);
     });
 

@@ -181,4 +181,15 @@ const migrations: Migration[] = [
             CREATE INDEX idx_photo_ratings_user_id ON photo_ratings(user_id);
         `,
     },
+    {
+        version: 7,
+        description: 'Add provenance columns to photo_series for folder-derived series',
+        sql: `
+            ALTER TABLE photo_series ADD COLUMN source TEXT NOT NULL DEFAULT 'manual'
+                CHECK (source IN ('manual', 'folder'));
+            ALTER TABLE photo_series ADD COLUMN source_key TEXT;
+            CREATE UNIQUE INDEX idx_photo_series_source_key
+                ON photo_series(source_key) WHERE source_key IS NOT NULL;
+        `,
+    },
 ];

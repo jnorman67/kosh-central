@@ -1,10 +1,14 @@
 import crypto from 'node:crypto';
 import { getDb } from './database.js';
 
+export type SeriesSource = 'manual' | 'folder';
+
 export interface StoredSeries {
     id: string;
     name: string;
     description: string | null;
+    source: SeriesSource;
+    sourceKey: string | null;
     createdAt: string;
     createdBy: string | null;
 }
@@ -20,6 +24,8 @@ interface SeriesRow {
     id: string;
     name: string;
     description: string | null;
+    source: SeriesSource;
+    source_key: string | null;
     created_at: string;
     created_by: string | null;
 }
@@ -36,6 +42,8 @@ function rowToSeries(row: SeriesRow): StoredSeries {
         id: row.id,
         name: row.name,
         description: row.description,
+        source: row.source,
+        sourceKey: row.source_key,
         createdAt: row.created_at,
         createdBy: row.created_by,
     };
@@ -103,6 +111,26 @@ export function removeSeriesMember(seriesId: string, photoId: string): boolean {
         .prepare('DELETE FROM photo_series_members WHERE series_id = ? AND photo_id = ?')
         .run(seriesId, photoId);
     return result.changes > 0;
+}
+
+/**
+ * Find or create a folder-derived series keyed by the photo's `folderName`.
+ * The name is set on insert only — if a user later renames the series, a
+ * subsequent re-import won't overwrite their edit.
+ */
+export function upsertFolderSeries(folderName: string, displayName: string): StoredSeries {
+    const db = getDb();
+    const existing = db
+        .prepare('SELECT * FROM photo_series WHERE source_key = ?')
+        .get(folderName) as SeriesRow | undefined;
+    if (existing) return rowToSeries(existing);
+
+    const id = crypto.randomUUID();
+    db.prepare(
+        `INSERT INTO photo_series (id, name, description, source, source_key)
+         VALUES (?, ?, NULL, 'folder', ?)`,
+    ).run(id, displayName, folderName);
+    return findSeriesById(id)!;
 }
 
 /** Get all series that a photo belongs to. */
