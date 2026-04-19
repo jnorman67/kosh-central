@@ -199,6 +199,12 @@ export function importManifest(
 
     // Resolve each unique scanner bundleKey to a bundle id (find-or-create), memoized per import.
     const bundleIdByKey = new Map<string, string>();
+    // A photo row is content-addressed by hash, so a single row can represent
+    // the same image stored in multiple folders — and the scanner will emit one
+    // manifest entry per copy, each with its own bundleKey. But a DB photo has a
+    // single (bundle_id, side) slot. First-writer-wins: only the first entry we
+    // see for a given contentHash contributes bundle membership.
+    const bundleAssigned = new Set<string>();
 
     const importAll = db.transaction(() => {
         for (const entry of entries) {
@@ -227,13 +233,14 @@ export function importManifest(
             });
             locations++;
 
-            if (entry.bundleKey && entry.side) {
+            if (entry.bundleKey && entry.side && !bundleAssigned.has(entry.contentHash)) {
                 let bundleId = bundleIdByKey.get(entry.bundleKey);
                 if (!bundleId) {
                     bundleId = upsertBundleByScannerKey(entry.bundleKey).id;
                     bundleIdByKey.set(entry.bundleKey, bundleId);
                 }
                 setBundleMembership(photo.id, bundleId, entry.side, !!entry.preferredHint);
+                bundleAssigned.add(entry.contentHash);
             }
 
             if (folderRoots) {
