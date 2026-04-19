@@ -28,7 +28,7 @@ export function LoginPage() {
     }
 
     return (
-        <div className="flex min-h-screen items-center justify-center bg-background px-4">
+        <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-amber-50 to-background px-4">
             <Card className="w-full max-w-sm">
                 <CardHeader>
                     <CardTitle className="text-2xl">Sign in</CardTitle>

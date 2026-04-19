@@ -22,8 +22,11 @@
         --destructive-foreground: 0 0% 98%;
         --border: 240 5.9% 90%;
         --input: 240 5.9% 90%;
-        --ring: 240 5.9% 10%;
+        --ring: 38 92% 50%;
         --radius: 0.5rem;
+
+        --brand: 38 92% 50%;
+        --brand-foreground: 0 0% 100%;
 
         --sidebar-background: 0 0% 98%;
         --sidebar-foreground: 240 5.3% 26.1%;
@@ -56,7 +59,10 @@
         --destructive-foreground: 0 0% 98%;
         --border: 240 3.7% 15.9%;
         --input: 240 3.7% 15.9%;
-        --ring: 240 4.9% 83.9%;
+        --ring: 38 92% 55%;
+
+        --brand: 38 92% 55%;
+        --brand-foreground: 240 10% 3.9%;
 
         --sidebar-background: 240 5.9% 10%;
         --sidebar-foreground: 240 4.8% 95.9%;

@@ -3,7 +3,7 @@ import { PhotoGallery } from '@/app/features/photos/components/photo-gallery';
 import { usePhotosQueries } from '@/app/features/photos/contexts/photos-query.context';
 import { ViewerLayout } from '@/components/layout/viewer-layout';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, LibraryBig } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Heart, LibraryBig } from 'lucide-react';
 import { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
@@ -58,9 +58,12 @@ export function FavoritesPage() {
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                         <Button variant="ghost" size="sm" onClick={() => navigate('/')} title="Browse albums" aria-label="Browse albums">
-                            <LibraryBig className="h-4 w-4" />
+                            <LibraryBig className="h-4 w-4 text-amber-600" />
                         </Button>
-                        <div className="px-2 py-2 text-sm font-medium">My favorites</div>
+                        <div className="flex items-center gap-2 px-2 py-2 text-sm font-medium">
+                            <Heart className="h-4 w-4 fill-rose-500 text-rose-500" />
+                            My favorites
+                        </div>
                     </div>
                     <div className="flex items-center gap-3 px-4">
                         <span className="text-sm text-muted-foreground">{me?.displayName}</span>
@@ -74,7 +77,7 @@ export function FavoritesPage() {
             toolbar={
                 <div className="flex items-center justify-center gap-4 px-4 py-2 text-sm text-muted-foreground">
                     <Button variant="ghost" size="sm" onClick={() => setPage(page - 1)} disabled={page === 0}>
-                        <ChevronLeft className="mr-1 h-4 w-4" />
+                        <ChevronLeft className="h-4 w-4" />
                         Prev
                     </Button>
                     <span className="min-w-[12rem] text-center">
@@ -82,7 +85,7 @@ export function FavoritesPage() {
                     </span>
                     <Button variant="ghost" size="sm" onClick={() => setPage(page + 1)} disabled={page + 1 >= totalPages}>
                         Next
-                        <ChevronRight className="ml-1 h-4 w-4" />
+                        <ChevronRight className="h-4 w-4" />
                     </Button>
                 </div>
             }

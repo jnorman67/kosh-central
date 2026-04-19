@@ -27,7 +27,7 @@ export function ViewerLayout({ header, viewer, toolbar, rightPanel }: ViewerLayo
                 gridTemplateAreas: areas,
             }}
         >
-            <header style={{ gridArea: 'header' }} className="border-b bg-background">
+            <header style={{ gridArea: 'header' }} className="border-b border-amber-200 bg-gradient-to-b from-amber-100/70 to-background">
                 {header}
             </header>
             <main style={{ gridArea: 'viewer' }} className="min-h-0 overflow-hidden">
@@ -39,7 +39,7 @@ export function ViewerLayout({ header, viewer, toolbar, rightPanel }: ViewerLayo
                 </aside>
             )}
             {hasToolbar && (
-                <div style={{ gridArea: 'toolbar' }} className="border-t bg-background">
+                <div style={{ gridArea: 'toolbar' }} className="border-t border-amber-200 bg-gradient-to-t from-amber-100/70 to-background">
                     {toolbar}
                 </div>
             )}

@@ -165,7 +165,7 @@ export function ViewerPage() {
                                     title="Click here to browse albums"
                                     aria-label="Browse albums"
                                 >
-                                    <LibraryBig className="h-4 w-4" />
+                                    <LibraryBig className="h-4 w-4 text-amber-600" />
                                 </Button>
                                 <FolderSelector
                                     folders={folders}
@@ -183,7 +183,7 @@ export function ViewerPage() {
                                 title="My favorites"
                                 aria-label="My favorites"
                             >
-                                <Heart className="mr-2 h-4 w-4" />
+                                <Heart className="h-4 w-4 fill-rose-500 text-rose-500" />
                                 Favorites
                             </Button>
                             {isAdmin && (
@@ -194,13 +194,13 @@ export function ViewerPage() {
                                     title="Manage folders"
                                     aria-label="Manage folders"
                                 >
-                                    <FolderCog className="mr-2 h-4 w-4" />
+                                    <FolderCog className="h-4 w-4" />
                                     Folders
                                 </Button>
                             )}
                             {isPhoto && (
                                 <Button variant="ghost" size="sm" onClick={backToGallery}>
-                                    <LayoutGrid className="mr-2 h-4 w-4" />
+                                    <LayoutGrid className="h-4 w-4" />
                                     Gallery
                                 </Button>
                             )}
@@ -213,12 +213,12 @@ export function ViewerPage() {
                                 >
                                     {isCurrentCover ? (
                                         <>
-                                            <StarOff className="mr-2 h-4 w-4" />
+                                            <StarOff className="h-4 w-4" />
                                             Clear album cover
                                         </>
                                     ) : (
                                         <>
-                                            <Star className="mr-2 h-4 w-4" />
+                                            <Star className="h-4 w-4" />
                                             Set as album cover
                                         </>
                                     )}
@@ -232,7 +232,7 @@ export function ViewerPage() {
                                     disabled={setPreferred.isPending}
                                     title="Make this the preferred version for its side of the bundle"
                                 >
-                                    <Check className="mr-2 h-4 w-4" />
+                                    <Check className="h-4 w-4" />
                                     Set as preferred
                                 </Button>
                             )}
@@ -263,7 +263,7 @@ export function ViewerPage() {
                                     className="absolute right-4 top-4 z-10 shadow"
                                     title="Back to main photo (Esc)"
                                 >
-                                    <X className="mr-2 h-4 w-4" />
+                                    <X className="h-4 w-4" />
                                     Back to main photo
                                 </Button>
                             )}
@@ -301,7 +301,7 @@ export function ViewerPage() {
                                     size="sm"
                                     onClick={() => setUncatalogedOnly((v) => !v)}
                                 >
-                                    <Filter className="mr-2 h-4 w-4" />
+                                    <Filter className="h-4 w-4" />
                                     {uncatalogedOnly ? 'Show all' : `${uncatalogedCount} uncataloged`}
                                 </Button>
                             )}

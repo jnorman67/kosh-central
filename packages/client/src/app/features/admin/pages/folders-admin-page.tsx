@@ -147,16 +147,16 @@ export function FoldersAdminPage() {
                             <div className="flex items-center gap-2">
                                 <Button variant="outline" size="sm" asChild>
                                     <a href={service.exportUrl()} download>
-                                        <Download className="mr-2 h-4 w-4" />
+                                        <Download className="h-4 w-4" />
                                         Export
                                     </a>
                                 </Button>
                                 <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
-                                    <Upload className="mr-2 h-4 w-4" />
+                                    <Upload className="h-4 w-4" />
                                     Import
                                 </Button>
                                 <Button size="sm" onClick={openCreate}>
-                                    <Plus className="mr-2 h-4 w-4" />
+                                    <Plus className="h-4 w-4" />
                                     New folder
                                 </Button>
                             </div>
