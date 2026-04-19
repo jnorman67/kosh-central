@@ -1,9 +1,10 @@
 import { useAuthQueries } from '@/app/features/auth/contexts/auth-query.context';
 import { PhotoGallery } from '@/app/features/photos/components/photo-gallery';
 import { usePhotosQueries } from '@/app/features/photos/contexts/photos-query.context';
+import { BrandMark } from '@/components/layout/brand-mark';
 import { ViewerLayout } from '@/components/layout/viewer-layout';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Heart, LibraryBig } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Heart } from 'lucide-react';
 import { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
@@ -57,9 +58,7 @@ export function FavoritesPage() {
             header={
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                        <Button variant="ghost" size="sm" onClick={() => navigate('/')} title="Browse albums" aria-label="Browse albums">
-                            <LibraryBig className="h-4 w-4 text-amber-600" />
-                        </Button>
+                        <BrandMark onClick={() => navigate('/')} title="Browse albums" />
                         <div className="flex items-center gap-2 px-2 py-2 text-sm font-medium">
                             <Heart className="h-4 w-4 fill-rose-500 text-rose-500" />
                             My favorites

@@ -9,9 +9,10 @@ import { StarRating } from '@/app/features/photos/components/star-rating';
 import { usePhotosQueries } from '@/app/features/photos/contexts/photos-query.context';
 import { useViewerState } from '@/app/features/photos/hooks/use-viewer-state';
 import type { Photo } from '@/app/features/photos/models/photos.models';
+import { BrandMark } from '@/components/layout/brand-mark';
 import { ViewerLayout } from '@/components/layout/viewer-layout';
 import { Button } from '@/components/ui/button';
-import { Check, ExternalLink, Filter, FolderCog, Heart, LayoutGrid, LibraryBig, Star, StarOff, X } from 'lucide-react';
+import { Check, ExternalLink, Filter, FolderCog, Heart, LayoutGrid, Star, StarOff, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
@@ -155,18 +156,13 @@ export function ViewerPage() {
                 header={
                     <div className="flex items-center justify-between">
                         {isAlbums ? (
-                            <div className="px-4 py-2 text-sm font-medium">All albums</div>
+                            <div className="flex items-center gap-2">
+                                <BrandMark title="Kosh Central" />
+                                <span className="text-sm text-muted-foreground">All albums</span>
+                            </div>
                         ) : (
                             <div className="flex items-center gap-2">
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={goToAlbums}
-                                    title="Click here to browse albums"
-                                    aria-label="Browse albums"
-                                >
-                                    <LibraryBig className="h-4 w-4 text-amber-600" />
-                                </Button>
+                                <BrandMark onClick={goToAlbums} title="Browse albums" />
                                 <FolderSelector
                                     folders={folders}
                                     selectedId={currentFolder?.id ?? null}
