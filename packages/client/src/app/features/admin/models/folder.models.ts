@@ -27,10 +27,3 @@ export interface ImportResponse {
     created: number;
     updated: number;
 }
-
-/** Shape of server-side validation errors. `field` maps to a form input. */
-export interface ApiError {
-    error: string;
-    field?: string;
-    detail?: unknown;
-}

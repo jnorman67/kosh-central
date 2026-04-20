@@ -1,61 +1,49 @@
 import type { FavoritesPage, Photo, PhotoFolder } from '@/app/features/photos/models/photos.models';
+import { apiFetch } from '@/lib/api-client';
 
 export class PhotosService {
     async getFolders(): Promise<PhotoFolder[]> {
-        const res = await fetch('/api/folders');
-        if (!res.ok) throw new Error('Failed to fetch folders');
-        return res.json();
+        return apiFetch<PhotoFolder[]>('/api/folders');
     }
 
     async getPhotos(folderId: string): Promise<Photo[]> {
-        const res = await fetch(`/api/folders/${folderId}/photos`);
-        if (!res.ok) throw new Error('Failed to fetch photos');
-        return res.json();
+        return apiFetch<Photo[]>(`/api/folders/${folderId}/photos`);
     }
 
     async setFolderCover(folderId: string, fileName: string): Promise<void> {
-        const res = await fetch(`/api/folders/${folderId}/cover`, {
+        await apiFetch<void>(`/api/folders/${folderId}/cover`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ fileName }),
         });
-        if (!res.ok) throw new Error('Failed to set folder cover');
     }
 
     async clearFolderCover(folderId: string): Promise<void> {
-        const res = await fetch(`/api/folders/${folderId}/cover`, { method: 'DELETE' });
-        if (!res.ok) throw new Error('Failed to clear folder cover');
+        await apiFetch<void>(`/api/folders/${folderId}/cover`, { method: 'DELETE' });
     }
 
     async ratePhoto(catalogId: string, rating: number): Promise<void> {
-        const res = await fetch(`/api/ratings/photo/${catalogId}`, {
+        await apiFetch<void>(`/api/ratings/photo/${catalogId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ rating }),
         });
-        if (!res.ok) throw new Error('Failed to rate photo');
     }
 
     async clearRating(catalogId: string): Promise<void> {
-        const res = await fetch(`/api/ratings/photo/${catalogId}`, { method: 'DELETE' });
-        if (!res.ok) throw new Error('Failed to clear rating');
+        await apiFetch<void>(`/api/ratings/photo/${catalogId}`, { method: 'DELETE' });
     }
 
     async getFavorites(offset: number, limit: number): Promise<FavoritesPage> {
-        const res = await fetch(`/api/favorites?offset=${offset}&limit=${limit}`);
-        if (!res.ok) throw new Error('Failed to fetch favorites');
-        return res.json();
+        return apiFetch<FavoritesPage>(`/api/favorites?offset=${offset}&limit=${limit}`);
     }
 
     async setPreferredPhoto(catalogId: string): Promise<void> {
-        const res = await fetch(`/api/admin/photos/${catalogId}/preferred`, { method: 'PUT' });
-        if (!res.ok) throw new Error('Failed to set preferred photo');
+        await apiFetch<void>(`/api/admin/photos/${catalogId}/preferred`, { method: 'PUT' });
     }
 
     async getShareLink(folderId: string, itemId: string): Promise<string> {
-        const res = await fetch(`/api/folders/${folderId}/photos/${encodeURIComponent(itemId)}/share-link`);
-        if (!res.ok) throw new Error('Failed to fetch share link');
-        const body = (await res.json()) as { webUrl: string };
+        const body = await apiFetch<{ webUrl: string }>(`/api/folders/${folderId}/photos/${encodeURIComponent(itemId)}/share-link`);
         return body.webUrl;
     }
 }

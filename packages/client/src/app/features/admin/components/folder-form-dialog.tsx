@@ -1,10 +1,10 @@
 import { slugify } from '@/app/features/admin/lib/slug';
 import type { AdminFolder, FolderInput } from '@/app/features/admin/models/folder.models';
-import { AdminFoldersError } from '@/app/features/admin/services/admin-folders.service';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ApiError } from '@/lib/api-client';
 import { useEffect, useState } from 'react';
 
 interface Props {
@@ -97,7 +97,7 @@ export function FolderFormDialog({ open, onOpenChange, mode, initial, onSubmit }
             });
             onOpenChange(false);
         } catch (err) {
-            if (err instanceof AdminFoldersError) {
+            if (err instanceof ApiError) {
                 if (err.field) {
                     setFieldErrors({ [err.field]: err.message });
                 } else {

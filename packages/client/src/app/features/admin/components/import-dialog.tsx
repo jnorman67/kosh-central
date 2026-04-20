@@ -1,8 +1,9 @@
 import type { FolderInput, ImportResponse } from '@/app/features/admin/models/folder.models';
-import { AdminFoldersError, AdminFoldersService } from '@/app/features/admin/services/admin-folders.service';
+import { AdminFoldersService } from '@/app/features/admin/services/admin-folders.service';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { ApiError } from '@/lib/api-client';
 import { useEffect, useState } from 'react';
 
 interface Props {
@@ -53,7 +54,7 @@ export function ImportDialog({ open, onOpenChange, onImport }: Props) {
             await onImport(parsed, mode);
             onOpenChange(false);
         } catch (err) {
-            if (err instanceof AdminFoldersError) {
+            if (err instanceof ApiError) {
                 setSubmitError(err.field ? `${err.field}: ${err.message}` : err.message);
             } else {
                 setSubmitError(err instanceof Error ? err.message : String(err));
