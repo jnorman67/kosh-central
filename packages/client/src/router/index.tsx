@@ -2,6 +2,7 @@ import { AdminQueryProvider } from '@/app/features/admin/contexts/admin-query.co
 import { FoldersAdminPage } from '@/app/features/admin/pages/folders-admin-page';
 import { AdminGuard } from '@/app/features/auth/components/admin-guard';
 import { AuthGuard } from '@/app/features/auth/components/auth-guard';
+import { ChangePasswordPage } from '@/app/features/auth/pages/change-password-page';
 import { LoginPage } from '@/app/features/auth/pages/login-page';
 import { RegisterPage } from '@/app/features/auth/pages/register-page';
 import { PhotosQueryProvider } from '@/app/features/photos/contexts/photos-query.context';
@@ -46,6 +47,14 @@ export const router = createBrowserRouter([
                 <PhotosQueryProvider>
                     <SlideshowPage />
                 </PhotosQueryProvider>
+            </AuthGuard>
+        ),
+    },
+    {
+        path: '/account/password',
+        element: (
+            <AuthGuard>
+                <ChangePasswordPage />
             </AuthGuard>
         ),
     },

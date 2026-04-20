@@ -2,7 +2,7 @@ import bcrypt from 'bcryptjs';
 import { Router } from 'express';
 import jwt from 'jsonwebtoken';
 import { type AuthPayload, getJwtSecret, requireAuth } from '../auth/auth.middleware.js';
-import { createUser, findUserByEmail, findUserById } from '../auth/users.store.js';
+import { createUser, findUserByEmail, findUserById, updateUserPasswordHash } from '../auth/users.store.js';
 import { findInvite } from '../config/invites.config.js';
 
 const TOKEN_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -85,6 +85,47 @@ export function createAuthRouter(): Router {
     router.post('/logout', (_req, res) => {
         res.clearCookie('token');
         res.json({ message: 'Logged out' });
+    });
+
+    router.post('/change-password', requireAuth, async (req, res) => {
+        const { currentPassword, newPassword } = req.body;
+
+        if (!currentPassword || !newPassword) {
+            res.status(400).json({ error: 'Current and new passwords are required' });
+            return;
+        }
+
+        if (newPassword.length < 8) {
+            res.status(400).json({ error: 'New password must be at least 8 characters' });
+            return;
+        }
+
+        const user = findUserById(req.user!.userId);
+        if (!user) {
+            res.status(401).json({ error: 'User not found' });
+            return;
+        }
+
+        const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+        if (!valid) {
+            res.status(401).json({ error: 'Current password is incorrect' });
+            return;
+        }
+
+        const newHash = await bcrypt.hash(newPassword, 12);
+        updateUserPasswordHash(user.id, newHash);
+
+        const payload: AuthPayload = { userId: user.id, email: user.email, role: user.role };
+        const token = jwt.sign(payload, getJwtSecret(), { expiresIn: '7d' });
+
+        res.cookie('token', token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax',
+            maxAge: TOKEN_MAX_AGE,
+        });
+
+        res.json({ message: 'Password updated' });
     });
 
     router.get('/me', requireAuth, (req, res) => {

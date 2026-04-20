@@ -45,3 +45,7 @@ export function createUser(user: StoredUser): void {
         .prepare('INSERT INTO users (id, email, display_name, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?, ?)')
         .run(user.id, user.email, user.displayName, user.passwordHash, user.role, user.createdAt);
 }
+
+export function updateUserPasswordHash(id: string, passwordHash: string): void {
+    getDb().prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(passwordHash, id);
+}

@@ -43,7 +43,14 @@ export const createAuthQueries = (service: AuthService) => {
         });
     };
 
-    return { useGetMe, useLogin, useRegister, useLogout };
+    const useChangePassword = () => {
+        return useMutation({
+            mutationFn: ({ currentPassword, newPassword }: { currentPassword: string; newPassword: string }) =>
+                service.changePassword(currentPassword, newPassword),
+        });
+    };
+
+    return { useGetMe, useLogin, useRegister, useLogout, useChangePassword };
 };
 
 export type AuthQueries = ReturnType<typeof createAuthQueries>;

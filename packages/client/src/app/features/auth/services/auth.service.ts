@@ -36,4 +36,13 @@ export class AuthService {
     async logout(): Promise<void> {
         await fetch('/api/auth/logout', { method: 'POST' });
     }
+
+    async changePassword(currentPassword: string, newPassword: string): Promise<string> {
+        const body = await apiFetch<MessageResponse>('/api/auth/change-password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ currentPassword, newPassword }),
+        });
+        return body.message;
+    }
 }
