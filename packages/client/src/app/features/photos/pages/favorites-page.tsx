@@ -1,50 +1,87 @@
+import { LetterboxViewer } from '@/app/features/photos/components/letterbox-viewer';
+import { PhotoControls } from '@/app/features/photos/components/photo-controls';
 import { PhotoGallery } from '@/app/features/photos/components/photo-gallery';
+import { StarRating } from '@/app/features/photos/components/star-rating';
 import { usePhotosQueries } from '@/app/features/photos/contexts/photos-query.context';
 import { BrandMark } from '@/components/layout/brand-mark';
 import { UserMenu } from '@/components/layout/user-menu';
 import { ViewerLayout } from '@/components/layout/viewer-layout';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, ChevronLeft, ChevronRight, Heart, Play } from 'lucide-react';
-import { useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, ExternalLink, Heart, LayoutGrid, Play } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
-const PAGE_SIZE = 24;
+const PAGE_SIZE = 50;
+// While viewing a photo, fetch the next page when this close to the loaded end.
+const PREFETCH_THRESHOLD = 5;
 
 export function FavoritesPage() {
     const navigate = useNavigate();
-    const { useGetFavorites } = usePhotosQueries();
+    const { useGetFavoritesInfinite, useRatePhoto, useGetShareLink } = usePhotosQueries();
+    const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useGetFavoritesInfinite(PAGE_SIZE);
+    const ratePhoto = useRatePhoto();
 
-    const [searchParams, setSearchParams] = useSearchParams();
-    const page = Math.max(0, parseInt(searchParams.get('page') ?? '0', 10) || 0);
-    const offset = page * PAGE_SIZE;
+    const photos = useMemo(() => data?.pages.flatMap((p) => p.photos) ?? [], [data]);
+    const total = data?.pages[0]?.total ?? 0;
 
-    const { data, isLoading } = useGetFavorites(offset, PAGE_SIZE);
-    const photos = data?.photos ?? [];
-    const total = data?.total ?? 0;
-    const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    const [view, setView] = useState<'gallery' | 'photo'>('gallery');
+    const [selectedIndex, setSelectedIndex] = useState(0);
 
-    // If the page becomes empty because the underlying list shrunk (e.g. user cleared
-    // ratings), step back to the previous page.
+    const current = photos[selectedIndex] ?? null;
+    const { data: shareLink } = useGetShareLink(current?.folderId ?? null, current?.id ?? null);
+
+    // If the favorites list shrinks (e.g. user cleared a rating in photo view) and
+    // our index now points past the end, clamp or fall back to the gallery.
     useEffect(() => {
-        if (!data) return;
-        if (photos.length === 0 && page > 0) {
-            setSearchParams({ page: String(page - 1) }, { replace: true });
+        if (view !== 'photo') return;
+        if (photos.length === 0) {
+            setView('gallery');
+            setSelectedIndex(0);
+        } else if (selectedIndex >= photos.length) {
+            setSelectedIndex(photos.length - 1);
         }
-    }, [data, photos.length, page, setSearchParams]);
+    }, [view, photos.length, selectedIndex]);
 
-    function setPage(next: number) {
-        setSearchParams({ page: String(next) });
+    // Prefetch the next page as photo view approaches the end of the loaded list.
+    useEffect(() => {
+        if (view !== 'photo') return;
+        if (!hasNextPage || isFetchingNextPage) return;
+        if (photos.length > 0 && selectedIndex >= photos.length - PREFETCH_THRESHOLD) {
+            void fetchNextPage();
+        }
+    }, [view, selectedIndex, photos.length, hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+    function openFavorite(i: number) {
+        setSelectedIndex(i);
+        setView('photo');
     }
 
-    function openFavorite(index: number) {
-        const photo = photos[index];
-        if (!photo) return;
-        const photoKey = photo.contentHash ?? photo.name;
-        navigate(`/?folder=${encodeURIComponent(photo.folderId)}&photo=${encodeURIComponent(photoKey)}`);
-    }
+    const backToGallery = useCallback(() => setView('gallery'), []);
 
-    const from = total === 0 ? 0 : offset + 1;
-    const to = Math.min(offset + photos.length, total);
+    const goNext = useCallback(() => {
+        setSelectedIndex((i) => {
+            if (photos.length === 0) return i;
+            const next = i + 1;
+            if (next < photos.length) return next;
+            if (!hasNextPage) return 0;
+            return i;
+        });
+    }, [photos.length, hasNextPage]);
+
+    const goPrev = useCallback(() => {
+        setSelectedIndex((i) => (i === 0 ? Math.max(0, photos.length - 1) : i - 1));
+    }, [photos.length]);
+
+    useEffect(() => {
+        if (view !== 'photo') return;
+        function onKey(e: KeyboardEvent) {
+            if (e.key === 'Escape') backToGallery();
+        }
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [view, backToGallery]);
+
+    const isPhoto = view === 'photo';
 
     return (
         <ViewerLayout
@@ -62,6 +99,12 @@ export function FavoritesPage() {
                         </div>
                     </div>
                     <div className="flex items-center gap-3 px-4">
+                        {isPhoto && (
+                            <Button variant="ghost" size="sm" onClick={backToGallery}>
+                                <LayoutGrid className="h-4 w-4" />
+                                Gallery
+                            </Button>
+                        )}
                         <Button
                             variant="ghost"
                             size="sm"
@@ -76,21 +119,66 @@ export function FavoritesPage() {
                     </div>
                 </div>
             }
-            viewer={<PhotoGallery photos={photos} isLoading={isLoading} onSelect={openFavorite} />}
+            viewer={
+                isPhoto ? (
+                    <LetterboxViewer photo={current} isLoading={isLoading && !current} />
+                ) : (
+                    <PhotoGallery photos={photos} isLoading={isLoading} onSelect={openFavorite} />
+                )
+            }
             toolbar={
-                <div className="flex items-center justify-center gap-4 px-4 py-2 text-sm text-muted-foreground">
-                    <Button variant="ghost" size="sm" onClick={() => setPage(page - 1)} disabled={page === 0}>
-                        <ChevronLeft className="h-4 w-4" />
-                        Prev
-                    </Button>
-                    <span className="min-w-[12rem] text-center">
-                        {total === 0 ? 'No favorites yet' : `${from}–${to} of ${total} · Page ${page + 1} of ${totalPages}`}
-                    </span>
-                    <Button variant="ghost" size="sm" onClick={() => setPage(page + 1)} disabled={page + 1 >= totalPages}>
-                        Next
-                        <ChevronRight className="h-4 w-4" />
-                    </Button>
-                </div>
+                isPhoto ? (
+                    <div className="grid grid-cols-3 items-center px-4 py-2">
+                        <div className="flex items-center justify-start gap-3 min-w-0">
+                            {shareLink && (
+                                <Button variant="ghost" size="sm" asChild className="shrink-0">
+                                    <a href={shareLink} target="_blank" rel="noreferrer" title="Open in OneDrive">
+                                        <ExternalLink className="h-4 w-4" />
+                                        <span className="sr-only">Open in OneDrive</span>
+                                    </a>
+                                </Button>
+                            )}
+                            {current && (
+                                <span className="truncate text-sm text-muted-foreground" title={current.name}>
+                                    {current.name}
+                                </span>
+                            )}
+                        </div>
+                        <div className="flex items-center justify-center">
+                            <PhotoControls currentIndex={selectedIndex} totalCount={photos.length} onPrev={goPrev} onNext={goNext} />
+                        </div>
+                        <div className="flex items-center justify-end">
+                            {current?.catalogId && (
+                                <StarRating
+                                    rating={current.rating}
+                                    disabled={ratePhoto.isPending}
+                                    onChange={(rating) =>
+                                        ratePhoto.mutate({
+                                            catalogId: current.catalogId!,
+                                            folderId: current.folderId,
+                                            rating,
+                                        })
+                                    }
+                                />
+                            )}
+                        </div>
+                    </div>
+                ) : (
+                    <div className="flex items-center justify-center gap-4 px-4 py-2 text-sm text-muted-foreground">
+                        <span>
+                            {total === 0
+                                ? 'No favorites yet'
+                                : photos.length < total
+                                  ? `${photos.length} of ${total} loaded`
+                                  : `${total} ${total === 1 ? 'favorite' : 'favorites'}`}
+                        </span>
+                        {hasNextPage && (
+                            <Button variant="ghost" size="sm" onClick={() => fetchNextPage()} disabled={isFetchingNextPage}>
+                                Load more
+                            </Button>
+                        )}
+                    </div>
+                )
             }
         />
     );

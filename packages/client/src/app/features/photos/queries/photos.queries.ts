@@ -4,7 +4,6 @@ import { useInfiniteQuery, useMutation, useQueries, useQuery, useQueryClient } f
 export const PhotosQueryKeys = {
     folders: ['Photos', 'Folders'] as const,
     photos: (folderId: string) => ['Photos', 'Photos', folderId] as const,
-    favorites: (offset: number, limit: number) => ['Photos', 'Favorites', offset, limit] as const,
     favoritesInfinite: (limit: number) => ['Photos', 'Favorites', 'infinite', limit] as const,
     favoritesAll: ['Photos', 'Favorites'] as const,
     shareLink: (folderId: string, itemId: string) => ['Photos', 'ShareLink', folderId, itemId] as const,
@@ -76,14 +75,6 @@ export const createPhotosQueries = (service: PhotosService) => {
         });
     };
 
-    const useGetFavorites = (offset: number, limit: number) => {
-        return useQuery({
-            queryKey: PhotosQueryKeys.favorites(offset, limit),
-            queryFn: () => service.getFavorites(offset, limit),
-            staleTime: 5 * 60 * 1000,
-        });
-    };
-
     const useGetFavoritesInfinite = (limit: number) => {
         return useInfiniteQuery({
             queryKey: PhotosQueryKeys.favoritesInfinite(limit),
@@ -114,7 +105,6 @@ export const createPhotosQueries = (service: PhotosService) => {
         useClearFolderCover,
         useSetPreferredPhoto,
         useRatePhoto,
-        useGetFavorites,
         useGetFavoritesInfinite,
         useGetShareLink,
     };
