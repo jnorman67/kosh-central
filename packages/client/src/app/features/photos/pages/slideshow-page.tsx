@@ -1,5 +1,6 @@
 import { usePhotosQueries } from '@/app/features/photos/contexts/photos-query.context';
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { ChevronLeft, ChevronRight, Pause, Play, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -104,51 +105,67 @@ export function SlideshowPage() {
             <div className="pointer-events-none absolute inset-x-0 top-0 flex items-center justify-between bg-gradient-to-b from-black/70 to-transparent px-4 py-3 text-sm text-zinc-200">
                 <span>{`${Math.min(index + 1, total)} of ${total}`}</span>
                 <div className="pointer-events-auto">
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => navigate('/favorites')}
-                        className="text-zinc-200 hover:bg-white/10 hover:text-white"
-                        title="Exit slideshow (Esc)"
-                    >
-                        <X className="h-4 w-4" />
-                        Exit
-                    </Button>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => navigate('/favorites')}
+                                className="text-zinc-200 hover:bg-white/10 hover:text-white"
+                            >
+                                <X className="h-4 w-4" />
+                                Exit
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Exit slideshow (Esc)</TooltipContent>
+                    </Tooltip>
                 </div>
             </div>
 
             <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center justify-center gap-3 bg-gradient-to-t from-black/70 to-transparent px-4 py-4 text-zinc-200">
                 <div className="pointer-events-auto flex items-center gap-2">
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={goPrev}
-                        className="text-zinc-200 hover:bg-white/10 hover:text-white"
-                        title="Previous (←)"
-                        aria-label="Previous"
-                    >
-                        <ChevronLeft className="h-4 w-4" />
-                    </Button>
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setPlaying((p) => !p)}
-                        className="text-zinc-200 hover:bg-white/10 hover:text-white"
-                        title={playing ? 'Pause (space)' : 'Play (space)'}
-                        aria-label={playing ? 'Pause' : 'Play'}
-                    >
-                        {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-                    </Button>
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={goNext}
-                        className="text-zinc-200 hover:bg-white/10 hover:text-white"
-                        title="Next (→)"
-                        aria-label="Next"
-                    >
-                        <ChevronRight className="h-4 w-4" />
-                    </Button>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={goPrev}
+                                className="text-zinc-200 hover:bg-white/10 hover:text-white"
+                                aria-label="Previous"
+                            >
+                                <ChevronLeft className="h-4 w-4" />
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Previous (←)</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setPlaying((p) => !p)}
+                                className="text-zinc-200 hover:bg-white/10 hover:text-white"
+                                aria-label={playing ? 'Pause' : 'Play'}
+                            >
+                                {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>{playing ? 'Pause (space)' : 'Play (space)'}</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={goNext}
+                                className="text-zinc-200 hover:bg-white/10 hover:text-white"
+                                aria-label="Next"
+                            >
+                                <ChevronRight className="h-4 w-4" />
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Next (→)</TooltipContent>
+                    </Tooltip>
                     <div className="mx-2 h-4 w-px bg-zinc-500" />
                     <label className="flex items-center gap-2 text-xs">
                         Speed

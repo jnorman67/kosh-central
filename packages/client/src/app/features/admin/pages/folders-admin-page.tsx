@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { ArrowLeft, Download, Plus, Upload } from 'lucide-react';
@@ -119,9 +120,14 @@ export function FoldersAdminPage() {
             header={
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                        <Button variant="ghost" size="sm" onClick={() => navigate('/')} title="Back to viewer">
-                            <ArrowLeft className="h-4 w-4" />
-                        </Button>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button variant="ghost" size="sm" onClick={() => navigate('/')} aria-label="Back to viewer">
+                                    <ArrowLeft className="h-4 w-4" />
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Back to viewer</TooltipContent>
+                        </Tooltip>
                         <div className="px-2 py-2 text-sm font-medium">Folder configuration</div>
                     </div>
                     <div className="flex items-center gap-3 px-4">

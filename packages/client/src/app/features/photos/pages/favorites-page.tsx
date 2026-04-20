@@ -7,6 +7,7 @@ import { BrandMark } from '@/components/layout/brand-mark';
 import { UserMenu } from '@/components/layout/user-menu';
 import { ViewerLayout } from '@/components/layout/viewer-layout';
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { ArrowLeft, ExternalLink, Heart, LayoutGrid, Play } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -89,10 +90,15 @@ export function FavoritesPage() {
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                         <BrandMark onClick={() => navigate('/')} title="Browse albums" />
-                        <Button variant="ghost" size="sm" onClick={() => navigate(-1)} title="Back to photos">
-                            <ArrowLeft className="h-4 w-4" />
-                            Back to photos
-                        </Button>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
+                                    <ArrowLeft className="h-4 w-4" />
+                                    Back to photos
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Back to photos</TooltipContent>
+                        </Tooltip>
                         <div className="flex items-center gap-2 px-2 py-2 text-sm font-medium">
                             <Heart className="h-4 w-4 fill-rose-500 text-rose-500" />
                             My favorites
@@ -105,16 +111,15 @@ export function FavoritesPage() {
                                 Gallery
                             </Button>
                         )}
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => navigate('/slideshow')}
-                            disabled={total === 0}
-                            title="Play slideshow"
-                        >
-                            <Play className="h-4 w-4" />
-                            Play slideshow
-                        </Button>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <Button variant="ghost" size="sm" onClick={() => navigate('/slideshow')} disabled={total === 0}>
+                                    <Play className="h-4 w-4" />
+                                    Play slideshow
+                                </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Play slideshow</TooltipContent>
+                        </Tooltip>
                         <UserMenu />
                     </div>
                 </div>
@@ -131,12 +136,17 @@ export function FavoritesPage() {
                     <div className="grid grid-cols-3 items-center px-4 py-2">
                         <div className="flex items-center justify-start gap-3 min-w-0">
                             {shareLink && (
-                                <Button variant="ghost" size="sm" asChild className="shrink-0">
-                                    <a href={shareLink} target="_blank" rel="noreferrer" title="Open in OneDrive">
-                                        <ExternalLink className="h-4 w-4" />
-                                        <span className="sr-only">Open in OneDrive</span>
-                                    </a>
-                                </Button>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button variant="ghost" size="sm" asChild className="shrink-0">
+                                            <a href={shareLink} target="_blank" rel="noreferrer">
+                                                <ExternalLink className="h-4 w-4" />
+                                                <span className="sr-only">Open in OneDrive</span>
+                                            </a>
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Open in OneDrive</TooltipContent>
+                                </Tooltip>
                             )}
                             {current && (
                                 <span className="truncate text-sm text-muted-foreground" title={current.name}>

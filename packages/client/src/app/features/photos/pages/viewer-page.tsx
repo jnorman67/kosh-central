@@ -13,6 +13,7 @@ import { BrandMark } from '@/components/layout/brand-mark';
 import { UserMenu } from '@/components/layout/user-menu';
 import { ViewerLayout } from '@/components/layout/viewer-layout';
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Check, ExternalLink, Filter, Heart, LayoutGrid, Star, StarOff, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -166,16 +167,15 @@ export function ViewerPage() {
                             </div>
                         )}
                         <div className="flex items-center gap-3 px-4">
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => navigate('/favorites')}
-                                title="My favorites"
-                                aria-label="My favorites"
-                            >
-                                <Heart className="h-4 w-4 fill-rose-500 text-rose-500" />
-                                Favorites
-                            </Button>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button variant="ghost" size="sm" onClick={() => navigate('/favorites')} aria-label="My favorites">
+                                        <Heart className="h-4 w-4 fill-rose-500 text-rose-500" />
+                                        Favorites
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>My favorites</TooltipContent>
+                            </Tooltip>
                             {isPhoto && (
                                 <Button variant="ghost" size="sm" onClick={backToGallery}>
                                     <LayoutGrid className="h-4 w-4" />
@@ -203,16 +203,15 @@ export function ViewerPage() {
                                 </Button>
                             )}
                             {isAdmin && isPhoto && canSetPreferred && (
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={handleSetPreferred}
-                                    disabled={setPreferred.isPending}
-                                    title="Make this the preferred version for its side of the bundle"
-                                >
-                                    <Check className="h-4 w-4" />
-                                    Set as preferred
-                                </Button>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button variant="ghost" size="sm" onClick={handleSetPreferred} disabled={setPreferred.isPending}>
+                                            <Check className="h-4 w-4" />
+                                            Set as preferred
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Make this the preferred version for its side of the bundle</TooltipContent>
+                                </Tooltip>
                             )}
                             <UserMenu />
                         </div>
@@ -231,16 +230,20 @@ export function ViewerPage() {
                                 onClick={enlargedRelated ? () => setEnlargedRelatedId(null) : undefined}
                             />
                             {enlargedRelated && (
-                                <Button
-                                    variant="secondary"
-                                    size="sm"
-                                    onClick={() => setEnlargedRelatedId(null)}
-                                    className="absolute right-4 top-4 z-10 shadow"
-                                    title="Back to main photo (Esc)"
-                                >
-                                    <X className="h-4 w-4" />
-                                    Back to main photo
-                                </Button>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button
+                                            variant="secondary"
+                                            size="sm"
+                                            onClick={() => setEnlargedRelatedId(null)}
+                                            className="absolute right-4 top-4 z-10 shadow"
+                                        >
+                                            <X className="h-4 w-4" />
+                                            Back to main photo
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Back to main photo (Esc)</TooltipContent>
+                                </Tooltip>
                             )}
                         </div>
                     )
@@ -285,12 +288,17 @@ export function ViewerPage() {
                         <div className="grid grid-cols-3 items-center px-4 py-2">
                             <div className="flex items-center justify-start gap-3 min-w-0">
                                 {shareLink && (
-                                    <Button variant="ghost" size="sm" asChild className="shrink-0">
-                                        <a href={shareLink} target="_blank" rel="noreferrer" title="Open in OneDrive">
-                                            <ExternalLink className="h-4 w-4" />
-                                            <span className="sr-only">Open in OneDrive</span>
-                                        </a>
-                                    </Button>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Button variant="ghost" size="sm" asChild className="shrink-0">
+                                                <a href={shareLink} target="_blank" rel="noreferrer">
+                                                    <ExternalLink className="h-4 w-4" />
+                                                    <span className="sr-only">Open in OneDrive</span>
+                                                </a>
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>Open in OneDrive</TooltipContent>
+                                    </Tooltip>
                                 )}
                                 {displayPhoto && (
                                     <span className="truncate text-sm text-muted-foreground" title={displayPhoto.name}>
