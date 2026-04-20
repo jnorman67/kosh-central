@@ -4,7 +4,7 @@ import { BrandMark } from '@/components/layout/brand-mark';
 import { UserMenu } from '@/components/layout/user-menu';
 import { ViewerLayout } from '@/components/layout/viewer-layout';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Heart } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Heart, Play } from 'lucide-react';
 import { useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
@@ -52,12 +52,26 @@ export function FavoritesPage() {
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                         <BrandMark onClick={() => navigate('/')} title="Browse albums" />
+                        <Button variant="ghost" size="sm" onClick={() => navigate(-1)} title="Back to photos">
+                            <ArrowLeft className="h-4 w-4" />
+                            Back to photos
+                        </Button>
                         <div className="flex items-center gap-2 px-2 py-2 text-sm font-medium">
                             <Heart className="h-4 w-4 fill-rose-500 text-rose-500" />
                             My favorites
                         </div>
                     </div>
                     <div className="flex items-center gap-3 px-4">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => navigate('/slideshow')}
+                            disabled={total === 0}
+                            title="Play slideshow"
+                        >
+                            <Play className="h-4 w-4" />
+                            Play slideshow
+                        </Button>
                         <UserMenu />
                     </div>
                 </div>

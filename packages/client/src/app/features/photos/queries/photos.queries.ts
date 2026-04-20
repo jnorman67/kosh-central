@@ -1,10 +1,11 @@
 import type { PhotosService } from '@/app/features/photos/services/photos.service';
-import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 
 export const PhotosQueryKeys = {
     folders: ['Photos', 'Folders'] as const,
     photos: (folderId: string) => ['Photos', 'Photos', folderId] as const,
     favorites: (offset: number, limit: number) => ['Photos', 'Favorites', offset, limit] as const,
+    favoritesInfinite: (limit: number) => ['Photos', 'Favorites', 'infinite', limit] as const,
     favoritesAll: ['Photos', 'Favorites'] as const,
     shareLink: (folderId: string, itemId: string) => ['Photos', 'ShareLink', folderId, itemId] as const,
 } as const;
@@ -83,6 +84,19 @@ export const createPhotosQueries = (service: PhotosService) => {
         });
     };
 
+    const useGetFavoritesInfinite = (limit: number) => {
+        return useInfiniteQuery({
+            queryKey: PhotosQueryKeys.favoritesInfinite(limit),
+            queryFn: ({ pageParam }) => service.getFavorites(pageParam, limit),
+            initialPageParam: 0,
+            getNextPageParam: (lastPage) => {
+                const nextOffset = lastPage.offset + lastPage.photos.length;
+                return nextOffset < lastPage.total ? nextOffset : undefined;
+            },
+            staleTime: 5 * 60 * 1000,
+        });
+    };
+
     const useGetShareLink = (folderId: string | null, itemId: string | null) => {
         return useQuery({
             queryKey: PhotosQueryKeys.shareLink(folderId!, itemId!),
@@ -101,6 +115,7 @@ export const createPhotosQueries = (service: PhotosService) => {
         useSetPreferredPhoto,
         useRatePhoto,
         useGetFavorites,
+        useGetFavoritesInfinite,
         useGetShareLink,
     };
 };

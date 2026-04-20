@@ -6,6 +6,7 @@ import { LoginPage } from '@/app/features/auth/pages/login-page';
 import { RegisterPage } from '@/app/features/auth/pages/register-page';
 import { PhotosQueryProvider } from '@/app/features/photos/contexts/photos-query.context';
 import { FavoritesPage } from '@/app/features/photos/pages/favorites-page';
+import { SlideshowPage } from '@/app/features/photos/pages/slideshow-page';
 import { ViewerPage } from '@/app/features/photos/pages/viewer-page';
 import { createBrowserRouter } from 'react-router-dom';
 
@@ -34,6 +35,16 @@ export const router = createBrowserRouter([
             <AuthGuard>
                 <PhotosQueryProvider>
                     <FavoritesPage />
+                </PhotosQueryProvider>
+            </AuthGuard>
+        ),
+    },
+    {
+        path: '/slideshow',
+        element: (
+            <AuthGuard>
+                <PhotosQueryProvider>
+                    <SlideshowPage />
                 </PhotosQueryProvider>
             </AuthGuard>
         ),
