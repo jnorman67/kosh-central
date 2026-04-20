@@ -5,13 +5,9 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     const { useGetMe } = useAuthQueries();
     const { data: user, isLoading, isError } = useGetMe();
 
-    if (isLoading) {
-        return (
-            <div className="flex min-h-screen items-center justify-center">
-                <p className="text-muted-foreground">Loading...</p>
-            </div>
-        );
-    }
+    // Render nothing while auth resolves — the static splash in index.html stays on top until
+    // a leaf page calls hideSplash() once its initial data is ready.
+    if (isLoading) return null;
 
     if (isError || !user) {
         return <Navigate to="/login" replace />;

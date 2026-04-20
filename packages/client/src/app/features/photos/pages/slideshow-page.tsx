@@ -1,6 +1,7 @@
 import { usePhotosQueries } from '@/app/features/photos/contexts/photos-query.context';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { hideSplash } from '@/lib/splash';
 import { ChevronLeft, ChevronRight, Pause, Play, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -66,6 +67,11 @@ export function SlideshowPage() {
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
     }, [goNext, goPrev, navigate]);
+
+    // Dismiss the initial splash once the first page of favorites has loaded.
+    useEffect(() => {
+        if (!isLoading) hideSplash();
+    }, [isLoading]);
 
     if (isLoading) {
         return (

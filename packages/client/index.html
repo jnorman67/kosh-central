@@ -5,8 +5,162 @@
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Kosh Central</title>
+        <style>
+            #splash {
+                position: fixed;
+                inset: 0;
+                z-index: 9999;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                /* Shift the centered stack upward so the map's intersection stays visible below. */
+                padding-bottom: 35vh;
+                gap: 24px;
+                background: #000;
+                color: #e4e4e7;
+                font-family:
+                    ui-sans-serif,
+                    system-ui,
+                    -apple-system,
+                    'Segoe UI',
+                    Roboto,
+                    'Helvetica Neue',
+                    Arial,
+                    sans-serif;
+                transition: opacity 300ms ease;
+                overflow: hidden;
+            }
+            #splash::before {
+                content: '';
+                position: absolute;
+                inset: 0;
+                background-image: url('/splash-map.jpg');
+                background-size: cover;
+                background-position: center;
+                background-repeat: no-repeat;
+                opacity: 0.55;
+                z-index: 0;
+            }
+            #splash::after {
+                content: '';
+                position: absolute;
+                inset: 0;
+                background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.25) 0%, rgba(0, 0, 0, 0.75) 70%, rgba(0, 0, 0, 0.9) 100%);
+                z-index: 1;
+            }
+            #splash > * {
+                position: relative;
+                z-index: 2;
+            }
+            #splash .splash-attribution {
+                position: absolute;
+                right: 10px;
+                bottom: 8px;
+                font-size: 11px;
+                color: #71717a;
+                text-decoration: none;
+            }
+            #splash .splash-attribution:hover {
+                color: #a1a1aa;
+            }
+            #splash.splash-hidden {
+                opacity: 0;
+                pointer-events: none;
+            }
+            #splash .splash-brand {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+            }
+            #splash .splash-icon {
+                color: #d97706;
+                width: 28px;
+                height: 28px;
+            }
+            #splash .splash-title {
+                font-size: 28px;
+                font-weight: 600;
+                letter-spacing: -0.01em;
+                background: linear-gradient(to right, #f59e0b, #f97316, #f43f5e);
+                -webkit-background-clip: text;
+                background-clip: text;
+                color: transparent;
+            }
+            #splash .splash-subtitle {
+                margin: 0;
+                max-width: 32rem;
+                padding: 0 1rem;
+                text-align: center;
+                font-size: 14px;
+                font-style: italic;
+                color: #a1a1aa;
+            }
+            #splash .splash-spinner {
+                width: 28px;
+                height: 28px;
+                border-radius: 9999px;
+                border: 2px solid #3f3f46;
+                border-top-color: #e4e4e7;
+                animation: splash-spin 0.9s linear infinite;
+            }
+            #splash .splash-cta {
+                appearance: none;
+                border: 0;
+                border-radius: 9999px;
+                background: linear-gradient(to right, #f59e0b, #f97316, #f43f5e);
+                color: #0a0a0a;
+                font-weight: 600;
+                font-size: 14px;
+                padding: 10px 20px;
+                cursor: pointer;
+                transition:
+                    transform 150ms ease,
+                    box-shadow 150ms ease;
+            }
+            #splash .splash-cta:hover {
+                transform: translateY(-1px);
+                box-shadow: 0 10px 30px rgba(244, 63, 94, 0.3);
+            }
+            #splash .splash-cta:focus-visible {
+                outline: 2px solid #f59e0b;
+                outline-offset: 2px;
+            }
+            @keyframes splash-spin {
+                to {
+                    transform: rotate(360deg);
+                }
+            }
+        </style>
     </head>
     <body>
+        <div id="splash" role="status" aria-label="Loading Kosh Central">
+            <div class="splash-brand">
+                <svg
+                    class="splash-icon"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                >
+                    <rect width="8" height="18" x="3" y="3" rx="1" />
+                    <path d="M7 3v18" />
+                    <path
+                        d="M20.4 18.9c.2.5-.1 1.1-.6 1.3l-1.9.7c-.5.2-1.1-.1-1.3-.6L11.1 5.1c-.2-.5.1-1.1.6-1.3l1.9-.7c.5-.2 1.1.1 1.3.6Z"
+                    />
+                </svg>
+                <span class="splash-title">Kosh Central</span>
+            </div>
+            <p class="splash-subtitle">A century of Kosh family photographs and the stories that go with them</p>
+            <div class="splash-spinner" aria-hidden="true"></div>
+            <button type="button" class="splash-cta" style="display: none">Take me to 9th &amp; St. Barbe</button>
+            <a class="splash-attribution" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer noopener"
+                >Map © OpenStreetMap contributors</a
+            >
+        </div>
         <div id="root"></div>
         <script type="module" src="/src/main.tsx"></script>
     </body>

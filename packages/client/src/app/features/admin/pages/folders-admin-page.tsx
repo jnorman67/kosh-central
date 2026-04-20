@@ -18,6 +18,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { hideSplash } from '@/lib/splash';
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { ArrowLeft, Download, Plus, Upload } from 'lucide-react';
@@ -49,6 +50,11 @@ export function FoldersAdminPage() {
     useEffect(() => {
         setOrdered(folders);
     }, [folders]);
+
+    // Dismiss the initial splash once the folders list has loaded.
+    useEffect(() => {
+        if (!isLoading) hideSplash();
+    }, [isLoading]);
 
     const sensors = useSensors(
         useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),

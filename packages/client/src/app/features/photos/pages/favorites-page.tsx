@@ -8,6 +8,7 @@ import { UserMenu } from '@/components/layout/user-menu';
 import { ViewerLayout } from '@/components/layout/viewer-layout';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { hideSplash } from '@/lib/splash';
 import { ArrowLeft, ExternalLink, Heart, LayoutGrid, Play } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -51,6 +52,11 @@ export function FavoritesPage() {
             void fetchNextPage();
         }
     }, [view, selectedIndex, photos.length, hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+    // Dismiss the initial splash once the first page of favorites has loaded.
+    useEffect(() => {
+        if (!isLoading) hideSplash();
+    }, [isLoading]);
 
     function openFavorite(i: number) {
         setSelectedIndex(i);

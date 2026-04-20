@@ -3,7 +3,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { type FormEvent, useState } from 'react';
+import { hideSplash } from '@/lib/splash';
+import { type FormEvent, useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 
 export function LoginPage() {
@@ -14,6 +15,8 @@ export function LoginPage() {
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
+
+    useEffect(() => hideSplash(), []);
 
     const registered = searchParams.get('registered') === 'true';
 

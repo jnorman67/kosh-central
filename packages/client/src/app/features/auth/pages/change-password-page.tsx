@@ -3,7 +3,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { type FormEvent, useState } from 'react';
+import { hideSplash } from '@/lib/splash';
+import { type FormEvent, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 export function ChangePasswordPage() {
@@ -15,6 +16,8 @@ export function ChangePasswordPage() {
     const [confirmPassword, setConfirmPassword] = useState('');
     const [clientError, setClientError] = useState('');
     const [success, setSuccess] = useState(false);
+
+    useEffect(() => hideSplash(), []);
 
     function handleSubmit(e: FormEvent) {
         e.preventDefault();

@@ -14,6 +14,7 @@ import { UserMenu } from '@/components/layout/user-menu';
 import { ViewerLayout } from '@/components/layout/viewer-layout';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { hideSplash } from '@/lib/splash';
 import { Check, ExternalLink, Filter, Heart, LayoutGrid, Star, StarOff, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -90,6 +91,13 @@ export function ViewerPage() {
     useEffect(() => {
         setUncatalogedOnly(false);
     }, [currentFolder?.id]);
+
+    // Dismiss the initial splash once the first view's data is ready: folders always; also the
+    // folder's photos if the URL selected one on first load.
+    const initialDataReady = !foldersLoading && (!folderForFetch || !photosLoading);
+    useEffect(() => {
+        if (initialDataReady) hideSplash();
+    }, [initialDataReady]);
 
     const currentPhoto = viewablePhotos[currentPhotoIndex] ?? null;
     const relatedPhotos = useMemo(() => (currentPhoto ? findRelatedPhotos(currentPhoto, allPhotos) : []), [currentPhoto, allPhotos]);
