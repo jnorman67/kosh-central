@@ -13,9 +13,9 @@ Monorepo with npm workspaces:
 
 - **Frontend:** React 19, React Router v6, TanStack React Query, Tailwind CSS, shadcn/ui components
 - **Backend:** Express, TypeScript (ESM), MSAL for OneDrive access
-- **Database:** SQLite via better-sqlite3 (`packages/server/kosh.db` in dev, `/home/kosh.db` in production)
+- **Database:** SQLite via better-sqlite3 (`packages/server/kosh.db` in dev, `/app/data/kosh.db` in production, replicated to Azure Blob Storage by Litestream)
 - **Auth:** JWT in httpOnly cookies, bcrypt password hashing
-- **Deployment:** Azure App Service (Linux, Node 22), Bicep templates in `infra/`
+- **Deployment:** Azure Container Apps (Node 22 in Docker). See [README.md](README.md#deploying-to-azure) for details.
 
 ## Commands
 

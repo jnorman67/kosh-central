@@ -32,6 +32,10 @@ export function initDb(): Database.Database {
     db = new Database(getDbPath());
     db.pragma('journal_mode = WAL');
     db.pragma('foreign_keys = ON');
+    // Wait up to 60s for locks rather than failing fast. Litestream can hold the
+    // write lock during checkpoints; the 5s better-sqlite3 default is too short
+    // when the manifest import writes tens of thousands of rows in one txn.
+    db.pragma('busy_timeout = 60000');
 
     runMigrations(db);
 

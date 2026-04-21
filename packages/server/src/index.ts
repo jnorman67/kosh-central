@@ -7,6 +7,7 @@ import { requireAuth } from './auth/auth.middleware.js';
 import { MsalService } from './auth/msal.service.js';
 import { initDb } from './db/database.js';
 import { listFolders, seedFoldersIfEmpty } from './db/folders.store.js';
+import { getDb } from './db/database.js';
 import { importManifest, type PhotoManifestEntry } from './db/photos.store.js';
 import { createAuthRouter } from './routes/auth.router.js';
 import { createFavoritesRouter } from './routes/favorites.router.js';
@@ -24,6 +25,17 @@ seedFoldersIfEmpty();
 loadManifest();
 
 function loadManifest(): void {
+    // Import is idempotent but expensive (tens of thousands of rows in one txn)
+    // and races with Litestream at startup. Once the DB is populated, skip it.
+    // Set KOSH_FORCE_MANIFEST_IMPORT=1 to force re-import after scanner changes.
+    if (process.env.KOSH_FORCE_MANIFEST_IMPORT !== '1') {
+        const { count } = getDb().prepare('SELECT COUNT(*) AS count FROM photos').get() as { count: number };
+        if (count > 0) {
+            console.log(`Manifest import skipped: ${count} photos already in DB (set KOSH_FORCE_MANIFEST_IMPORT=1 to force)`);
+            return;
+        }
+    }
+
     const manifestPath = process.env.KOSH_DATA_DIR
         ? path.join(process.env.KOSH_DATA_DIR, 'manifest.json')
         : path.resolve(import.meta.dirname, '../data/manifest.json');
