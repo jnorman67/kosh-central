@@ -4,6 +4,7 @@ import { FolderSelector } from '@/app/features/photos/components/folder-selector
 import { LetterboxViewer } from '@/app/features/photos/components/letterbox-viewer';
 import { PhotoControls } from '@/app/features/photos/components/photo-controls';
 import { PhotoGallery } from '@/app/features/photos/components/photo-gallery';
+import { RelatedStrip } from '@/app/features/photos/components/related-strip';
 import { RelatedThumbnail } from '@/app/features/photos/components/related-thumbnail';
 import { StarRating } from '@/app/features/photos/components/star-rating';
 import { usePhotosQueries } from '@/app/features/photos/contexts/photos-query.context';
@@ -244,6 +245,16 @@ export function ViewerPage() {
                                 isLoading={photosLoading && !!currentFolder}
                                 onClick={enlargedRelated ? () => setEnlargedRelatedId(null) : undefined}
                             />
+                            {currentPhoto && relatedPhotos.length > 0 && (
+                                <RelatedStrip
+                                    className="md:hidden"
+                                    mainPhoto={currentPhoto}
+                                    related={relatedPhotos}
+                                    selectedId={displayPhoto?.id ?? null}
+                                    onSelectRelated={setEnlargedRelatedId}
+                                    onBackToMain={() => setEnlargedRelatedId(null)}
+                                />
+                            )}
                             {enlargedRelated && (
                                 <Tooltip>
                                     <TooltipTrigger asChild>
@@ -254,7 +265,7 @@ export function ViewerPage() {
                                             className="absolute right-4 top-4 z-10 shadow"
                                         >
                                             <X className="h-4 w-4" />
-                                            Back to main photo
+                                            <span className="hidden sm:inline">Back to main photo</span>
                                         </Button>
                                     </TooltipTrigger>
                                     <TooltipContent>Back to main photo (Esc)</TooltipContent>

@@ -245,3 +245,12 @@ In production, Express serves `packages/client/dist/` as static files with SPA f
 4. Arrow keys navigate between photos; letterbox effect works at various window sizes
 5. `npm run build` — both packages compile without errors
 6. `NODE_ENV=production node packages/server/dist/index.js` — serves the built client correctly
+
+---
+
+## Followups
+
+Deferred items — not blocking, capture so we don't forget.
+
+- **Cover-thumbnail cache location in production.** The server-side cover proxy defaults to `os.tmpdir()/kosh-cover-cache` when `NODE_ENV=production` and no override is set. On Container Apps that's container-local, so every pod/restart warms the cache from Graph on first hit. If we want persistence across deploys on App Service, set `KOSH_COVER_CACHE_DIR=/home/cover-cache` (the `/home` mount persists there). Decide per deployment target.
+- **Cover-thumbnail cache eviction.** The disk cache grows unbounded — no LRU, no size cap. Fine at current scale (~25 albums). If album count grows significantly, add size-based trimming (e.g. drop files beyond some MB cap, oldest-access first) in `ThumbnailCacheService`.
