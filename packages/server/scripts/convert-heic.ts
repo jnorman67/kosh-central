@@ -6,12 +6,16 @@
  * conversion. Never deletes originals unless --delete-originals is passed,
  * and even then only after verifying the sibling opens as a valid JPEG.
  *
+ * Uses heic-convert (bundles libde265 for HEVC decode, unlike sharp's
+ * prebuilt libheif) and exiftool-vendored to copy EXIF across.
+ *
  * Usage:
  *   npx tsx convert-heic.ts <root-path> [--quality 90] [--delete-originals]
  */
 import fsp from "node:fs/promises";
 import path from "node:path";
-import sharp from "sharp";
+import convert from "heic-convert";
+import { exiftool } from "exiftool-vendored";
 
 const HEIC_EXTENSIONS = new Set([".heic", ".heif"]);
 
@@ -42,19 +46,39 @@ async function convertToJpeg(
   jpgPath: string,
   quality: number,
 ): Promise<void> {
-  // autoOrient bakes EXIF rotation into pixels; keepMetadata preserves
-  // date-taken / GPS so the JPEG carries the same context as the original.
-  await sharp(heicPath)
-    .autoOrient()
-    .keepMetadata()
-    .jpeg({ quality, mozjpeg: true })
-    .toFile(jpgPath);
+  const heicBuffer = await fsp.readFile(heicPath);
+  const jpegBuffer = await convert({
+    buffer: new Uint8Array(heicBuffer),
+    format: "JPEG",
+    quality, // heic-convert takes 0..1
+  });
+  await fsp.writeFile(jpgPath, Buffer.from(jpegBuffer));
+  // heic-convert drops EXIF during decode, so copy every tag from the HEIC
+  // onto the JPEG. -all:all preserves date-taken, GPS, orientation, camera.
+  await exiftool.write(
+    jpgPath,
+    {},
+    {
+      writeArgs: [
+        "-TagsFromFile",
+        heicPath,
+        "-all:all",
+        "-overwrite_original",
+      ],
+    },
+  );
 }
 
 async function verifyJpeg(jpgPath: string): Promise<boolean> {
   try {
-    const meta = await sharp(jpgPath).metadata();
-    return meta.format === "jpeg" && !!meta.width && !!meta.height;
+    const fh = await fsp.open(jpgPath, "r");
+    try {
+      const buf = Buffer.alloc(3);
+      await fh.read(buf, 0, 3, 0);
+      return buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff;
+    } finally {
+      await fh.close();
+    }
   } catch {
     return false;
   }
@@ -124,7 +148,7 @@ function printUsage(): void {
   console.error(
     "Walks <root-path> recursively. For each .heic/.heif, writes a sibling",
   );
-  console.error(".jpg with EXIF and orientation preserved.");
+  console.error(".jpg with EXIF preserved (date-taken, GPS, orientation).");
   console.error("");
   console.error("Options:");
   console.error("  --quality <n>        JPEG quality 1-100 (default 90)");
@@ -141,13 +165,13 @@ function printUsage(): void {
 async function main() {
   const args = process.argv.slice(2);
 
-  let quality = 90;
+  let qualityPct = 90;
   let deleteOriginals = false;
 
   const qualityIdx = args.indexOf("--quality");
   if (qualityIdx !== -1) {
-    quality = Number(args[qualityIdx + 1]);
-    if (!Number.isFinite(quality) || quality < 1 || quality > 100) {
+    qualityPct = Number(args[qualityIdx + 1]);
+    if (!Number.isFinite(qualityPct) || qualityPct < 1 || qualityPct > 100) {
       console.error("Error: --quality must be an integer between 1 and 100");
       process.exit(1);
     }
@@ -180,16 +204,21 @@ async function main() {
   const stats: Stats = { converted: 0, skipped: 0, deleted: 0, failed: 0 };
   console.error(`Scanning root: ${rootPath}`);
   console.error(
-    `Quality: ${quality}, delete originals: ${deleteOriginals}`,
+    `Quality: ${qualityPct}, delete originals: ${deleteOriginals}`,
   );
   console.error("");
 
-  await walkAndConvert(
-    rootPath,
-    rootPath,
-    { rootPath, quality, deleteOriginals },
-    stats,
-  );
+  try {
+    await walkAndConvert(
+      rootPath,
+      rootPath,
+      { rootPath, quality: qualityPct / 100, deleteOriginals },
+      stats,
+    );
+  } finally {
+    // exiftool keeps a subprocess alive; end it so the script can exit.
+    await exiftool.end();
+  }
 
   console.error("");
   console.error(
