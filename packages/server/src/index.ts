@@ -113,6 +113,9 @@ console.log(`Cover thumbnail cache: ${coverCacheDir}`);
 
 app.use(express.json({ limit: '10mb' }));
 app.use(cookieParser());
+app.get('/api/version', (_req, res) => {
+    res.json({ sha: process.env.GIT_SHA ?? 'dev' });
+});
 app.use('/api/auth', createAuthRouter());
 app.use('/api/admin/folders', requireAuth, createFoldersAdminRouter(oneDriveService));
 app.use('/api/admin/photos', requireAuth, createPhotosAdminRouter());

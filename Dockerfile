@@ -24,10 +24,12 @@ RUN npm ci --omit=dev
 # ---- runtime: minimal final image ----
 FROM node:22-slim AS runtime
 WORKDIR /app
+ARG GIT_SHA=unknown
 ENV NODE_ENV=production
 ENV PORT=3001
 ENV KOSH_DATA_DIR=/data
 ENV KOSH_DB_PATH=/app/data/kosh.db
+ENV GIT_SHA=$GIT_SHA
 
 # Static artifacts + prod deps
 COPY --from=builder /app/packages/server/dist packages/server/dist

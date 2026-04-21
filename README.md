@@ -120,6 +120,8 @@ The app is hosted at https://photos.kosh-central.com on **Azure Container Apps**
 
 `kosh-central.com` is registered through Cloudflare Registrar (purchased 2026-04-18, auto-renews ~$11/yr). DNS is hosted at Cloudflare. The `photos` subdomain is bound to the Container App with a free Azure-managed certificate (auto-renews).
 
+The apex (`kosh-central.com`) and `www.kosh-central.com` 301-redirect to `https://photos.kosh-central.com`, preserving path and query string. This is implemented as a Cloudflare Redirect Rule; the apex and `www` have proxied AAAA records pointing at `100::` so Cloudflare terminates TLS and serves the redirect without an origin. SSL/TLS mode is **Full (strict)**.
+
 ### Deploying
 
 ```bash

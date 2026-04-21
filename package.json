@@ -11,7 +11,7 @@
         "build": "npm run build -w @kosh-central/server && npm run build -w @kosh-central/client",
         "lint": "npm run lint -w @kosh-central/client",
         "kill": "lsof -ti:3001 -ti:5273 2>/dev/null | xargs -r kill -9; echo 'Ports 3001/5273 cleared'",
-        "deploy:image": "az acr login --name koshcentralacr && docker build -t koshcentralacr.azurecr.io/kosh-central:latest -f Dockerfile . && docker push koshcentralacr.azurecr.io/kosh-central:latest",
+        "deploy:image": "az acr login --name koshcentralacr && docker build --build-arg GIT_SHA=$(git rev-parse --short HEAD) -t koshcentralacr.azurecr.io/kosh-central:latest -f Dockerfile . && docker push koshcentralacr.azurecr.io/kosh-central:latest",
         "deploy:restart": "az containerapp update --resource-group kosh-central-rg --name kosh-central --image koshcentralacr.azurecr.io/kosh-central:latest --revision-suffix v$(date +%Y%m%d%H%M%S)",
         "deploy:container": "npm run deploy:image && npm run deploy:restart",
         "logs": "az monitor log-analytics query -w 5478df0a-8927-4b09-877e-4e4aa76d32f7 --analytics-query \"ContainerAppConsoleLogs_CL | where ContainerAppName_s == 'kosh-central' | order by TimeGenerated desc | take 100 | project TimeGenerated, Log_s | order by TimeGenerated asc\" -o table",
