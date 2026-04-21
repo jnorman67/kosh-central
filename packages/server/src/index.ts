@@ -22,9 +22,29 @@ import { createSeriesRouter } from './routes/series.router.js';
 import { OneDriveService } from './services/onedrive.service.js';
 import { ThumbnailCacheService } from './services/thumbnail-cache.service.js';
 
+/** Synchronous stdout write, bypasses Node's block-buffered stdout. Use for boot markers
+ *  so diagnostic lines reach the log stream even when the process is SIGKILLed. */
+function boot(msg: string): void {
+    fs.writeSync(1, `[boot ${new Date().toISOString()}] ${msg}\n`);
+}
+
+process.on('uncaughtException', (err) => {
+    fs.writeSync(2, `[uncaughtException] ${err instanceof Error ? (err.stack ?? err.message) : String(err)}\n`);
+    process.exit(1);
+});
+process.on('unhandledRejection', (err) => {
+    fs.writeSync(2, `[unhandledRejection] ${err instanceof Error ? (err.stack ?? err.message) : String(err)}\n`);
+    process.exit(1);
+});
+
+boot('process start');
+boot('initDb...');
 initDb();
+boot('seedFolders...');
 seedFoldersIfEmpty();
+boot('loadManifest...');
 loadManifest();
+boot('loadManifest done');
 
 function loadManifest(): void {
     // Import is idempotent but expensive (tens of thousands of rows in one txn)
@@ -72,8 +92,11 @@ if (!AZURE_CLIENT_ID) {
 const app = express();
 const PORT = process.env.PORT ?? 3001;
 
+boot('msal construct...');
 const msalService = new MsalService(AZURE_CLIENT_ID);
+boot('msal loadCache...');
 await msalService.loadCache();
+boot('msal loadCache done');
 const oneDriveService = new OneDriveService(msalService);
 
 // Regenerable cache of proxied cover thumbnail bytes. Defaults vary by environment because
@@ -84,6 +107,7 @@ const coverCacheDir =
     (process.env.NODE_ENV === 'production'
         ? path.join(os.tmpdir(), 'kosh-cover-cache')
         : path.resolve(import.meta.dirname, '../cover-cache'));
+boot(`thumbnailCache construct (${coverCacheDir})...`);
 const thumbnailCache = new ThumbnailCacheService(coverCacheDir);
 console.log(`Cover thumbnail cache: ${coverCacheDir}`);
 
@@ -121,7 +145,9 @@ if (process.env.NODE_ENV === 'production') {
     });
 }
 
+boot(`app.listen on ${PORT}...`);
 const httpServer = app.listen(PORT, () => {
+    boot('listening');
     console.log(`Server running on http://localhost:${PORT}`);
     if (!msalService.isAuthenticated()) {
         console.log('No cached credentials found. Authentication will be triggered on first API request.');
