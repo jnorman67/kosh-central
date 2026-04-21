@@ -16,8 +16,8 @@ export function PhotoGallery({ photos, isLoading, onSelect }: PhotoGalleryProps)
     }
 
     return (
-        <div className="h-full overflow-auto bg-black p-4">
-            <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))' }}>
+        <div className="h-full overflow-auto bg-black p-2 sm:p-4">
+            <div className="grid grid-cols-2 gap-1 sm:gap-2 sm:grid-cols-[repeat(auto-fill,minmax(180px,1fr))]">
                 {photos.map((p, i) => (
                     <button
                         key={p.id}

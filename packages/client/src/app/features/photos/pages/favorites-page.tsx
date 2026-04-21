@@ -93,35 +93,41 @@ export function FavoritesPage() {
     return (
         <ViewerLayout
             header={
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
+                <div className="flex items-center justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-1 sm:gap-2">
                         <BrandMark onClick={() => navigate('/')} title="Browse albums" />
                         <Tooltip>
                             <TooltipTrigger asChild>
-                                <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
+                                <Button variant="ghost" size="sm" onClick={() => navigate(-1)} aria-label="Back to photos">
                                     <ArrowLeft className="h-4 w-4" />
-                                    Back to photos
+                                    <span className="hidden sm:inline">Back to photos</span>
                                 </Button>
                             </TooltipTrigger>
                             <TooltipContent>Back to photos</TooltipContent>
                         </Tooltip>
-                        <div className="flex items-center gap-2 px-2 py-2 text-sm font-medium">
+                        <div className="flex items-center gap-2 px-1 py-2 text-sm font-medium sm:px-2">
                             <Heart className="h-4 w-4 fill-rose-500 text-rose-500" />
-                            My favorites
+                            <span className="hidden sm:inline">My favorites</span>
                         </div>
                     </div>
-                    <div className="flex items-center gap-3 px-4">
+                    <div className="flex shrink-0 items-center gap-1 pr-1 sm:gap-3 sm:px-4">
                         {isPhoto && (
-                            <Button variant="ghost" size="sm" onClick={backToGallery}>
+                            <Button variant="ghost" size="sm" onClick={backToGallery} aria-label="Back to gallery">
                                 <LayoutGrid className="h-4 w-4" />
-                                Gallery
+                                <span className="hidden sm:inline">Gallery</span>
                             </Button>
                         )}
                         <Tooltip>
                             <TooltipTrigger asChild>
-                                <Button variant="ghost" size="sm" onClick={() => navigate('/slideshow')} disabled={total === 0}>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => navigate('/slideshow')}
+                                    disabled={total === 0}
+                                    aria-label="Play slideshow"
+                                >
                                     <Play className="h-4 w-4" />
-                                    Play slideshow
+                                    <span className="hidden sm:inline">Play slideshow</span>
                                 </Button>
                             </TooltipTrigger>
                             <TooltipContent>Play slideshow</TooltipContent>
@@ -139,8 +145,8 @@ export function FavoritesPage() {
             }
             toolbar={
                 isPhoto ? (
-                    <div className="grid grid-cols-3 items-center px-4 py-2">
-                        <div className="flex items-center justify-start gap-3 min-w-0">
+                    <div className="flex items-center justify-between gap-2 px-2 py-2 sm:grid sm:grid-cols-3 sm:px-4">
+                        <div className="hidden min-w-0 items-center justify-start gap-3 sm:flex">
                             {shareLink && (
                                 <Tooltip>
                                     <TooltipTrigger asChild>

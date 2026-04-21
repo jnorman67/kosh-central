@@ -28,11 +28,11 @@ export function PhotoControls({ currentIndex, totalCount, onPrev, onNext }: Phot
     }
 
     return (
-        <div className="flex items-center justify-center gap-4 px-4 py-2">
+        <div className="flex items-center justify-center gap-1 px-1 py-2 sm:gap-4 sm:px-4">
             <Button variant="ghost" size="icon" onClick={onPrev}>
                 <ChevronLeft className="h-5 w-5" />
             </Button>
-            <span className="min-w-[5rem] text-center text-sm text-muted-foreground">
+            <span className="min-w-[3rem] text-center text-sm text-muted-foreground sm:min-w-[5rem]">
                 {currentIndex + 1} / {totalCount}
             </span>
             <Button variant="ghost" size="icon" onClick={onNext}>

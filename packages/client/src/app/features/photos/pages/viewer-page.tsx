@@ -157,14 +157,14 @@ export function ViewerPage() {
 
             <ViewerLayout
                 header={
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-2">
                         {isAlbums ? (
-                            <div className="flex items-center gap-2">
+                            <div className="flex min-w-0 items-center gap-2">
                                 <BrandMark title="Kosh Central" />
-                                <span className="text-sm text-muted-foreground">All albums</span>
+                                <span className="hidden text-sm text-muted-foreground sm:inline">All albums</span>
                             </div>
                         ) : (
-                            <div className="flex items-center gap-2">
+                            <div className="flex min-w-0 flex-1 items-center gap-2 sm:flex-none">
                                 <BrandMark onClick={goToAlbums} title="Browse albums" />
                                 <FolderSelector
                                     folders={folders}
@@ -174,20 +174,20 @@ export function ViewerPage() {
                                 />
                             </div>
                         )}
-                        <div className="flex items-center gap-3 px-4">
+                        <div className="flex shrink-0 items-center gap-1 pr-1 sm:gap-3 sm:px-4">
                             <Tooltip>
                                 <TooltipTrigger asChild>
                                     <Button variant="ghost" size="sm" onClick={() => navigate('/favorites')} aria-label="My favorites">
                                         <Heart className="h-4 w-4 fill-rose-500 text-rose-500" />
-                                        Favorites
+                                        <span className="hidden sm:inline">Favorites</span>
                                     </Button>
                                 </TooltipTrigger>
                                 <TooltipContent>My favorites</TooltipContent>
                             </Tooltip>
                             {isPhoto && (
-                                <Button variant="ghost" size="sm" onClick={backToGallery}>
+                                <Button variant="ghost" size="sm" onClick={backToGallery} aria-label="Back to gallery">
                                     <LayoutGrid className="h-4 w-4" />
-                                    Gallery
+                                    <span className="hidden sm:inline">Gallery</span>
                                 </Button>
                             )}
                             {isAdmin && isPhoto && currentPhoto && (
@@ -196,6 +196,7 @@ export function ViewerPage() {
                                     size="sm"
                                     onClick={handleToggleCover}
                                     disabled={setCover.isPending || clearCover.isPending}
+                                    className="hidden md:inline-flex"
                                 >
                                     {isCurrentCover ? (
                                         <>
@@ -213,7 +214,13 @@ export function ViewerPage() {
                             {isAdmin && isPhoto && canSetPreferred && (
                                 <Tooltip>
                                     <TooltipTrigger asChild>
-                                        <Button variant="ghost" size="sm" onClick={handleSetPreferred} disabled={setPreferred.isPending}>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={handleSetPreferred}
+                                            disabled={setPreferred.isPending}
+                                            className="hidden md:inline-flex"
+                                        >
                                             <Check className="h-4 w-4" />
                                             Set as preferred
                                         </Button>
@@ -293,8 +300,8 @@ export function ViewerPage() {
                             )}
                         </div>
                     ) : (
-                        <div className="grid grid-cols-3 items-center px-4 py-2">
-                            <div className="flex items-center justify-start gap-3 min-w-0">
+                        <div className="flex items-center justify-between gap-2 px-2 py-2 sm:grid sm:grid-cols-3 sm:px-4">
+                            <div className="hidden min-w-0 items-center justify-start gap-3 sm:flex">
                                 {shareLink && (
                                     <Tooltip>
                                         <TooltipTrigger asChild>

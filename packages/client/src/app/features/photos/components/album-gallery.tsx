@@ -18,8 +18,8 @@ export function AlbumGallery({ folders, onSelect }: AlbumGalleryProps) {
     }
 
     return (
-        <div className="h-full overflow-auto bg-black p-6">
-            <div className="grid gap-6" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}>
+        <div className="h-full overflow-auto bg-black p-4 sm:p-6">
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-[repeat(auto-fill,minmax(240px,1fr))]">
                 {folders.map((folder) => {
                     const info = byId.get(folder.id);
                     const coverSrc = info?.coverUrl ?? undefined;

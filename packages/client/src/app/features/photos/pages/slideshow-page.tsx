@@ -75,7 +75,7 @@ export function SlideshowPage() {
 
     if (isLoading) {
         return (
-            <div className="flex h-screen items-center justify-center bg-black">
+            <div className="flex h-dvh items-center justify-center bg-black">
                 <div className="h-10 w-10 animate-spin rounded-full border-2 border-zinc-700 border-t-zinc-200" />
             </div>
         );
@@ -83,7 +83,7 @@ export function SlideshowPage() {
 
     if (total === 0) {
         return (
-            <div className="flex h-screen flex-col items-center justify-center gap-4 bg-black text-zinc-200">
+            <div className="flex h-dvh flex-col items-center justify-center gap-4 bg-black text-zinc-200">
                 <p>No favorites to play.</p>
                 <Button variant="secondary" onClick={() => navigate('/favorites')}>
                     Back to favorites
@@ -93,7 +93,7 @@ export function SlideshowPage() {
     }
 
     return (
-        <div className="relative h-screen bg-black">
+        <div className="relative h-dvh bg-black">
             {/* Warm the cache for upcoming photos so swaps are snappy. */}
             {photos.slice(index + 1, index + 4).map((p) => (
                 <link key={p.id} rel="preload" as="image" href={p.downloadUrl} />
