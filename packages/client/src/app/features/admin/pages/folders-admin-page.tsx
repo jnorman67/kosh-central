@@ -22,7 +22,7 @@ import { hideSplash } from '@/lib/splash';
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { ArrowLeft, Download, Plus, Upload } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 export function FoldersAdminPage() {
@@ -31,7 +31,10 @@ export function FoldersAdminPage() {
         useAdminFoldersQueries();
     const service = useAdminFoldersService();
 
-    const { data: folders = [], isLoading, error } = useListFolders();
+    const { data, isLoading, error } = useListFolders();
+    // Memoize so the fallback [] has a stable reference — otherwise the
+    // sync effect below re-runs every render and loops forever.
+    const folders = useMemo(() => data ?? [], [data]);
     const createFolder = useCreateFolder();
     const updateFolder = useUpdateFolder();
     const deleteFolder = useDeleteFolder();
