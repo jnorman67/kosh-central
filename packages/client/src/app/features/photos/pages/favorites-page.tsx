@@ -138,7 +138,7 @@ export function FavoritesPage() {
             }
             viewer={
                 isPhoto ? (
-                    <LetterboxViewer photo={current} isLoading={isLoading && !current} />
+                    <LetterboxViewer photo={current} isLoading={isLoading && !current} onSwipeNext={goNext} onSwipePrev={goPrev} />
                 ) : (
                     <PhotoGallery photos={photos} isLoading={isLoading} onSelect={openFavorite} />
                 )

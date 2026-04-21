@@ -244,6 +244,8 @@ export function ViewerPage() {
                                 photo={displayPhoto}
                                 isLoading={photosLoading && !!currentFolder}
                                 onClick={enlargedRelated ? () => setEnlargedRelatedId(null) : undefined}
+                                onSwipeNext={handleNext}
+                                onSwipePrev={handlePrev}
                             />
                             {currentPhoto && relatedPhotos.length > 0 && (
                                 <RelatedStrip
