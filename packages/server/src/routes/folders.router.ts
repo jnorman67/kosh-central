@@ -5,14 +5,36 @@ import { findFolderBySlug as storeFindFolderBySlug, listFolders, type StoredFold
 import { findPhotoByFolderAndName } from '../db/photos.store.js';
 import { getRatingsByUserForPhotos } from '../db/ratings.store.js';
 import { getRelationsForPhoto } from '../db/relations.store.js';
-import { OneDriveService } from '../services/onedrive.service.js';
+import { OneDriveService, type Photo as OneDrivePhoto } from '../services/onedrive.service.js';
+import { ThumbnailCacheService } from '../services/thumbnail-cache.service.js';
 
 function findFolderBySlug(slug: string | string[] | undefined): StoredFolder | null {
     if (typeof slug !== 'string') return null;
     return storeFindFolderBySlug(slug) ?? null;
 }
 
-export function createFoldersRouter(oneDriveService: OneDriveService): Router {
+/** Mirror of the client's pickCover: prefer the admin-configured cover, else the first
+ *  photo that is uncataloged, or cataloged-without-bundle, or a preferred front. */
+function pickCoverPhoto(
+    photos: OneDrivePhoto[],
+    folderPath: string,
+    coverFileName: string | undefined,
+): OneDrivePhoto | null {
+    if (coverFileName) {
+        const chosen = photos.find((p) => p.name === coverFileName);
+        if (chosen) return chosen;
+    }
+    for (const p of photos) {
+        const fullFolder = p.subfolderPath ? `${folderPath}/${p.subfolderPath}` : folderPath;
+        const cat = findPhotoByFolderAndName(fullFolder, p.name);
+        if (!cat) return p;
+        if (!cat.bundleId) return p;
+        if (cat.side === 'front' && cat.isPreferred) return p;
+    }
+    return photos[0] ?? null;
+}
+
+export function createFoldersRouter(oneDriveService: OneDriveService, thumbnailCache: ThumbnailCacheService): Router {
     const router = Router();
 
     router.get('/', (_req, res) => {
@@ -23,6 +45,73 @@ export function createFoldersRouter(oneDriveService: OneDriveService): Router {
             coverFileName: covers.get(f.folderPath),
         }));
         res.json(result);
+    });
+
+    /** Resolve each folder's cover + photo count in one round trip. The coverUrl is a stable
+     *  proxy URL (below) so the browser HTTP cache can hold onto the image indefinitely. */
+    router.get('/covers', async (_req, res) => {
+        const folders = listFolders();
+        const covers = getAllFolderCovers();
+        const results = await Promise.all(
+            folders.map(async (f) => {
+                try {
+                    const photos = await oneDriveService.getPhotos(f.sharingUrl);
+                    const cover = pickCoverPhoto(photos, f.folderPath, covers.get(f.folderPath));
+                    return {
+                        folderId: f.slug,
+                        coverUrl: cover ? `/api/folders/${f.slug}/cover/${encodeURIComponent(cover.id)}` : null,
+                        photoCount: photos.length,
+                    };
+                } catch (err) {
+                    console.error(`Cover resolve failed for folder ${f.slug}:`, err);
+                    return { folderId: f.slug, coverUrl: null, photoCount: 0 };
+                }
+            }),
+        );
+        res.json(results);
+    });
+
+    /** Proxy for a cover thumbnail. Bytes are cached on disk keyed by OneDrive item id;
+     *  the URL is considered immutable for that id, so we set a one-year Cache-Control. If
+     *  the photo is later replaced, its id changes and the /covers response points at a new
+     *  URL — the browser naturally fetches fresh bytes without any explicit invalidation. */
+    router.get('/:folderId/cover/:itemId', async (req, res) => {
+        const folder = findFolderBySlug(req.params.folderId);
+        if (!folder) {
+            res.status(404).json({ error: 'Folder not found' });
+            return;
+        }
+        const itemId = req.params.itemId;
+
+        const cached = thumbnailCache.read(itemId);
+        if (cached) {
+            res.setHeader('Content-Type', 'image/jpeg');
+            res.setHeader('Cache-Control', 'private, max-age=31536000, immutable');
+            res.send(cached);
+            return;
+        }
+
+        try {
+            const photos = await oneDriveService.getPhotos(folder.sharingUrl);
+            const photo = photos.find((p) => p.id === itemId);
+            if (!photo?.thumbnailUrl) {
+                res.status(404).json({ error: 'Cover not found' });
+                return;
+            }
+            const upstream = await fetch(photo.thumbnailUrl);
+            if (!upstream.ok) {
+                res.status(502).json({ error: `Upstream thumbnail fetch failed: ${upstream.status}` });
+                return;
+            }
+            const buf = Buffer.from(await upstream.arrayBuffer());
+            thumbnailCache.write(itemId, buf);
+            res.setHeader('Content-Type', upstream.headers.get('content-type') ?? 'image/jpeg');
+            res.setHeader('Cache-Control', 'private, max-age=31536000, immutable');
+            res.send(buf);
+        } catch (err) {
+            console.error('Cover proxy error:', err);
+            res.status(502).json({ error: 'Failed to fetch cover' });
+        }
     });
 
     router.get('/:folderId/photos', async (req, res) => {

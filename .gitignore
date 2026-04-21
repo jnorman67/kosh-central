@@ -32,3 +32,6 @@ deploy.zip
 *.db
 *.db-wal
 *.db-shm
+
+# Proxied cover-thumbnail cache (regenerable)
+cover-cache/

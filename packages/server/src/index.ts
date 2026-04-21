@@ -1,6 +1,7 @@
 import cookieParser from 'cookie-parser';
 import express from 'express';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { requireAuth } from './auth/auth.middleware.js';
@@ -19,6 +20,7 @@ import { createRatingsRouter } from './routes/ratings.router.js';
 import { createRelationsRouter } from './routes/relations.router.js';
 import { createSeriesRouter } from './routes/series.router.js';
 import { OneDriveService } from './services/onedrive.service.js';
+import { ThumbnailCacheService } from './services/thumbnail-cache.service.js';
 
 initDb();
 seedFoldersIfEmpty();
@@ -74,13 +76,24 @@ const msalService = new MsalService(AZURE_CLIENT_ID);
 await msalService.loadCache();
 const oneDriveService = new OneDriveService(msalService);
 
+// Regenerable cache of proxied cover thumbnail bytes. Defaults vary by environment because
+// Container Apps' /home is SMB-backed (slow for cache traffic) while App Service's /home is
+// the expected persistent mount. Operators can override with KOSH_COVER_CACHE_DIR.
+const coverCacheDir =
+    process.env.KOSH_COVER_CACHE_DIR ??
+    (process.env.NODE_ENV === 'production'
+        ? path.join(os.tmpdir(), 'kosh-cover-cache')
+        : path.resolve(import.meta.dirname, '../cover-cache'));
+const thumbnailCache = new ThumbnailCacheService(coverCacheDir);
+console.log(`Cover thumbnail cache: ${coverCacheDir}`);
+
 app.use(express.json({ limit: '10mb' }));
 app.use(cookieParser());
 app.use('/api/auth', createAuthRouter());
 app.use('/api/admin/folders', requireAuth, createFoldersAdminRouter(oneDriveService));
 app.use('/api/admin/photos', requireAuth, createPhotosAdminRouter());
 app.use('/api/favorites', requireAuth, createFavoritesRouter(oneDriveService));
-app.use('/api/folders', requireAuth, createFoldersRouter(oneDriveService));
+app.use('/api/folders', requireAuth, createFoldersRouter(oneDriveService, thumbnailCache));
 app.use('/api/photos', requireAuth, createPhotosRouter());
 app.use('/api/ratings', requireAuth, createRatingsRouter());
 app.use('/api/relations', requireAuth, createRelationsRouter());

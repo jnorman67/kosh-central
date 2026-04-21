@@ -5,6 +5,14 @@ export interface PhotoFolder {
     coverFileName?: string;
 }
 
+export interface FolderCover {
+    folderId: string;
+    /** Stable proxy URL to the cover thumbnail; null if the folder has no photos or the
+     *  OneDrive listing failed. Suitable for long-lived browser HTTP caching. */
+    coverUrl: string | null;
+    photoCount: number;
+}
+
 export type RelationType = 'duplicate-of';
 
 export interface PhotoRelation {

@@ -1,9 +1,13 @@
-import type { FavoritesPage, Photo, PhotoFolder } from '@/app/features/photos/models/photos.models';
+import type { FavoritesPage, FolderCover, Photo, PhotoFolder } from '@/app/features/photos/models/photos.models';
 import { apiFetch } from '@/lib/api-client';
 
 export class PhotosService {
     async getFolders(): Promise<PhotoFolder[]> {
         return apiFetch<PhotoFolder[]>('/api/folders');
+    }
+
+    async getFolderCovers(): Promise<FolderCover[]> {
+        return apiFetch<FolderCover[]>('/api/folders/covers');
     }
 
     async getPhotos(folderId: string): Promise<Photo[]> {
