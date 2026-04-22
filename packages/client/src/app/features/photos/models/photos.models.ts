@@ -3,6 +3,8 @@ export interface PhotoFolder {
     displayName: string;
     /** Admin-chosen cover photo's filename within the folder. Falls back to first viewable. */
     coverFileName?: string;
+    /** Controlled vocabulary — see packages/server/src/config/folder-tags.ts. */
+    tags: string[];
 }
 
 export interface FolderCover {

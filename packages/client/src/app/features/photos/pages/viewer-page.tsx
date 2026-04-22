@@ -4,6 +4,7 @@ import { FolderSelector } from '@/app/features/photos/components/folder-selector
 import { LetterboxViewer } from '@/app/features/photos/components/letterbox-viewer';
 import { PhotoControls } from '@/app/features/photos/components/photo-controls';
 import { PhotoGallery } from '@/app/features/photos/components/photo-gallery';
+import { PhotoPagesReader } from '@/app/features/photos/components/photo-pages-reader';
 import { RelatedStrip } from '@/app/features/photos/components/related-strip';
 import { RelatedThumbnail } from '@/app/features/photos/components/related-thumbnail';
 import { StarRating } from '@/app/features/photos/components/star-rating';
@@ -130,6 +131,7 @@ export function ViewerPage() {
     const isGallery = view === 'gallery';
     const isPhoto = view === 'photo';
     const isAdmin = me?.role === 'admin';
+    const isAlbumPages = !!currentFolder?.tags.includes('album-pages');
     const isCurrentCover = !!currentPhoto && !!currentFolder && currentFolder.coverFileName === currentPhoto.name;
 
     const handleToggleCover = () => {
@@ -186,9 +188,14 @@ export function ViewerPage() {
                                 <TooltipContent>My favorites</TooltipContent>
                             </Tooltip>
                             {isPhoto && (
-                                <Button variant="ghost" size="sm" onClick={backToGallery} aria-label="Back to gallery">
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={backToGallery}
+                                    aria-label={isAlbumPages ? 'Back to pages' : 'Back to gallery'}
+                                >
                                     <LayoutGrid className="h-4 w-4" />
-                                    <span className="hidden sm:inline">Gallery</span>
+                                    <span className="hidden sm:inline">{isAlbumPages ? 'Pages' : 'Gallery'}</span>
                                 </Button>
                             )}
                             {isAdmin && isPhoto && currentPhoto && (
@@ -237,7 +244,11 @@ export function ViewerPage() {
                     isAlbums ? (
                         <AlbumGallery folders={folders} onSelect={setFolder} />
                     ) : isGallery ? (
-                        <PhotoGallery photos={viewablePhotos} isLoading={photosLoading && !!currentFolder} onSelect={openPhoto} />
+                        isAlbumPages ? (
+                            <PhotoPagesReader photos={viewablePhotos} isLoading={photosLoading && !!currentFolder} onSelect={openPhoto} />
+                        ) : (
+                            <PhotoGallery photos={viewablePhotos} isLoading={photosLoading && !!currentFolder} onSelect={openPhoto} />
+                        )
                     ) : (
                         <div className="relative h-full w-full">
                             <LetterboxViewer
@@ -298,10 +309,17 @@ export function ViewerPage() {
                     ) : isGallery ? (
                         <div className="flex items-center justify-center gap-4 px-4 py-2 text-sm text-muted-foreground">
                             <span>
-                                {viewablePhotos.length} {viewablePhotos.length === 1 ? 'photo' : 'photos'}
+                                {viewablePhotos.length}{' '}
+                                {isAlbumPages
+                                    ? viewablePhotos.length === 1
+                                        ? 'page'
+                                        : 'pages'
+                                    : viewablePhotos.length === 1
+                                      ? 'photo'
+                                      : 'photos'}
                                 {uncatalogedOnly && ' (uncataloged only)'}
                             </span>
-                            {isAdmin && uncatalogedCount > 0 && (
+                            {isAdmin && !isAlbumPages && uncatalogedCount > 0 && (
                                 <Button
                                     variant={uncatalogedOnly ? 'secondary' : 'ghost'}
                                     size="sm"
