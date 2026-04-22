@@ -7,6 +7,7 @@ export interface StoredFolder {
     sharingUrl: string;
     folderPath: string;
     sortOrder: number;
+    tags: string[];
     createdAt: string;
     updatedAt: string;
 }
@@ -17,6 +18,7 @@ export interface FolderInput {
     sharingUrl: string;
     folderPath: string;
     sortOrder?: number;
+    tags?: string[];
 }
 
 interface FolderRow {
@@ -29,16 +31,26 @@ interface FolderRow {
     updated_at: string;
 }
 
-function rowToFolder(row: FolderRow): StoredFolder {
+function rowToFolder(row: FolderRow, tags: string[]): StoredFolder {
     return {
         slug: row.slug,
         displayName: row.display_name,
         sharingUrl: row.sharing_url,
         folderPath: row.folder_path,
         sortOrder: row.sort_order,
+        tags,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
     };
+}
+
+/** Replace the full tag set for a folder. Caller must ensure `tags` is a unique list. */
+function writeTags(slug: string, tags: string[]): void {
+    const db = getDb();
+    db.prepare('DELETE FROM folder_tags WHERE folder_slug = ?').run(slug);
+    if (tags.length === 0) return;
+    const insert = db.prepare('INSERT INTO folder_tags (folder_slug, tag) VALUES (?, ?)');
+    for (const tag of tags) insert.run(slug, tag);
 }
 
 // Module-level cache — the hot paths (GET /folders, GET /favorites) call
@@ -52,8 +64,19 @@ function invalidate(): void {
 
 export function listFolders(): StoredFolder[] {
     if (cache) return cache;
-    const rows = getDb().prepare('SELECT * FROM folders ORDER BY sort_order, slug').all() as FolderRow[];
-    cache = rows.map(rowToFolder);
+    const db = getDb();
+    const rows = db.prepare('SELECT * FROM folders ORDER BY sort_order, slug').all() as FolderRow[];
+    const tagRows = db.prepare('SELECT folder_slug, tag FROM folder_tags').all() as {
+        folder_slug: string;
+        tag: string;
+    }[];
+    const tagsBySlug = new Map<string, string[]>();
+    for (const { folder_slug, tag } of tagRows) {
+        const arr = tagsBySlug.get(folder_slug);
+        if (arr) arr.push(tag);
+        else tagsBySlug.set(folder_slug, [tag]);
+    }
+    cache = rows.map((r) => rowToFolder(r, tagsBySlug.get(r.slug) ?? []));
     return cache;
 }
 
@@ -70,24 +93,37 @@ export function createFolder(input: FolderInput): StoredFolder {
         input.sortOrder && input.sortOrder > 0
             ? input.sortOrder
             : ((db.prepare('SELECT COALESCE(MAX(sort_order), 0) as m FROM folders').get() as { m: number }).m + 10);
-    db.prepare(
-        `INSERT INTO folders (slug, display_name, sharing_url, folder_path, sort_order)
-         VALUES (?, ?, ?, ?, ?)`,
-    ).run(input.slug, input.displayName, input.sharingUrl, input.folderPath, sortOrder);
+    const txn = db.transaction(() => {
+        db.prepare(
+            `INSERT INTO folders (slug, display_name, sharing_url, folder_path, sort_order)
+             VALUES (?, ?, ?, ?, ?)`,
+        ).run(input.slug, input.displayName, input.sharingUrl, input.folderPath, sortOrder);
+        writeTags(input.slug, input.tags ?? []);
+    });
+    txn();
     invalidate();
     return findFolderBySlug(input.slug)!;
 }
 
 export function updateFolder(slug: string, input: FolderInput): StoredFolder | undefined {
-    const result = getDb()
-        .prepare(
-            `UPDATE folders
-             SET slug = ?, display_name = ?, sharing_url = ?, folder_path = ?, sort_order = ?,
-                 updated_at = datetime('now')
-             WHERE slug = ?`,
-        )
-        .run(input.slug, input.displayName, input.sharingUrl, input.folderPath, input.sortOrder ?? 0, slug);
-    if (result.changes === 0) return undefined;
+    const db = getDb();
+    let changed = 0;
+    const txn = db.transaction(() => {
+        const result = db
+            .prepare(
+                `UPDATE folders
+                 SET slug = ?, display_name = ?, sharing_url = ?, folder_path = ?, sort_order = ?,
+                     updated_at = datetime('now')
+                 WHERE slug = ?`,
+            )
+            .run(input.slug, input.displayName, input.sharingUrl, input.folderPath, input.sortOrder ?? 0, slug);
+        changed = result.changes;
+        // ON UPDATE CASCADE has already moved any existing tag rows from `slug`
+        // to `input.slug`, so overwrite under the new slug.
+        if (changed > 0) writeTags(input.slug, input.tags ?? []);
+    });
+    txn();
+    if (changed === 0) return undefined;
     invalidate();
     return findFolderBySlug(input.slug);
 }
@@ -133,6 +169,7 @@ export function upsertFolders(folders: FolderInput[]): ImportResult {
                 insert.run(f.slug, f.displayName, f.sharingUrl, f.folderPath, f.sortOrder ?? 0);
                 created++;
             }
+            writeTags(f.slug, f.tags ?? []);
         }
     });
     txn();
@@ -168,9 +205,11 @@ export function replaceAllFolders(folders: FolderInput[]): ImportResult {
          VALUES (?, ?, ?, ?, ?)`,
     );
     const txn = db.transaction(() => {
+        // ON DELETE CASCADE wipes folder_tags alongside folders.
         db.prepare('DELETE FROM folders').run();
         for (const f of folders) {
             insert.run(f.slug, f.displayName, f.sharingUrl, f.folderPath, f.sortOrder ?? 0);
+            writeTags(f.slug, f.tags ?? []);
         }
     });
     txn();

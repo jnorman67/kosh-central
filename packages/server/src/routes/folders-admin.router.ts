@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { requireAdmin } from '../auth/auth.middleware.js';
+import { FOLDER_TAGS, isKnownFolderTag } from '../config/folder-tags.js';
 import {
     createFolder,
     deleteFolder,
@@ -39,7 +40,26 @@ function validateShape(body: unknown): FolderInput | FieldError {
     if (!sharingUrl) return { error: 'sharingUrl is required', field: 'sharingUrl' };
     if (!folderPath) return { error: 'folderPath is required', field: 'folderPath' };
 
-    return { slug, displayName, sharingUrl, folderPath, sortOrder };
+    let tags: string[] | undefined;
+    if (b.tags !== undefined) {
+        if (!Array.isArray(b.tags) || !b.tags.every((t) => typeof t === 'string')) {
+            return { error: 'tags must be an array of strings', field: 'tags' };
+        }
+        const seen = new Set<string>();
+        for (const raw of b.tags as string[]) {
+            const t = raw.trim();
+            if (!isKnownFolderTag(t)) {
+                return {
+                    error: `Unknown tag "${raw}". Allowed: ${FOLDER_TAGS.join(', ')}`,
+                    field: 'tags',
+                };
+            }
+            seen.add(t);
+        }
+        tags = [...seen];
+    }
+
+    return { slug, displayName, sharingUrl, folderPath, sortOrder, tags };
 }
 
 export function createFoldersAdminRouter(oneDriveService: OneDriveService): Router {

@@ -254,6 +254,18 @@ const migrations: Migration[] = [
             WHERE relation_type IN ('back-of', 'front-of', 'raw-version-of', 'enhanced-version-of');
         `,
     },
+    {
+        version: 13,
+        description: 'Create folder_tags table for folder categorization',
+        sql: `
+            CREATE TABLE folder_tags (
+                folder_slug TEXT NOT NULL REFERENCES folders(slug) ON DELETE CASCADE ON UPDATE CASCADE,
+                tag TEXT NOT NULL,
+                PRIMARY KEY (folder_slug, tag)
+            );
+            CREATE INDEX idx_folder_tags_tag ON folder_tags(tag);
+        `,
+    },
 ];
 
 /**

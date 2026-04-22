@@ -191,19 +191,20 @@ export function FoldersAdminPage() {
                                             <TableHead>Slug</TableHead>
                                             <TableHead>Display name</TableHead>
                                             <TableHead>Folder path</TableHead>
+                                            <TableHead>Tags</TableHead>
                                             <TableHead className="w-24 text-right">Actions</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
                                         {isLoading ? (
                                             <TableRow>
-                                                <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                                                <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
                                                     Loading...
                                                 </TableCell>
                                             </TableRow>
                                         ) : ordered.length === 0 ? (
                                             <TableRow>
-                                                <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                                                <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
                                                     No folders configured yet.
                                                 </TableCell>
                                             </TableRow>

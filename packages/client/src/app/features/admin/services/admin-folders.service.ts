@@ -55,12 +55,14 @@ export class AdminFoldersService {
         return list.map((entry, i) => {
             if (!entry || typeof entry !== 'object') throw new Error(`folders[${i}]: expected object`);
             const e = entry as Record<string, unknown>;
+            const tags = Array.isArray(e.tags) ? e.tags.filter((t): t is string => typeof t === 'string') : [];
             return {
                 slug: String(e.slug ?? ''),
                 displayName: String(e.displayName ?? ''),
                 sharingUrl: String(e.sharingUrl ?? ''),
                 folderPath: String(e.folderPath ?? ''),
                 sortOrder: typeof e.sortOrder === 'number' ? e.sortOrder : 0,
+                tags,
             };
         });
     }

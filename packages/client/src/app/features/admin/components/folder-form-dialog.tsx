@@ -1,5 +1,11 @@
 import { slugify } from '@/app/features/admin/lib/slug';
-import type { AdminFolder, FolderInput } from '@/app/features/admin/models/folder.models';
+import {
+    FOLDER_TAGS,
+    FOLDER_TAG_LABELS,
+    type AdminFolder,
+    type FolderInput,
+    type FolderTag,
+} from '@/app/features/admin/models/folder.models';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -15,7 +21,7 @@ interface Props {
     onSubmit: (input: FolderInput) => Promise<void>;
 }
 
-const EMPTY: FolderInput = { slug: '', displayName: '', sharingUrl: '', folderPath: '', sortOrder: 0 };
+const EMPTY: FolderInput = { slug: '', displayName: '', sharingUrl: '', folderPath: '', sortOrder: 0, tags: [] };
 
 export function FolderFormDialog({ open, onOpenChange, mode, initial, onSubmit }: Props) {
     const [form, setForm] = useState<FolderInput>(EMPTY);
@@ -36,6 +42,7 @@ export function FolderFormDialog({ open, onOpenChange, mode, initial, onSubmit }
                 sharingUrl: initial.sharingUrl,
                 folderPath: initial.folderPath,
                 sortOrder: initial.sortOrder,
+                tags: [...initial.tags],
             });
             setSlugTouched(true); // never auto-overwrite an existing slug
         } else {
@@ -79,6 +86,14 @@ export function FolderFormDialog({ open, onOpenChange, mode, initial, onSubmit }
         clearFieldError(key);
     };
 
+    function toggleTag(tag: FolderTag) {
+        setForm((f) => ({
+            ...f,
+            tags: f.tags.includes(tag) ? f.tags.filter((t) => t !== tag) : [...f.tags, tag],
+        }));
+        clearFieldError('tags');
+    }
+
     const showFolderPathWarning =
         mode === 'edit' && !!initial && form.folderPath.trim() !== initial.folderPath && form.folderPath.trim().length > 0;
 
@@ -94,6 +109,7 @@ export function FolderFormDialog({ open, onOpenChange, mode, initial, onSubmit }
                 sharingUrl: form.sharingUrl.trim(),
                 folderPath: form.folderPath.trim(),
                 sortOrder: form.sortOrder,
+                tags: form.tags,
             });
             onOpenChange(false);
         } catch (err) {
@@ -167,6 +183,33 @@ export function FolderFormDialog({ open, onOpenChange, mode, initial, onSubmit }
                                 re-imported.
                             </p>
                         )}
+                    </div>
+
+                    <div className="space-y-1.5">
+                        <Label>Tags</Label>
+                        <div className="flex flex-wrap gap-3">
+                            {FOLDER_TAGS.map((tag) => {
+                                const checked = form.tags.includes(tag);
+                                return (
+                                    <label
+                                        key={tag}
+                                        className="flex cursor-pointer items-center gap-2 rounded border border-input bg-background px-3 py-1.5 text-sm hover:bg-accent"
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={checked}
+                                            onChange={() => toggleTag(tag)}
+                                            className="h-4 w-4 accent-primary"
+                                        />
+                                        {FOLDER_TAG_LABELS[tag]}
+                                    </label>
+                                );
+                            })}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                            Tag folders whose contents aren't regular scans, so the viewer can present them appropriately.
+                        </p>
+                        {fieldErrors.tags && <p className="text-xs text-destructive">{fieldErrors.tags}</p>}
                     </div>
 
                     {formError && <p className="text-sm text-destructive">{formError}</p>}

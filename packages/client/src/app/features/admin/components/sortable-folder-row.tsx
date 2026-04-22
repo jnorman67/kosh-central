@@ -1,4 +1,4 @@
-import type { AdminFolder } from '@/app/features/admin/models/folder.models';
+import { FOLDER_TAG_LABELS, type AdminFolder, type FolderTag } from '@/app/features/admin/models/folder.models';
 import { Button } from '@/components/ui/button';
 import { TableCell, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -43,6 +43,19 @@ export function SortableFolderRow({ folder, onEdit, onDelete }: Props) {
             <TableCell className="font-mono text-xs">{folder.slug}</TableCell>
             <TableCell>{folder.displayName}</TableCell>
             <TableCell className="text-xs text-muted-foreground">{folder.folderPath}</TableCell>
+            <TableCell>
+                {folder.tags.length === 0 ? (
+                    <span className="text-xs text-muted-foreground">—</span>
+                ) : (
+                    <div className="flex flex-wrap gap-1">
+                        {folder.tags.map((tag) => (
+                            <span key={tag} className="rounded-full bg-secondary px-2 py-0.5 text-xs font-medium text-secondary-foreground">
+                                {FOLDER_TAG_LABELS[tag as FolderTag] ?? tag}
+                            </span>
+                        ))}
+                    </div>
+                )}
+            </TableCell>
             <TableCell className="text-right">
                 <div className="flex justify-end gap-1">
                     <Tooltip>
