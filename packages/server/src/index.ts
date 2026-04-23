@@ -126,6 +126,15 @@ app.use('/api/ratings', requireAuth, createRatingsRouter());
 app.use('/api/relations', requireAuth, createRelationsRouter());
 app.use('/api/series', requireAuth, createSeriesRouter());
 
+// Global error handler — catches synchronous throws from route handlers and
+// errors forwarded via next(err). Must have 4 parameters for Express to treat it as an error handler.
+app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    console.error('Unhandled route error:', err);
+    if (!res.headersSent) {
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
 // Static file serving in production
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const clientDist = path.join(__dirname, '../../client/dist');

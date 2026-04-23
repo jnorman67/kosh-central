@@ -63,7 +63,8 @@ export function createRelationsRouter(): Router {
                 res.status(409).json({ error: 'This relation already exists' });
                 return;
             }
-            throw err;
+            console.error('POST /relations error:', err);
+            res.status(500).json({ error: 'Internal server error' });
         }
     });
 
