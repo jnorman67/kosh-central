@@ -37,6 +37,8 @@ export class OneDriveService {
     private shareLinkCache = new Map<string, string>();
     private readonly TTL_MS = 10 * 60 * 1000; // 10 minutes
 
+    private static readonly FETCH_TIMEOUT_MS = 30_000;
+
     constructor(private msalService: MsalService) {}
 
     encodeSharingUrl(url: string): string {
@@ -55,6 +57,7 @@ export class OneDriveService {
         const encoded = this.encodeSharingUrl(sharingUrl);
         const url = `https://graph.microsoft.com/v1.0/shares/${encoded}/driveItem?$select=id,folder`;
         const res = await fetch(url, {
+            signal: AbortSignal.timeout(OneDriveService.FETCH_TIMEOUT_MS),
             headers: {
                 Accept: 'application/json',
                 Authorization: `Bearer ${accessToken}`,
@@ -98,6 +101,7 @@ export class OneDriveService {
         out: Photo[],
     ): Promise<void> {
         const response = await fetch(childrenUrl, {
+            signal: AbortSignal.timeout(OneDriveService.FETCH_TIMEOUT_MS),
             headers: {
                 Accept: 'application/json',
                 Authorization: `Bearer ${accessToken}`,
@@ -164,6 +168,7 @@ export class OneDriveService {
         const url = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/createLink`;
         const res = await fetch(url, {
             method: 'POST',
+            signal: AbortSignal.timeout(OneDriveService.FETCH_TIMEOUT_MS),
             headers: {
                 'Content-Type': 'application/json',
                 Authorization: `Bearer ${accessToken}`,
