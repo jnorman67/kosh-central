@@ -7,7 +7,6 @@ import { PhotoGallery } from '@/app/features/photos/components/photo-gallery';
 import { PhotoPagesReader } from '@/app/features/photos/components/photo-pages-reader';
 import { RelatedStrip } from '@/app/features/photos/components/related-strip';
 import { RelatedThumbnail } from '@/app/features/photos/components/related-thumbnail';
-import { StarRating } from '@/app/features/photos/components/star-rating';
 import { usePhotosQueries } from '@/app/features/photos/contexts/photos-query.context';
 import { useViewerState } from '@/app/features/photos/hooks/use-viewer-state';
 import type { Photo } from '@/app/features/photos/models/photos.models';
@@ -17,9 +16,9 @@ import { ViewerLayout } from '@/components/layout/viewer-layout';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { hideSplash } from '@/lib/splash';
-import { Check, ExternalLink, Filter, Heart, LayoutGrid, Star, StarOff, X } from 'lucide-react';
+import { Check, ExternalLink, Filter, LayoutGrid, Star, StarOff, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 
 interface RelatedPhoto {
     photo: Photo;
@@ -48,14 +47,12 @@ function findRelatedPhotos(main: Photo, allPhotos: Photo[]): RelatedPhoto[] {
 }
 
 export function ViewerPage() {
-    const navigate = useNavigate();
     const [searchParams] = useSearchParams();
-    const { useGetFolders, useGetPhotos, useSetFolderCover, useClearFolderCover, useSetPreferredPhoto, useRatePhoto, useGetShareLink } =
+    const { useGetFolders, useGetPhotos, useSetFolderCover, useClearFolderCover, useSetPreferredPhoto, useGetShareLink } =
         usePhotosQueries();
     const setCover = useSetFolderCover();
     const clearCover = useClearFolderCover();
     const setPreferred = useSetPreferredPhoto();
-    const ratePhoto = useRatePhoto();
     const { useGetMe } = useAuthQueries();
     const { data: me } = useGetMe();
     const [enlargedRelatedId, setEnlargedRelatedId] = useState<string | null>(null);
@@ -178,15 +175,6 @@ export function ViewerPage() {
                             </div>
                         )}
                         <div className="flex shrink-0 items-center gap-1 pr-1 sm:gap-3 sm:px-4">
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <Button variant="ghost" size="sm" onClick={() => navigate('/favorites')} aria-label="My favorites">
-                                        <Heart className="h-4 w-4 fill-rose-500 text-rose-500" />
-                                        <span className="hidden sm:inline">Favorites</span>
-                                    </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>My favorites</TooltipContent>
-                            </Tooltip>
                             {isPhoto && (
                                 <Button
                                     variant="ghost"
@@ -360,21 +348,7 @@ export function ViewerPage() {
                                     onNext={handleNext}
                                 />
                             </div>
-                            <div className="flex items-center justify-end">
-                                {currentPhoto?.catalogId && currentFolder && (
-                                    <StarRating
-                                        rating={currentPhoto.rating}
-                                        disabled={ratePhoto.isPending}
-                                        onChange={(rating) =>
-                                            ratePhoto.mutate({
-                                                catalogId: currentPhoto.catalogId!,
-                                                folderId: currentFolder.id,
-                                                rating,
-                                            })
-                                        }
-                                    />
-                                )}
-                            </div>
+                            <div className="flex items-center justify-end" />
                         </div>
                     )
                 }
