@@ -97,6 +97,10 @@ const msalService = new MsalService(AZURE_CLIENT_ID);
 boot('msal loadCache...');
 await msalService.loadCache();
 boot('msal loadCache done');
+if (!msalService.isAuthenticated()) {
+    console.log('No cached credentials — starting device code flow...');
+    await msalService.authenticate();
+}
 const oneDriveService = new OneDriveService(msalService);
 
 // Regenerable cache of proxied cover thumbnail bytes. Defaults vary by environment because
@@ -161,9 +165,6 @@ boot(`app.listen on ${PORT}...`);
 const httpServer = app.listen(PORT, () => {
     boot('listening');
     console.log(`Server running on http://localhost:${PORT}`);
-    if (!msalService.isAuthenticated()) {
-        console.log('No cached credentials found. Authentication will be triggered on first API request.');
-    }
 });
 
 // Graceful shutdown: close the HTTP listener so the event loop can exit.

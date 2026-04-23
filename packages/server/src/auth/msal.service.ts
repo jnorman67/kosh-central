@@ -73,22 +73,24 @@ export class MsalService {
     }
 
     async getAccessToken(): Promise<string> {
-        // Try silent acquisition first (uses cached access/refresh tokens)
-        if (this.account) {
-            try {
-                const result = await this.pca.acquireTokenSilent({
-                    account: this.account,
-                    scopes: SCOPES,
-                });
-                this.saveCache();
-                return result.accessToken;
-            } catch {
-                // Silent acquisition failed — fall through to device code
-                this.account = null;
-            }
+        if (!this.account) {
+            throw new Error('OneDrive not authenticated — run device code flow to refresh credentials');
         }
+        try {
+            const result = await this.pca.acquireTokenSilent({
+                account: this.account,
+                scopes: SCOPES,
+            });
+            this.saveCache();
+            return result.accessToken;
+        } catch (err) {
+            this.account = null;
+            throw new Error(`OneDrive token refresh failed — re-authentication required: ${err}`);
+        }
+    }
 
-        // Device code flow — requires user interaction
+    /** Runs the interactive device code flow. Call at startup, not during web requests. */
+    async authenticate(): Promise<void> {
         const result = await this.pca.acquireTokenByDeviceCode({
             scopes: SCOPES,
             deviceCodeCallback: (response) => {
@@ -98,13 +100,11 @@ export class MsalService {
                 console.log('='.repeat(60) + '\n');
             },
         });
-
         if (!result) {
             throw new Error('Device code authentication failed — no result returned');
         }
         this.account = result.account;
         this.saveCache();
-        return result.accessToken;
     }
 
     isAuthenticated(): boolean {
