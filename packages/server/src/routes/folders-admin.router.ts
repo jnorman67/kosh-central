@@ -59,7 +59,9 @@ function validateShape(body: unknown): FolderInput | FieldError {
         tags = [...seen];
     }
 
-    return { slug, displayName, sharingUrl, folderPath, sortOrder, tags };
+    const createdAt = typeof b.createdAt === 'string' && b.createdAt ? b.createdAt : undefined;
+
+    return { slug, displayName, sharingUrl, folderPath, sortOrder, tags, createdAt };
 }
 
 export function createFoldersAdminRouter(oneDriveService: OneDriveService): Router {

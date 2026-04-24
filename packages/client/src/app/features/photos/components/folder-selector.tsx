@@ -1,6 +1,12 @@
 import type { PhotoFolder } from '@/app/features/photos/models/photos.models';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
+const NEW_THRESHOLD_MS = 30 * 24 * 60 * 60 * 1000;
+
+function isNewAlbum(folder: PhotoFolder): boolean {
+    return Date.now() - new Date(folder.createdAt).getTime() < NEW_THRESHOLD_MS;
+}
+
 interface FolderSelectorProps {
     folders: PhotoFolder[];
     selectedId: string | null;
@@ -27,7 +33,14 @@ export function FolderSelector({ folders, selectedId, onSelect, isLoading }: Fol
                 <SelectContent>
                     {folders.map((folder) => (
                         <SelectItem key={folder.id} value={folder.id}>
-                            {folder.displayName}
+                            <span className="flex items-center gap-2">
+                                {folder.displayName}
+                                {isNewAlbum(folder) && (
+                                    <span className="rounded bg-[hsl(var(--brand))] px-1.5 py-0.5 text-xs font-semibold text-[hsl(var(--brand-foreground))]">
+                                        New
+                                    </span>
+                                )}
+                            </span>
                         </SelectItem>
                     ))}
                 </SelectContent>

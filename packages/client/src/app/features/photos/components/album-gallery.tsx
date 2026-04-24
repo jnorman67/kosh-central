@@ -2,6 +2,12 @@ import { usePhotosQueries } from '@/app/features/photos/contexts/photos-query.co
 import type { PhotoFolder } from '@/app/features/photos/models/photos.models';
 import { useMemo } from 'react';
 
+const NEW_THRESHOLD_MS = 30 * 24 * 60 * 60 * 1000;
+
+function isNewAlbum(folder: PhotoFolder): boolean {
+    return Date.now() - new Date(folder.createdAt).getTime() < NEW_THRESHOLD_MS;
+}
+
 interface AlbumGalleryProps {
     folders: PhotoFolder[];
     onSelect: (id: string) => void;
@@ -51,6 +57,11 @@ export function AlbumGallery({ folders, onSelect }: AlbumGalleryProps) {
                                     <div className="flex h-full w-full items-center justify-center text-xs text-zinc-600">
                                         {isLoading ? 'Loading…' : 'No preview'}
                                     </div>
+                                )}
+                                {isNewAlbum(folder) && (
+                                    <span className="absolute right-2 top-2 rounded bg-[hsl(var(--brand))] px-1.5 py-0.5 text-xs font-semibold text-[hsl(var(--brand-foreground))] shadow">
+                                        New
+                                    </span>
                                 )}
                                 <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-3 text-left">
                                     <div className="truncate text-sm font-medium text-white">{folder.displayName}</div>

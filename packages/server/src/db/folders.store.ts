@@ -19,6 +19,7 @@ export interface FolderInput {
     folderPath: string;
     sortOrder?: number;
     tags?: string[];
+    createdAt?: string;
 }
 
 interface FolderRow {
@@ -148,8 +149,8 @@ export function upsertFolders(folders: FolderInput[]): ImportResult {
     );
 
     const insert = db.prepare(
-        `INSERT INTO folders (slug, display_name, sharing_url, folder_path, sort_order)
-         VALUES (?, ?, ?, ?, ?)`,
+        `INSERT INTO folders (slug, display_name, sharing_url, folder_path, sort_order, created_at)
+         VALUES (?, ?, ?, ?, ?, COALESCE(?, datetime('now')))`,
     );
     const update = db.prepare(
         `UPDATE folders
@@ -166,7 +167,7 @@ export function upsertFolders(folders: FolderInput[]): ImportResult {
                 update.run(f.displayName, f.sharingUrl, f.folderPath, f.sortOrder ?? 0, f.slug);
                 updated++;
             } else {
-                insert.run(f.slug, f.displayName, f.sharingUrl, f.folderPath, f.sortOrder ?? 0);
+                insert.run(f.slug, f.displayName, f.sharingUrl, f.folderPath, f.sortOrder ?? 0, f.createdAt ?? null);
                 created++;
             }
             writeTags(f.slug, f.tags ?? []);
@@ -201,14 +202,14 @@ export function reorderFolders(slugs: string[]): void {
 export function replaceAllFolders(folders: FolderInput[]): ImportResult {
     const db = getDb();
     const insert = db.prepare(
-        `INSERT INTO folders (slug, display_name, sharing_url, folder_path, sort_order)
-         VALUES (?, ?, ?, ?, ?)`,
+        `INSERT INTO folders (slug, display_name, sharing_url, folder_path, sort_order, created_at)
+         VALUES (?, ?, ?, ?, ?, COALESCE(?, datetime('now')))`,
     );
     const txn = db.transaction(() => {
         // ON DELETE CASCADE wipes folder_tags alongside folders.
         db.prepare('DELETE FROM folders').run();
         for (const f of folders) {
-            insert.run(f.slug, f.displayName, f.sharingUrl, f.folderPath, f.sortOrder ?? 0);
+            insert.run(f.slug, f.displayName, f.sharingUrl, f.folderPath, f.sortOrder ?? 0, f.createdAt ?? null);
             writeTags(f.slug, f.tags ?? []);
         }
     });

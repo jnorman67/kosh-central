@@ -46,6 +46,7 @@ export function createFoldersRouter(oneDriveService: OneDriveService, thumbnailC
                 displayName: f.displayName,
                 coverFileName: covers.get(f.folderPath),
                 tags: f.tags,
+                createdAt: f.createdAt,
             }));
         res.json(result);
     });

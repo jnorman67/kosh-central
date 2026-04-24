@@ -5,6 +5,7 @@ export interface PhotoFolder {
     coverFileName?: string;
     /** Controlled vocabulary — see packages/server/src/config/folder-tags.ts. */
     tags: string[];
+    createdAt: string;
 }
 
 export interface FolderCover {
