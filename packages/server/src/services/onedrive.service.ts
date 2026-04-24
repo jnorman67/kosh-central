@@ -129,6 +129,7 @@ export class OneDriveService {
 
         for (const item of json.value ?? []) {
             if (item.folder) {
+                if (['archive', 'archived'].includes(item.name.toLowerCase())) continue;
                 const driveId = item.parentReference?.driveId;
                 if (!driveId) continue;
                 const childUrl = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${item.id}/children?$expand=thumbnails`;

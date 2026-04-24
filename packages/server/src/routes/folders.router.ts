@@ -39,19 +39,21 @@ export function createFoldersRouter(oneDriveService: OneDriveService, thumbnailC
 
     router.get('/', (_req, res) => {
         const covers = getAllFolderCovers();
-        const result = listFolders().map((f) => ({
-            id: f.slug,
-            displayName: f.displayName,
-            coverFileName: covers.get(f.folderPath),
-            tags: f.tags,
-        }));
+        const result = listFolders()
+            .filter((f) => !f.tags.includes('ignore'))
+            .map((f) => ({
+                id: f.slug,
+                displayName: f.displayName,
+                coverFileName: covers.get(f.folderPath),
+                tags: f.tags,
+            }));
         res.json(result);
     });
 
     /** Resolve each folder's cover + photo count in one round trip. The coverUrl is a stable
      *  proxy URL (below) so the browser HTTP cache can hold onto the image indefinitely. */
     router.get('/covers', async (_req, res) => {
-        const folders = listFolders();
+        const folders = listFolders().filter((f) => !f.tags.includes('ignore'));
         const covers = getAllFolderCovers();
         const results = await Promise.all(
             folders.map(async (f) => {
@@ -124,16 +126,29 @@ export function createFoldersRouter(oneDriveService: OneDriveService, thumbnailC
         try {
             const photos = await oneDriveService.getPhotos(folder.sharingUrl);
 
+            const ignoredPaths = new Set(
+                listFolders()
+                    .filter((f) => f.tags.includes('ignore'))
+                    .map((f) => f.folderPath),
+            );
+
             // Enrich each OneDrive photo with local catalog data by matching
             // on (folderPath, fileName). See README "Local Catalog & Matching
             // Strategy" for why name-based matching is the current approach.
             // Photos in subfolders contribute their `subfolderPath` so the
             // join key is the full directory each photo actually lives in.
-            const withCatalog = photos.map((p) => {
-                const fullFolder = p.subfolderPath ? `${folder.folderPath}/${p.subfolderPath}` : folder.folderPath;
-                const cataloged = findPhotoByFolderAndName(fullFolder, p.name);
-                return { photo: p, cataloged };
-            });
+            const withCatalog = photos
+                .filter((p) => {
+                    const fullFolder = p.subfolderPath
+                        ? `${folder.folderPath}/${p.subfolderPath}`
+                        : folder.folderPath;
+                    return !ignoredPaths.has(fullFolder);
+                })
+                .map((p) => {
+                    const fullFolder = p.subfolderPath ? `${folder.folderPath}/${p.subfolderPath}` : folder.folderPath;
+                    const cataloged = findPhotoByFolderAndName(fullFolder, p.name);
+                    return { photo: p, cataloged };
+                });
 
             const catalogedIds = withCatalog.map((x) => x.cataloged?.id).filter((id): id is string => !!id);
             const myRatings = getRatingsByUserForPhotos(req.user!.userId, catalogedIds);
