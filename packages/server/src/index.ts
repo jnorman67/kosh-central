@@ -17,6 +17,8 @@ import { createFoldersRouter } from './routes/folders.router.js';
 import { createPhotosAdminRouter } from './routes/photos-admin.router.js';
 import { createPhotosRouter } from './routes/photos.router.js';
 import { createRatingsRouter } from './routes/ratings.router.js';
+import { createPersonsAdminRouter } from './routes/persons-admin.router.js';
+import { createPersonsRouter } from './routes/persons.router.js';
 import { createRelationsRouter } from './routes/relations.router.js';
 import { createSeriesRouter } from './routes/series.router.js';
 import { OneDriveService } from './services/onedrive.service.js';
@@ -127,6 +129,8 @@ app.use('/api/favorites', requireAuth, createFavoritesRouter(oneDriveService));
 app.use('/api/folders', requireAuth, createFoldersRouter(oneDriveService, thumbnailCache));
 app.use('/api/photos', requireAuth, createPhotosRouter());
 app.use('/api/ratings', requireAuth, createRatingsRouter());
+app.use('/api/admin/persons', requireAuth, createPersonsAdminRouter());
+app.use('/api/persons', requireAuth, createPersonsRouter());
 app.use('/api/relations', requireAuth, createRelationsRouter());
 app.use('/api/series', requireAuth, createSeriesRouter());
 

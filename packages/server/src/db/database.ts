@@ -266,6 +266,61 @@ const migrations: Migration[] = [
             CREATE INDEX idx_folder_tags_tag ON folder_tags(tag);
         `,
     },
+    {
+        version: 14,
+        description: 'Create persons catalog (persons, person_relationships, photo_subjects, series_subjects)',
+        sql: `
+            CREATE TABLE persons (
+                id TEXT PRIMARY KEY,
+                full_name TEXT NOT NULL,
+                nickname TEXT,
+                birth_year INTEGER,
+                notes TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                created_by TEXT REFERENCES users(id) ON DELETE SET NULL
+            );
+
+            CREATE TABLE person_relationships (
+                id TEXT PRIMARY KEY,
+                from_person_id TEXT NOT NULL REFERENCES persons(id) ON DELETE CASCADE,
+                to_person_id TEXT NOT NULL REFERENCES persons(id) ON DELETE CASCADE,
+                relation_type TEXT NOT NULL CHECK(
+                    relation_type IN ('parent-of', 'spouse-of', 'sibling-of', 'friend-of')
+                ),
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+                UNIQUE(from_person_id, to_person_id, relation_type),
+                CHECK(from_person_id != to_person_id)
+            );
+
+            CREATE INDEX idx_person_relationships_from ON person_relationships(from_person_id);
+            CREATE INDEX idx_person_relationships_to ON person_relationships(to_person_id);
+
+            CREATE TABLE photo_subjects (
+                photo_id TEXT NOT NULL REFERENCES photos(id) ON DELETE CASCADE,
+                person_id TEXT NOT NULL REFERENCES persons(id) ON DELETE CASCADE,
+                source TEXT NOT NULL DEFAULT 'manual' CHECK(source IN ('manual', 'auto')),
+                confidence REAL,
+                face_region TEXT,
+                verified INTEGER NOT NULL DEFAULT 1 CHECK(verified IN (0, 1)),
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+                PRIMARY KEY(photo_id, person_id)
+            );
+
+            CREATE INDEX idx_photo_subjects_person_id ON photo_subjects(person_id);
+
+            CREATE TABLE series_subjects (
+                series_id TEXT NOT NULL REFERENCES photo_series(id) ON DELETE CASCADE,
+                person_id TEXT NOT NULL REFERENCES persons(id) ON DELETE CASCADE,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+                PRIMARY KEY(series_id, person_id)
+            );
+
+            CREATE INDEX idx_series_subjects_person_id ON series_subjects(person_id);
+        `,
+    },
 ];
 
 /**
