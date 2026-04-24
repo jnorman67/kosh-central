@@ -1,5 +1,5 @@
 import type { Photo } from '@/app/features/photos/models/photos.models';
-import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react';
+import type { PointerEvent as ReactPointerEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
 
 interface LetterboxViewerProps {
@@ -116,10 +116,6 @@ export function LetterboxViewer({ photo, isLoading, onClick, onSwipeNext, onSwip
         }
     }
 
-    function handleDoubleClick(e: ReactMouseEvent) {
-        zoomAround(e.clientX, e.clientY);
-    }
-
     function pinchMetrics() {
         const pts = [...pointers.current.values()];
         const rect = containerRef.current!.getBoundingClientRect();
@@ -201,9 +197,10 @@ export function LetterboxViewer({ photo, isLoading, onClick, onSwipeNext, onSwip
                         if (dx < 0) onSwipeNext?.();
                         else onSwipePrev?.();
                     }
-                } else if (!start.moved && scaleRef.current === 1 && !onClick) {
-                    // Manual double-tap detection: dblclick is unreliable on touch. Skip when
-                    // onClick is wired (tap-to-exit consumes the first tap instead).
+                } else if (!start.moved && (scaleRef.current > 1 || !onClick)) {
+                    // Custom double-click/tap detection for both mouse and touch. When zoomed in,
+                    // always allow double-tap to reset. When at scale 1, skip if onClick is wired
+                    // (tap-to-exit consumes the first tap instead).
                     const now = performance.now();
                     const d = Math.hypot(e.clientX - lastTap.current.x, e.clientY - lastTap.current.y);
                     if (now - lastTap.current.t < DOUBLE_TAP_MS && d < DOUBLE_TAP_RADIUS_PX) {
@@ -242,14 +239,13 @@ export function LetterboxViewer({ photo, isLoading, onClick, onSwipeNext, onSwip
     const zoomed = scale > 1;
     const exitable = !!onClick && scale === 1;
 
-    const cursorClass = zoomed ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : exitable ? 'cursor-zoom-out' : 'cursor-zoom-in';
+    const cursorClass = zoomed ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : exitable ? 'cursor-zoom-out' : 'cursor-default';
 
     return (
         <div
             ref={containerRef}
             className={`relative flex h-full w-full touch-none items-center justify-center overflow-hidden bg-black ${cursorClass}`}
             onClick={handleClick}
-            onDoubleClick={handleDoubleClick}
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
