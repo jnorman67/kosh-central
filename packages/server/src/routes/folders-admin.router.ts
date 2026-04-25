@@ -50,7 +50,7 @@ function validateShape(body: unknown): FolderInput | FieldError {
             const t = raw.trim();
             if (!isKnownFolderTag(t)) {
                 return {
-                    error: `Unknown tag "${raw}". Allowed: ${FOLDER_TAGS.join(', ')}`,
+                    error: `Unknown tag "${raw}"${FOLDER_TAGS.length ? `. Allowed: ${FOLDER_TAGS.join(', ')}` : '. No tags are currently configured.'}`,
                     field: 'tags',
                 };
             }

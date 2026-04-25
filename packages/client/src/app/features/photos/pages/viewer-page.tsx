@@ -16,7 +16,7 @@ import { ViewerLayout } from '@/components/layout/viewer-layout';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { hideSplash } from '@/lib/splash';
-import { Check, ExternalLink, Filter, LayoutGrid, Star, StarOff, X } from 'lucide-react';
+import { BookOpen, Check, ExternalLink, Filter, LayoutGrid, Star, StarOff, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
@@ -57,6 +57,7 @@ export function ViewerPage() {
     const { data: me } = useGetMe();
     const [enlargedRelatedId, setEnlargedRelatedId] = useState<string | null>(null);
     const [uncatalogedOnly, setUncatalogedOnly] = useState(false);
+    const [pagesView, setPagesView] = useState(false);
 
     const { data: folders = [], isLoading: foldersLoading } = useGetFolders();
 
@@ -67,31 +68,47 @@ export function ViewerPage() {
         () => (folderParam ? (folders.find((f) => f.id === folderParam) ?? null) : null),
         [folders, folderParam],
     );
-    const { data: allPhotos = [], isLoading: photosLoading } = useGetPhotos(folderForFetch?.id ?? null);
+    // Always fetch gallery data — it tells us whether a pages subfolder exists.
+    const { data: galleryData, isLoading: galleryLoading } = useGetPhotos(folderForFetch?.id ?? null, 'gallery');
+    // Fetch pages data only when the user has switched to that view; null folderId disables the query.
+    const { data: pagesData, isLoading: pagesLoading } = useGetPhotos(pagesView ? (folderForFetch?.id ?? null) : null, 'pages');
+    const hasPagesSubfolder = galleryData?.hasPagesSubfolder ?? false;
+    const photosData = pagesView ? pagesData : galleryData;
+    const allPhotos = photosData?.photos ?? [];
+    const photosLoading = pagesView ? pagesLoading : galleryLoading;
 
     // Show one photo per bundle in the gallery: the preferred front. Uncataloged
     // photos have no bundle info and are always shown. Photos that are siblings
     // (non-preferred, or backs) only appear as thumbnails in the side panel.
-    // Album-pages folders skip this filter entirely — every page should be visible.
-    const folderIsAlbumPages = !!folderForFetch?.tags.includes('album-pages');
+    // Pages view skips this filter — every page should be visible.
     const viewablePhotos = useMemo(() => {
         if (uncatalogedOnly) return allPhotos.filter((p) => !p.catalogId);
-        if (folderIsAlbumPages) return allPhotos;
+        if (pagesView) return allPhotos;
         return allPhotos.filter((p) => {
             if (!p.catalogId) return true;
             if (!p.bundleId) return true;
             return p.side === 'front' && !!p.isPreferred;
         });
-    }, [allPhotos, uncatalogedOnly, folderIsAlbumPages]);
+    }, [allPhotos, uncatalogedOnly, pagesView]);
 
-    const { currentFolder, currentPhotoIndex, view, setFolder, openPhoto, backToGallery, goToAlbums, nextPhoto, prevPhoto } =
-        useViewerState({ folders, viewablePhotos });
+    const {
+        currentFolder,
+        currentPhotoIndex,
+        view: navView,
+        setFolder,
+        openPhoto,
+        backToGallery,
+        goToAlbums,
+        nextPhoto,
+        prevPhoto,
+    } = useViewerState({ folders, viewablePhotos });
 
     const uncatalogedCount = useMemo(() => allPhotos.filter((p) => !p.catalogId).length, [allPhotos]);
 
-    // Reset the uncataloged filter when switching folders.
+    // Reset filters when switching folders.
     useEffect(() => {
         setUncatalogedOnly(false);
+        setPagesView(false);
     }, [currentFolder?.id]);
 
     // Dismiss the initial splash once the first view's data is ready: folders always; also the
@@ -115,11 +132,11 @@ export function ViewerPage() {
         function onKey(e: KeyboardEvent) {
             if (e.key !== 'Escape') return;
             if (enlargedRelated) setEnlargedRelatedId(null);
-            else if (view === 'photo') backToGallery();
+            else if (navView === 'photo') backToGallery();
         }
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
-    }, [enlargedRelated, view, backToGallery]);
+    }, [enlargedRelated, navView, backToGallery]);
 
     const handleNext = useCallback(() => nextPhoto(), [nextPhoto]);
     const handlePrev = useCallback(() => prevPhoto(), [prevPhoto]);
@@ -127,11 +144,10 @@ export function ViewerPage() {
     const displayPhoto = enlargedRelated ? enlargedRelated.photo : currentPhoto;
     // Anonymous view link for the displayed photo — fetched lazily and cached forever.
     const { data: shareLink } = useGetShareLink(currentFolder?.id ?? null, displayPhoto?.id ?? null);
-    const isAlbums = view === 'albums';
-    const isGallery = view === 'gallery';
-    const isPhoto = view === 'photo';
+    const isAlbums = navView === 'albums';
+    const isGallery = navView === 'gallery';
+    const isPhoto = navView === 'photo';
     const isAdmin = me?.role === 'admin';
-    const isAlbumPages = !!currentFolder?.tags.includes('album-pages');
     const isCurrentCover = !!currentPhoto && !!currentFolder && currentFolder.coverFileName === currentPhoto.name;
 
     const handleToggleCover = () => {
@@ -183,10 +199,10 @@ export function ViewerPage() {
                                     variant="ghost"
                                     size="sm"
                                     onClick={backToGallery}
-                                    aria-label={isAlbumPages ? 'Back to pages' : 'Back to gallery'}
+                                    aria-label={pagesView ? 'Back to pages' : 'Back to gallery'}
                                 >
                                     <LayoutGrid className="h-4 w-4" />
-                                    <span className="hidden sm:inline">{isAlbumPages ? 'Pages' : 'Gallery'}</span>
+                                    <span className="hidden sm:inline">{pagesView ? 'Pages' : 'Gallery'}</span>
                                 </Button>
                             )}
                             {isAdmin && isPhoto && currentPhoto && (
@@ -235,7 +251,7 @@ export function ViewerPage() {
                     isAlbums ? (
                         <AlbumGallery folders={folders} onSelect={setFolder} />
                     ) : isGallery ? (
-                        isAlbumPages ? (
+                        pagesView ? (
                             <PhotoPagesReader photos={viewablePhotos} isLoading={photosLoading && !!currentFolder} onSelect={openPhoto} />
                         ) : (
                             <PhotoGallery photos={viewablePhotos} isLoading={photosLoading && !!currentFolder} onSelect={openPhoto} />
@@ -301,7 +317,7 @@ export function ViewerPage() {
                         <div className="flex items-center justify-center gap-4 px-4 py-2 text-sm text-muted-foreground">
                             <span>
                                 {viewablePhotos.length}{' '}
-                                {isAlbumPages
+                                {pagesView
                                     ? viewablePhotos.length === 1
                                         ? 'page'
                                         : 'pages'
@@ -310,7 +326,13 @@ export function ViewerPage() {
                                       : 'photos'}
                                 {uncatalogedOnly && ' (uncataloged only)'}
                             </span>
-                            {isAdmin && !isAlbumPages && uncatalogedCount > 0 && (
+                            {hasPagesSubfolder && (
+                                <Button variant={pagesView ? 'secondary' : 'ghost'} size="sm" onClick={() => setPagesView((v) => !v)}>
+                                    {pagesView ? <LayoutGrid className="h-4 w-4" /> : <BookOpen className="h-4 w-4" />}
+                                    {pagesView ? 'Gallery' : 'Pages'}
+                                </Button>
+                            )}
+                            {isAdmin && !pagesView && uncatalogedCount > 0 && (
                                 <Button
                                     variant={uncatalogedOnly ? 'secondary' : 'ghost'}
                                     size="sm"

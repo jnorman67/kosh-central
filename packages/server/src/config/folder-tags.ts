@@ -1,6 +1,6 @@
 // Controlled vocabulary for folder tags. Expand by adding a string here and
 // updating the client-side list in packages/client/src/app/features/admin/models/folder.models.ts.
-export const FOLDER_TAGS = ['album-pages', 'documents', 'videos', 'ignore'] as const;
+export const FOLDER_TAGS = [] as const;
 
 export type FolderTag = (typeof FOLDER_TAGS)[number];
 

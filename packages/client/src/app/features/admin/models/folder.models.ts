@@ -1,15 +1,10 @@
 // Controlled vocabulary for folder tags. Keep in sync with
 // packages/server/src/config/folder-tags.ts.
-export const FOLDER_TAGS = ['album-pages', 'documents', 'videos', 'ignore'] as const;
+export const FOLDER_TAGS = [] as const;
 
 export type FolderTag = (typeof FOLDER_TAGS)[number];
 
-export const FOLDER_TAG_LABELS: Record<FolderTag, string> = {
-    'album-pages': 'Album pages',
-    documents: 'Documents',
-    videos: 'Videos',
-    ignore: 'Ignore',
-};
+export const FOLDER_TAG_LABELS: Record<FolderTag, string> = {};
 
 export interface AdminFolder {
     slug: string;

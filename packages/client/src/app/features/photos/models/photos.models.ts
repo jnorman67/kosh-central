@@ -48,6 +48,11 @@ export interface Photo {
     rating?: number | null;
 }
 
+export interface PhotosResponse {
+    photos: Photo[];
+    hasPagesSubfolder: boolean;
+}
+
 export interface FavoritePhoto extends Photo {
     /** Configured folder id (index) this favorite lives in. */
     folderId: string;

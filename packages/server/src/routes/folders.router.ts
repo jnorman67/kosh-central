@@ -8,18 +8,10 @@ import { getRelationsForPhoto } from '../db/relations.store.js';
 import { OneDriveService, type Photo as OneDrivePhoto } from '../services/onedrive.service.js';
 import { ThumbnailCacheService } from '../services/thumbnail-cache.service.js';
 
-/**
- * Build a set of lower-cased folder paths that should be excluded when browsing `currentSlug`.
- * Excludes folders tagged 'ignore' or 'album-pages', but never the current folder itself
- * (so an album-pages folder can still show its own photos).
- * Paths are lower-cased so case inconsistencies in folder_path data don't break matching.
- */
-function buildIgnoredPaths(currentSlug: string): Set<string> {
-    return new Set(
-        listFolders()
-            .filter((f) => f.slug !== currentSlug && (f.tags.includes('ignore') || f.tags.includes('album-pages')))
-            .map((f) => f.folderPath.toLowerCase()),
-    );
+/** Returns true when a photo's subfolderPath is (or descends into) a subfolder named "pages". */
+function isInPagesSubfolder(subfolderPath: string): boolean {
+    const lower = subfolderPath.toLowerCase();
+    return lower === 'pages' || lower.startsWith('pages/');
 }
 
 function findFolderBySlug(slug: string | string[] | undefined): StoredFolder | null {
@@ -54,7 +46,6 @@ export function createFoldersRouter(oneDriveService: OneDriveService, thumbnailC
     router.get('/', (_req, res) => {
         const covers = getAllFolderCovers();
         const result = listFolders()
-            .filter((f) => !f.tags.includes('ignore'))
             .map((f) => ({
                 id: f.slug,
                 displayName: f.displayName,
@@ -68,28 +59,25 @@ export function createFoldersRouter(oneDriveService: OneDriveService, thumbnailC
     /** Resolve each folder's cover + photo count in one round trip. The coverUrl is a stable
      *  proxy URL (below) so the browser HTTP cache can hold onto the image indefinitely. */
     router.get('/covers', async (_req, res) => {
-        const folders = listFolders().filter((f) => !f.tags.includes('ignore'));
+        const folders = listFolders();
         const covers = getAllFolderCovers();
         const results = await Promise.all(
             folders.map(async (f) => {
                 try {
                     const rawPhotos = await oneDriveService.getPhotos(f.sharingUrl);
-                    const ignoredPaths = buildIgnoredPaths(f.slug);
-                    const photos = rawPhotos.filter((p) => {
-                        const fullFolder = p.subfolderPath
-                            ? `${f.folderPath}/${p.subfolderPath}`
-                            : f.folderPath;
-                        return !ignoredPaths.has(fullFolder.toLowerCase());
-                    });
-                    const cover = pickCoverPhoto(photos, f.folderPath, covers.get(f.folderPath));
+                    // Gallery photos: exclude the pages subfolder
+                    const galleryPhotos = rawPhotos.filter((p) => !isInPagesSubfolder(p.subfolderPath));
+                    const hasPagesSubfolder = rawPhotos.some((p) => isInPagesSubfolder(p.subfolderPath));
+                    const cover = pickCoverPhoto(galleryPhotos, f.folderPath, covers.get(f.folderPath));
                     return {
                         folderId: f.slug,
                         coverUrl: cover ? `/api/folders/${f.slug}/cover/${encodeURIComponent(cover.id)}` : null,
-                        photoCount: photos.length,
+                        photoCount: galleryPhotos.length,
+                        hasPagesSubfolder,
                     };
                 } catch (err) {
                     console.error(`Cover resolve failed for folder ${f.slug}:`, err);
-                    return { folderId: f.slug, coverUrl: null, photoCount: 0 };
+                    return { folderId: f.slug, coverUrl: null, photoCount: 0, hasPagesSubfolder: false };
                 }
             }),
         );
@@ -145,34 +133,33 @@ export function createFoldersRouter(oneDriveService: OneDriveService, thumbnailC
             res.status(404).json({ error: 'Folder not found' });
             return;
         }
-        try {
-            const photos = await oneDriveService.getPhotos(folder.sharingUrl);
 
-            const ignoredPaths = buildIgnoredPaths(folder.slug);
+        const viewParam = req.query.view;
+        const pagesView = viewParam === 'pages';
+
+        try {
+            const rawPhotos = await oneDriveService.getPhotos(folder.sharingUrl);
+
+            const hasPagesSubfolder = rawPhotos.some((p) => isInPagesSubfolder(p.subfolderPath));
+
+            // Select the relevant slice: pages subfolder only, or everything else.
+            const photos = rawPhotos.filter((p) =>
+                pagesView ? isInPagesSubfolder(p.subfolderPath) : !isInPagesSubfolder(p.subfolderPath),
+            );
 
             // Enrich each OneDrive photo with local catalog data by matching
-            // on (folderPath, fileName). See README "Local Catalog & Matching
-            // Strategy" for why name-based matching is the current approach.
-            // Photos in subfolders contribute their `subfolderPath` so the
-            // join key is the full directory each photo actually lives in.
-            const withCatalog = photos
-                .filter((p) => {
-                    const fullFolder = p.subfolderPath
-                        ? `${folder.folderPath}/${p.subfolderPath}`
-                        : folder.folderPath;
-                    return !ignoredPaths.has(fullFolder.toLowerCase());
-                })
-                .map((p) => {
-                    const fullFolder = p.subfolderPath ? `${folder.folderPath}/${p.subfolderPath}` : folder.folderPath;
-                    const cataloged = findPhotoByFolderAndName(fullFolder, p.name);
-                    return { photo: p, cataloged };
-                });
+            // on (folderPath, fileName). Photos in subfolders contribute their
+            // `subfolderPath` so the join key is the full directory each photo lives in.
+            const withCatalog = photos.map((p) => {
+                const fullFolder = p.subfolderPath ? `${folder.folderPath}/${p.subfolderPath}` : folder.folderPath;
+                const cataloged = findPhotoByFolderAndName(fullFolder, p.name);
+                return { photo: p, cataloged };
+            });
 
             const catalogedIds = withCatalog.map((x) => x.cataloged?.id).filter((id): id is string => !!id);
             const myRatings = getRatingsByUserForPhotos(req.user!.userId, catalogedIds);
 
             const enriched = withCatalog.map(({ photo, cataloged }) => {
-                // Strip driveId — it's server-internal, only used for creating share links.
                 const { driveId: _driveId, ...rest } = photo;
                 if (!cataloged) return { ...rest, relations: [] };
                 return {
@@ -187,7 +174,7 @@ export function createFoldersRouter(oneDriveService: OneDriveService, thumbnailC
                 };
             });
 
-            res.json(enriched);
+            res.json({ photos: enriched, hasPagesSubfolder });
         } catch (err) {
             console.error('OneDrive error:', err);
             res.status(502).json({ error: 'Failed to fetch photos from OneDrive' });

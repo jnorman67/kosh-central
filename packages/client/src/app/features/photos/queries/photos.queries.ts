@@ -4,7 +4,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tansta
 export const PhotosQueryKeys = {
     folders: ['Photos', 'Folders'] as const,
     folderCovers: ['Photos', 'FolderCovers'] as const,
-    photos: (folderId: string) => ['Photos', 'Photos', folderId] as const,
+    photos: (folderId: string, view: 'gallery' | 'pages') => ['Photos', 'Photos', folderId, view] as const,
     favoritesInfinite: (limit: number) => ['Photos', 'Favorites', 'infinite', limit] as const,
     favoritesAll: ['Photos', 'Favorites'] as const,
     shareLink: (folderId: string, itemId: string) => ['Photos', 'ShareLink', folderId, itemId] as const,
@@ -27,10 +27,10 @@ export const createPhotosQueries = (service: PhotosService) => {
         });
     };
 
-    const useGetPhotos = (folderId: string | null) => {
+    const useGetPhotos = (folderId: string | null, view: 'gallery' | 'pages' = 'gallery') => {
         return useQuery({
-            queryKey: PhotosQueryKeys.photos(folderId!),
-            queryFn: () => service.getPhotos(folderId!),
+            queryKey: PhotosQueryKeys.photos(folderId!, view),
+            queryFn: () => service.getPhotos(folderId!, view),
             enabled: !!folderId,
             staleTime: 10 * 60 * 1000,
         });
@@ -63,7 +63,7 @@ export const createPhotosQueries = (service: PhotosService) => {
         return useMutation({
             mutationFn: ({ catalogId }: { catalogId: string; folderId: string }) => service.setPreferredPhoto(catalogId),
             onSuccess: (_, { folderId }) => {
-                qc.invalidateQueries({ queryKey: PhotosQueryKeys.photos(folderId) });
+                qc.invalidateQueries({ queryKey: ['Photos', 'Photos', folderId] });
             },
         });
     };
@@ -74,7 +74,7 @@ export const createPhotosQueries = (service: PhotosService) => {
             mutationFn: ({ catalogId, rating }: { catalogId: string; folderId?: string; rating: number }) =>
                 rating === 0 ? service.clearRating(catalogId) : service.ratePhoto(catalogId, rating),
             onSuccess: (_, { folderId }) => {
-                if (folderId) qc.invalidateQueries({ queryKey: PhotosQueryKeys.photos(folderId) });
+                if (folderId) qc.invalidateQueries({ queryKey: ['Photos', 'Photos', folderId] });
                 qc.invalidateQueries({ queryKey: PhotosQueryKeys.favoritesAll });
             },
         });
