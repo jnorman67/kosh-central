@@ -72,14 +72,17 @@ export function ViewerPage() {
     // Show one photo per bundle in the gallery: the preferred front. Uncataloged
     // photos have no bundle info and are always shown. Photos that are siblings
     // (non-preferred, or backs) only appear as thumbnails in the side panel.
+    // Album-pages folders skip this filter entirely — every page should be visible.
+    const folderIsAlbumPages = !!folderForFetch?.tags.includes('album-pages');
     const viewablePhotos = useMemo(() => {
         if (uncatalogedOnly) return allPhotos.filter((p) => !p.catalogId);
+        if (folderIsAlbumPages) return allPhotos;
         return allPhotos.filter((p) => {
             if (!p.catalogId) return true;
             if (!p.bundleId) return true;
             return p.side === 'front' && !!p.isPreferred;
         });
-    }, [allPhotos, uncatalogedOnly]);
+    }, [allPhotos, uncatalogedOnly, folderIsAlbumPages]);
 
     const { currentFolder, currentPhotoIndex, view, setFolder, openPhoto, backToGallery, goToAlbums, nextPhoto, prevPhoto } =
         useViewerState({ folders, viewablePhotos });

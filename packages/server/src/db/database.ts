@@ -321,6 +321,38 @@ const migrations: Migration[] = [
             CREATE INDEX idx_series_subjects_person_id ON series_subjects(person_id);
         `,
     },
+    {
+        version: 15,
+        description: 'Swap preferred from HEIC to JPG in album16 raw photos of album bundles',
+        fn: (db) => {
+            const folder = "Dorothy's albums/album16 - Urban/raw photos of album";
+            const rows = db
+                .prepare(
+                    `SELECT DISTINCT p.bundle_id
+                     FROM photos p
+                     JOIN photo_locations pl ON pl.photo_id = p.id
+                     WHERE pl.folder_name = ? COLLATE NOCASE
+                       AND p.file_name LIKE '%.heic'
+                       AND p.is_preferred = 1`,
+                )
+                .all(folder) as { bundle_id: string }[];
+            if (rows.length === 0) return;
+            const ids = rows.map((r) => r.bundle_id);
+            const ph = ids.map(() => '?').join(',');
+            db.prepare(
+                `UPDATE photos SET is_preferred = 0
+                 WHERE file_name LIKE '%.heic'
+                   AND bundle_id IN (${ph})
+                   AND id IN (SELECT photo_id FROM photo_locations WHERE folder_name = ? COLLATE NOCASE)`,
+            ).run(...ids, folder);
+            db.prepare(
+                `UPDATE photos SET is_preferred = 1
+                 WHERE file_name LIKE '%.jpg'
+                   AND bundle_id IN (${ph})
+                   AND id IN (SELECT photo_id FROM photo_locations WHERE folder_name = ? COLLATE NOCASE)`,
+            ).run(...ids, folder);
+        },
+    },
 ];
 
 /**

@@ -8,6 +8,20 @@ import { getRelationsForPhoto } from '../db/relations.store.js';
 import { OneDriveService, type Photo as OneDrivePhoto } from '../services/onedrive.service.js';
 import { ThumbnailCacheService } from '../services/thumbnail-cache.service.js';
 
+/**
+ * Build a set of lower-cased folder paths that should be excluded when browsing `currentSlug`.
+ * Excludes folders tagged 'ignore' or 'album-pages', but never the current folder itself
+ * (so an album-pages folder can still show its own photos).
+ * Paths are lower-cased so case inconsistencies in folder_path data don't break matching.
+ */
+function buildIgnoredPaths(currentSlug: string): Set<string> {
+    return new Set(
+        listFolders()
+            .filter((f) => f.slug !== currentSlug && (f.tags.includes('ignore') || f.tags.includes('album-pages')))
+            .map((f) => f.folderPath.toLowerCase()),
+    );
+}
+
 function findFolderBySlug(slug: string | string[] | undefined): StoredFolder | null {
     if (typeof slug !== 'string') return null;
     return storeFindFolderBySlug(slug) ?? null;
@@ -59,7 +73,14 @@ export function createFoldersRouter(oneDriveService: OneDriveService, thumbnailC
         const results = await Promise.all(
             folders.map(async (f) => {
                 try {
-                    const photos = await oneDriveService.getPhotos(f.sharingUrl);
+                    const rawPhotos = await oneDriveService.getPhotos(f.sharingUrl);
+                    const ignoredPaths = buildIgnoredPaths(f.slug);
+                    const photos = rawPhotos.filter((p) => {
+                        const fullFolder = p.subfolderPath
+                            ? `${f.folderPath}/${p.subfolderPath}`
+                            : f.folderPath;
+                        return !ignoredPaths.has(fullFolder.toLowerCase());
+                    });
                     const cover = pickCoverPhoto(photos, f.folderPath, covers.get(f.folderPath));
                     return {
                         folderId: f.slug,
@@ -127,11 +148,7 @@ export function createFoldersRouter(oneDriveService: OneDriveService, thumbnailC
         try {
             const photos = await oneDriveService.getPhotos(folder.sharingUrl);
 
-            const ignoredPaths = new Set(
-                listFolders()
-                    .filter((f) => f.tags.includes('ignore'))
-                    .map((f) => f.folderPath),
-            );
+            const ignoredPaths = buildIgnoredPaths(folder.slug);
 
             // Enrich each OneDrive photo with local catalog data by matching
             // on (folderPath, fileName). See README "Local Catalog & Matching
@@ -143,7 +160,7 @@ export function createFoldersRouter(oneDriveService: OneDriveService, thumbnailC
                     const fullFolder = p.subfolderPath
                         ? `${folder.folderPath}/${p.subfolderPath}`
                         : folder.folderPath;
-                    return !ignoredPaths.has(fullFolder);
+                    return !ignoredPaths.has(fullFolder.toLowerCase());
                 })
                 .map((p) => {
                     const fullFolder = p.subfolderPath ? `${folder.folderPath}/${p.subfolderPath}` : folder.folderPath;
