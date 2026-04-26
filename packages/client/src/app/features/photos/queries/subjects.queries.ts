@@ -53,7 +53,19 @@ export const createSubjectsQueries = (service: SubjectsService) => {
         });
     };
 
-    return { usePhotoSubjects, useSubjectSuggestions, useSearchPersons, useAddSubject, useRemoveSubject };
+    const useSetPortrait = () => {
+        const qc = useQueryClient();
+        return useMutation({
+            mutationFn: ({ personId, photoId }: { personId: string; photoId: string | null }) =>
+                service.setPortrait(personId, photoId),
+            onSuccess: () => {
+                // Invalidate the persons list so mention candidates pick up the new portrait
+                qc.invalidateQueries({ queryKey: ['Persons', 'All'] });
+            },
+        });
+    };
+
+    return { usePhotoSubjects, useSubjectSuggestions, useSearchPersons, useAddSubject, useRemoveSubject, useSetPortrait };
 };
 
 export type SubjectsQueries = ReturnType<typeof createSubjectsQueries>;

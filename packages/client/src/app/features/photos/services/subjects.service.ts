@@ -28,4 +28,12 @@ export class SubjectsService {
     async searchPersons(q: string): Promise<AdminPerson[]> {
         return apiFetch<AdminPerson[]>(`/api/persons?q=${encodeURIComponent(q)}`);
     }
+
+    async setPortrait(personId: string, photoId: string | null): Promise<AdminPerson> {
+        return apiFetch<AdminPerson>(`/api/admin/persons/${encodeURIComponent(personId)}/portrait`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ photoId }),
+        });
+    }
 }

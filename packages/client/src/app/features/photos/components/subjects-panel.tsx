@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Check, Flag, Plus, X } from 'lucide-react';
+import { Check, Flag, ImageIcon, Plus, X } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useSubjectsQueries } from '../contexts/subjects-query.context';
 
@@ -12,12 +12,14 @@ interface SubjectsPanelProps {
 }
 
 export function SubjectsPanel({ photoId, isAdmin, onDisputeSubject, className }: SubjectsPanelProps) {
-    const { usePhotoSubjects, useSubjectSuggestions, useSearchPersons, useAddSubject, useRemoveSubject } = useSubjectsQueries();
+    const { usePhotoSubjects, useSubjectSuggestions, useSearchPersons, useAddSubject, useRemoveSubject, useSetPortrait } = useSubjectsQueries();
 
     const { data: subjects = [] } = usePhotoSubjects(photoId);
     const { data: suggestions = [] } = useSubjectSuggestions(isAdmin ? photoId : null);
     const addSubject = useAddSubject();
     const removeSubject = useRemoveSubject();
+    const setPortrait = useSetPortrait();
+    const [portraitToast, setPortraitToast] = useState<string | null>(null);
 
     const [showSearch, setShowSearch] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
@@ -25,7 +27,25 @@ export function SubjectsPanel({ photoId, isAdmin, onDisputeSubject, className }:
 
     const { data: searchResults = [] } = useSearchPersons(searchQuery);
     const confirmedIds = new Set(subjects.map((s) => s.personId));
-    const filteredResults = searchResults.filter((p) => !confirmedIds.has(p.id));
+    const filteredResults = searchResults
+        .filter((p) => !confirmedIds.has(p.id))
+        .sort((a, b) => {
+            const q = searchQuery.toLowerCase();
+            const aStarts = a.fullName.toLowerCase().startsWith(q);
+            const bStarts = b.fullName.toLowerCase().startsWith(q);
+            if (aStarts !== bStarts) return aStarts ? -1 : 1;
+            const ambig = (p: typeof a) => {
+                const hasLastName = p.fullName.includes(' ');
+                const hasBio = !!(p.birthYear ?? p.birthDate ?? p.deathDate ?? p.birthPlace);
+                if (hasLastName && hasBio) return 0;
+                if (hasLastName) return 1;
+                if (hasBio) return 2;
+                return 3;
+            };
+            const diff = ambig(a) - ambig(b);
+            if (diff !== 0) return diff;
+            return a.fullName.localeCompare(b.fullName);
+        });
 
     function openSearch() {
         setShowSearch(true);
@@ -40,6 +60,18 @@ export function SubjectsPanel({ photoId, isAdmin, onDisputeSubject, className }:
     function handleAddPerson(personId: string) {
         addSubject.mutate({ personId, photoId });
         closeSearch();
+    }
+
+    function handleSetPortrait(personId: string, personName: string) {
+        setPortrait.mutate(
+            { personId, photoId },
+            {
+                onSuccess: () => {
+                    setPortraitToast(`Portrait set for ${personName}`);
+                    setTimeout(() => setPortraitToast(null), 3000);
+                },
+            },
+        );
     }
 
     if (subjects.length === 0 && suggestions.length === 0 && !isAdmin) return null;
@@ -63,6 +95,12 @@ export function SubjectsPanel({ photoId, isAdmin, onDisputeSubject, className }:
                     </Button>
                 )}
             </div>
+
+            {portraitToast && (
+                <div className="mx-4 mb-1 rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-700">
+                    {portraitToast}
+                </div>
+            )}
 
             {isAdmin && showSearch && (
                 <div className="relative px-4 pb-2">
@@ -121,16 +159,29 @@ export function SubjectsPanel({ photoId, isAdmin, onDisputeSubject, className }:
                                     <Flag className="h-3 w-3" />
                                 </Button>
                                 {isAdmin && (
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
-                                        onClick={() => removeSubject.mutate({ personId: subject.personId, photoId })}
-                                        aria-label={`Remove ${subject.fullName}`}
-                                        title="Remove this identification"
-                                    >
-                                        <X className="h-3 w-3" />
-                                    </Button>
+                                    <>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-6 w-6 p-0 text-muted-foreground hover:text-amber-700"
+                                            onClick={() => handleSetPortrait(subject.personId, subject.fullName)}
+                                            aria-label={`Set portrait: ${subject.fullName}`}
+                                            title="Use this photo as portrait"
+                                            disabled={setPortrait.isPending}
+                                        >
+                                            <ImageIcon className="h-3 w-3" />
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                                            onClick={() => removeSubject.mutate({ personId: subject.personId, photoId })}
+                                            aria-label={`Remove ${subject.fullName}`}
+                                            title="Remove this identification"
+                                        >
+                                            <X className="h-3 w-3" />
+                                        </Button>
+                                    </>
                                 )}
                             </div>
                         </div>

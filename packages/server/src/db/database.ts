@@ -1445,6 +1445,13 @@ const migrations: Migration[] = [
             CREATE UNIQUE INDEX idx_persons_gedcom_uid ON persons(gedcom_uid) WHERE gedcom_uid IS NOT NULL;
         `,
     },
+    {
+        version: 20,
+        description: 'Add portrait_photo_id to persons for representative portrait',
+        sql: `
+            ALTER TABLE persons ADD COLUMN portrait_photo_id TEXT REFERENCES photos(id) ON DELETE SET NULL;
+        `,
+    },
 ];
 
 /**

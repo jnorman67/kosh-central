@@ -10,6 +10,7 @@ export interface AdminPerson {
     birthPlace: string | null;
     deathPlace: string | null;
     gedcomId: string | null;
+    portraitPhotoId: string | null;
     createdAt: string;
     createdBy: string | null;
 }

@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/button';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMentionCandidates } from '../hooks/use-mention-candidates';
 import type { MentionCandidate, MentionInput, MentionType } from '../models/comments.models';
+import { getRecentMentions, recordRecentMention } from '../utils/recent-mentions';
 import { MentionAutocomplete } from './mention-autocomplete';
 
 const MENTION_TRIGGER_RE = /(^|\s)@([\w\s]*)$/;
@@ -108,10 +109,27 @@ export function CommentForm({
         const matches = allCandidates.filter(
             (c) => c.displayLabel.toLowerCase().includes(q) || c.nickname?.toLowerCase().includes(q),
         );
+        const recentRank = new Map(
+            getRecentMentions().map((e, i) => [`${e.type}:${e.id}`, i]),
+        );
         matches.sort((a, b) => {
+            const aRecent = recentRank.get(`${a.type}:${a.id}`) ?? Infinity;
+            const bRecent = recentRank.get(`${b.type}:${b.id}`) ?? Infinity;
+            if (aRecent !== bRecent) return aRecent - bRecent;
             const aStarts = a.displayLabel.toLowerCase().startsWith(q);
             const bStarts = b.displayLabel.toLowerCase().startsWith(q);
             if (aStarts !== bStarts) return aStarts ? -1 : 1;
+            const ambig = (c: MentionCandidate) => {
+                if (c.type !== 'person') return 0;
+                const hasLastName = c.displayLabel.includes(' ');
+                const hasBio = !!(c.birthYear ?? c.birthDate ?? c.deathDate ?? c.birthPlace);
+                if (hasLastName && hasBio) return 0;
+                if (hasLastName) return 1;
+                if (hasBio) return 2;
+                return 3;
+            };
+            const diff = ambig(a) - ambig(b);
+            if (diff !== 0) return diff;
             return a.displayLabel.localeCompare(b.displayLabel);
         });
         return matches.slice(0, 10);
@@ -139,6 +157,7 @@ export function CommentForm({
     }
 
     function insertMention(candidate: MentionCandidate) {
+        recordRecentMention(candidate.type, candidate.id);
         const editor = editorRef.current;
         const sel = window.getSelection();
         if (!editor || !sel || !sel.rangeCount) return;

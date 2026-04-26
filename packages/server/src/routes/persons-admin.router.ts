@@ -13,6 +13,7 @@ import {
     listPersonsNeedingReview,
     removePhotoSubject,
     removeSeriesSubject,
+    setPersonPortrait,
     updatePerson,
     verifyPhotoSubject,
     type RelationshipType,
@@ -96,6 +97,25 @@ export function createPersonsAdminRouter(): Router {
             res.json(person);
         } catch {
             res.status(500).json({ error: 'Failed to update person' });
+        }
+    });
+
+    /** Set (or clear) a person's portrait photo. */
+    router.patch('/:id/portrait', (req, res) => {
+        if (!findPersonById(req.params.id)) {
+            res.status(404).json({ error: 'Person not found' });
+            return;
+        }
+        const { photoId } = req.body as { photoId?: string | null };
+        if (photoId !== undefined && photoId !== null && !findPhotoById(photoId)) {
+            res.status(404).json({ error: 'Photo not found' });
+            return;
+        }
+        try {
+            const person = setPersonPortrait(req.params.id, photoId ?? null);
+            res.json(person);
+        } catch {
+            res.status(500).json({ error: 'Failed to update portrait' });
         }
     });
 

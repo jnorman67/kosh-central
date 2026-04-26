@@ -19,6 +19,7 @@ export interface StoredPerson {
     gedcomId: string | null;
     gedcomUid: string | null;
     importStatus: ImportStatus | null;
+    portraitPhotoId: string | null;
     createdAt: string;
     createdBy: string | null;
 }
@@ -84,6 +85,7 @@ interface PersonRow {
     gedcom_id: string | null;
     gedcom_uid: string | null;
     import_status: string | null;
+    portrait_photo_id: string | null;
     created_at: string;
     created_by: string | null;
 }
@@ -142,6 +144,7 @@ function rowToPerson(row: PersonRow): StoredPerson {
         gedcomId: row.gedcom_id,
         gedcomUid: row.gedcom_uid,
         importStatus: (row.import_status as ImportStatus) ?? null,
+        portraitPhotoId: row.portrait_photo_id,
         createdAt: row.created_at,
         createdBy: row.created_by,
     };
@@ -325,6 +328,14 @@ export function updatePerson(
             'importStatus' in updates ? updates.importStatus : current.importStatus,
             id,
         );
+    return findPersonById(id)!;
+}
+
+export function setPersonPortrait(id: string, photoId: string | null): StoredPerson {
+    const result = getDb()
+        .prepare('UPDATE persons SET portrait_photo_id = ? WHERE id = ?')
+        .run(photoId, id);
+    if (result.changes === 0) throw new Error(`Person not found: ${id}`);
     return findPersonById(id)!;
 }
 

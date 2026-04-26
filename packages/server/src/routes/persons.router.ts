@@ -10,8 +10,14 @@ import {
     listPersons,
     searchPersons,
 } from '../db/persons.store.js';
+import { getPhotoLocations } from '../db/photos.store.js';
+import type { OneDriveService } from '../services/onedrive.service.js';
+import type { ThumbnailCacheService } from '../services/thumbnail-cache.service.js';
 
-export function createPersonsRouter(): Router {
+export function createPersonsRouter(
+    oneDriveService: OneDriveService,
+    thumbnailCache: ThumbnailCacheService,
+): Router {
     const router = Router();
 
     /** List all persons, or search by name/nickname with ?q= */
@@ -28,6 +34,52 @@ export function createPersonsRouter(): Router {
             return;
         }
         res.json(person);
+    });
+
+    /** Proxy for a person's portrait thumbnail. Cached on disk keyed by OneDrive item id. */
+    router.get('/:id/portrait-thumb', async (req, res) => {
+        const person = findPersonById(req.params.id);
+        if (!person?.portraitPhotoId) {
+            res.status(404).json({ error: 'No portrait set' });
+            return;
+        }
+
+        const locations = getPhotoLocations(person.portraitPhotoId);
+        const loc = locations.find((l) => l.onedriveId && l.folderUrl);
+        if (!loc?.onedriveId || !loc.folderUrl) {
+            res.status(404).json({ error: 'Portrait photo has no OneDrive location' });
+            return;
+        }
+
+        const cached = thumbnailCache.read(loc.onedriveId);
+        if (cached) {
+            res.setHeader('Content-Type', 'image/jpeg');
+            res.setHeader('Cache-Control', 'private, max-age=31536000, immutable');
+            res.send(cached);
+            return;
+        }
+
+        try {
+            const photos = await oneDriveService.getPhotos(loc.folderUrl);
+            const photo = photos.find((p) => p.id === loc.onedriveId);
+            if (!photo?.thumbnailUrl) {
+                res.status(404).json({ error: 'Portrait thumbnail not available' });
+                return;
+            }
+            const upstream = await fetch(photo.thumbnailUrl);
+            if (!upstream.ok) {
+                res.status(502).json({ error: `Upstream thumbnail fetch failed: ${upstream.status}` });
+                return;
+            }
+            const buf = Buffer.from(await upstream.arrayBuffer());
+            thumbnailCache.write(loc.onedriveId, buf);
+            res.setHeader('Content-Type', upstream.headers.get('content-type') ?? 'image/jpeg');
+            res.setHeader('Cache-Control', 'private, max-age=31536000, immutable');
+            res.send(buf);
+        } catch (err) {
+            console.error('Portrait thumbnail proxy error:', err);
+            res.status(502).json({ error: 'Failed to fetch portrait thumbnail' });
+        }
     });
 
     /** Get all relationships for a person. */

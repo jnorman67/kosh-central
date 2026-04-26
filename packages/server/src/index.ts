@@ -131,7 +131,7 @@ app.use('/api/folders', requireAuth, createFoldersRouter(oneDriveService, thumbn
 app.use('/api/photos', requireAuth, createPhotosRouter());
 app.use('/api/ratings', requireAuth, createRatingsRouter());
 app.use('/api/admin/persons', requireAuth, createPersonsAdminRouter());
-app.use('/api/persons', requireAuth, createPersonsRouter());
+app.use('/api/persons', requireAuth, createPersonsRouter(oneDriveService, thumbnailCache));
 app.use('/api/relations', requireAuth, createRelationsRouter());
 app.use('/api/series', requireAuth, createSeriesRouter());
 app.use('/api/comments', requireAuth, createCommentsRouter());

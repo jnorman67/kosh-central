@@ -8,6 +8,11 @@ interface PersonResult {
     id: string;
     fullName: string;
     nickname: string | null;
+    portraitPhotoId: string | null;
+    birthYear: number | null;
+    birthDate: string | null;
+    deathDate: string | null;
+    birthPlace: string | null;
 }
 
 export function useMentionCandidates(): MentionCandidate[] {
@@ -33,6 +38,11 @@ export function useMentionCandidates(): MentionCandidate[] {
                 displayLabel: p.fullName,
                 insertLabel: p.fullName,
                 nickname: p.nickname ?? undefined,
+                portraitThumbUrl: p.portraitPhotoId ? `/api/persons/${encodeURIComponent(p.id)}/portrait-thumb` : undefined,
+                birthYear: p.birthYear,
+                birthDate: p.birthDate,
+                deathDate: p.deathDate,
+                birthPlace: p.birthPlace,
             })),
         ],
         [users, persons],

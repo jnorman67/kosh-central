@@ -28,4 +28,9 @@ export interface MentionCandidate {
     displayLabel: string;
     insertLabel: string;
     nickname?: string;
+    portraitThumbUrl?: string;
+    birthYear?: number | null;
+    birthDate?: string | null;
+    deathDate?: string | null;
+    birthPlace?: string | null;
 }
