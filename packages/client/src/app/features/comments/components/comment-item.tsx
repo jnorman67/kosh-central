@@ -74,10 +74,6 @@ export function CommentItem({ comment, currentUserId, isAdmin }: CommentItemProp
                 <CommentForm
                     photoId={comment.photoId}
                     initialBody={comment.body}
-                    initialMentions={comment.mentions.map((m) => ({
-                        mentionType: m.mentionType,
-                        mentionedId: m.mentionedId,
-                    }))}
                     onSubmit={handleUpdate}
                     onCancel={() => setEditing(false)}
                     isSubmitting={updateMutation.isPending}
