@@ -1,4 +1,5 @@
 import { useAuthQueries } from '@/app/features/auth/contexts/auth-query.context';
+import { CommentPanel } from '@/app/features/comments/components/comment-panel';
 import { AlbumGallery } from '@/app/features/photos/components/album-gallery';
 import { FolderSelector } from '@/app/features/photos/components/folder-selector';
 import { LetterboxViewer } from '@/app/features/photos/components/letterbox-viewer';
@@ -295,16 +296,21 @@ export function ViewerPage() {
                     )
                 }
                 rightPanel={
-                    isPhoto && relatedPhotos.length > 0 && !enlargedRelated ? (
-                        <div className="flex flex-col gap-3 p-4">
-                            {relatedPhotos.map((r) => (
-                                <RelatedThumbnail
-                                    key={r.photo.id}
-                                    photo={r.photo}
-                                    label={r.label}
-                                    onClick={() => setEnlargedRelatedId(r.photo.id)}
-                                />
-                            ))}
+                    isPhoto && !enlargedRelated && me && currentPhoto?.catalogId ? (
+                        <div className="flex h-full flex-col">
+                            {relatedPhotos.length > 0 && (
+                                <div className="flex shrink-0 flex-col gap-3 border-b border-amber-200 p-4">
+                                    {relatedPhotos.map((r) => (
+                                        <RelatedThumbnail
+                                            key={r.photo.id}
+                                            photo={r.photo}
+                                            label={r.label}
+                                            onClick={() => setEnlargedRelatedId(r.photo.id)}
+                                        />
+                                    ))}
+                                </div>
+                            )}
+                            <CommentPanel photoId={currentPhoto.catalogId} currentUserId={me.id} isAdmin={isAdmin} className="min-h-0 flex-1" />
                         </div>
                     ) : undefined
                 }
@@ -333,7 +339,7 @@ export function ViewerPage() {
                                 </Button>
                             )}
                             {pagesView && viewablePhotos.length > 0 && (
-                                <Button variant="ghost" size="sm" onClick={() => openPhoto(viewablePhotos[0])}>
+                                <Button variant="ghost" size="sm" onClick={() => openPhoto(0)}>
                                     <ArrowRight className="h-4 w-4" />
                                     Sequential
                                 </Button>

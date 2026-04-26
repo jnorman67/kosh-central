@@ -353,6 +353,32 @@ const migrations: Migration[] = [
             ).run(...ids, folder);
         },
     },
+    {
+        version: 16,
+        description: 'Create photo_comments and comment_mentions tables',
+        sql: `
+            CREATE TABLE photo_comments (
+                id TEXT PRIMARY KEY,
+                photo_id TEXT NOT NULL REFERENCES photos(id) ON DELETE CASCADE,
+                author_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                body TEXT NOT NULL CHECK(length(trim(body)) > 0),
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                edited_at TEXT
+            );
+
+            CREATE INDEX idx_photo_comments_photo_id ON photo_comments(photo_id);
+            CREATE INDEX idx_photo_comments_author_id ON photo_comments(author_id);
+
+            CREATE TABLE comment_mentions (
+                comment_id TEXT NOT NULL REFERENCES photo_comments(id) ON DELETE CASCADE,
+                mention_type TEXT NOT NULL CHECK(mention_type IN ('user', 'person')),
+                mentioned_id TEXT NOT NULL,
+                PRIMARY KEY (comment_id, mention_type, mentioned_id)
+            );
+
+            CREATE INDEX idx_comment_mentions_mentioned_id ON comment_mentions(mentioned_id);
+        `,
+    },
 ];
 
 /**

@@ -49,3 +49,10 @@ export function createUser(user: StoredUser): void {
 export function updateUserPasswordHash(id: string, passwordHash: string): void {
     getDb().prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(passwordHash, id);
 }
+
+export function listUsers(): { id: string; displayName: string }[] {
+    return (getDb()
+        .prepare('SELECT id, display_name FROM users ORDER BY display_name')
+        .all() as { id: string; display_name: string }[])
+        .map((r) => ({ id: r.id, displayName: r.display_name }));
+}

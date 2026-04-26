@@ -10,6 +10,7 @@ import {
     createUser,
     findUserByEmail,
     findUserById,
+    listUsers,
     updateUserPasswordHash,
 } from "../auth/users.store.js";
 import { findInvite } from "../config/invites.config.js";
@@ -190,6 +191,10 @@ export function createAuthRouter(): Router {
             console.error("POST /change-password error:", err);
             res.status(500).json({ error: "Internal server error" });
         }
+    });
+
+    router.get("/users", requireAuth, (_req, res) => {
+        res.json(listUsers());
     });
 
     router.get("/me", requireAuth, (req, res) => {

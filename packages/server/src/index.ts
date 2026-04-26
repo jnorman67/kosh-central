@@ -20,6 +20,7 @@ import { createRatingsRouter } from './routes/ratings.router.js';
 import { createPersonsAdminRouter } from './routes/persons-admin.router.js';
 import { createPersonsRouter } from './routes/persons.router.js';
 import { createRelationsRouter } from './routes/relations.router.js';
+import { createCommentsRouter } from './routes/comments.router.js';
 import { createSeriesRouter } from './routes/series.router.js';
 import { OneDriveService } from './services/onedrive.service.js';
 import { ThumbnailCacheService } from './services/thumbnail-cache.service.js';
@@ -133,6 +134,7 @@ app.use('/api/admin/persons', requireAuth, createPersonsAdminRouter());
 app.use('/api/persons', requireAuth, createPersonsRouter());
 app.use('/api/relations', requireAuth, createRelationsRouter());
 app.use('/api/series', requireAuth, createSeriesRouter());
+app.use('/api/comments', requireAuth, createCommentsRouter());
 
 // Global error handler — catches synchronous throws from route handlers and
 // errors forwarded via next(err). Must have 4 parameters for Express to treat it as an error handler.
