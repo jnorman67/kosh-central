@@ -16,7 +16,7 @@ import { ViewerLayout } from '@/components/layout/viewer-layout';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { hideSplash } from '@/lib/splash';
-import { BookOpen, Check, ExternalLink, Filter, LayoutGrid, Star, StarOff, X } from 'lucide-react';
+import { ArrowRight, BookOpen, Check, ExternalLink, Filter, LayoutGrid, List, Star, StarOff, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
@@ -201,8 +201,8 @@ export function ViewerPage() {
                                     onClick={backToGallery}
                                     aria-label={pagesView ? 'Back to pages' : 'Back to gallery'}
                                 >
-                                    <LayoutGrid className="h-4 w-4" />
-                                    <span className="hidden sm:inline">{pagesView ? 'Pages' : 'Gallery'}</span>
+                                    {pagesView ? <List className="h-4 w-4" /> : <LayoutGrid className="h-4 w-4" />}
+                                    <span className="hidden sm:inline">{pagesView ? 'Scroll' : 'Gallery'}</span>
                                 </Button>
                             )}
                             {isAdmin && isPhoto && currentPhoto && (
@@ -330,6 +330,12 @@ export function ViewerPage() {
                                 <Button variant={pagesView ? 'secondary' : 'ghost'} size="sm" onClick={() => setPagesView((v) => !v)}>
                                     {pagesView ? <LayoutGrid className="h-4 w-4" /> : <BookOpen className="h-4 w-4" />}
                                     {pagesView ? 'Gallery' : 'Pages'}
+                                </Button>
+                            )}
+                            {pagesView && viewablePhotos.length > 0 && (
+                                <Button variant="ghost" size="sm" onClick={() => openPhoto(viewablePhotos[0])}>
+                                    <ArrowRight className="h-4 w-4" />
+                                    Sequential
                                 </Button>
                             )}
                             {isAdmin && !pagesView && uncatalogedCount > 0 && (
