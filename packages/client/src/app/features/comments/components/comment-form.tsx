@@ -70,7 +70,7 @@ function getTextUpToCaret(editor: HTMLDivElement): string {
             }
             break;
         }
-        const parent = node instanceof Element ? node : node.parentElement;
+        const parent = node instanceof HTMLElement ? node : node.parentElement;
         if (!parent?.dataset.mentionType && node.nodeType === Node.TEXT_NODE) {
             text += node.textContent ?? '';
         }
