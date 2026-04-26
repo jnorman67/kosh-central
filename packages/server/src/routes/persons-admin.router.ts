@@ -30,18 +30,34 @@ export function createPersonsAdminRouter(): Router {
 
     /** Create a person. */
     router.post('/', (req, res) => {
-        const { fullName, nickname, birthYear, notes } = req.body as {
-            fullName?: string;
-            nickname?: string;
-            birthYear?: number;
-            notes?: string;
-        };
+        const { fullName, nickname, birthYear, notes, sex, birthDate, deathDate, birthPlace, deathPlace } =
+            req.body as {
+                fullName?: string;
+                nickname?: string;
+                birthYear?: number;
+                notes?: string;
+                sex?: 'M' | 'F' | 'U';
+                birthDate?: string;
+                deathDate?: string;
+                birthPlace?: string;
+                deathPlace?: string;
+            };
         if (!fullName) {
             res.status(400).json({ error: 'fullName is required' });
             return;
         }
         const userId = (req as unknown as { user?: { id: string } }).user?.id;
-        const person = createPerson(fullName, { nickname, birthYear, notes, createdBy: userId });
+        const person = createPerson(fullName, {
+            nickname,
+            birthYear,
+            notes,
+            sex,
+            birthDate,
+            deathDate,
+            birthPlace,
+            deathPlace,
+            createdBy: userId,
+        });
         res.status(201).json(person);
     });
 
@@ -51,14 +67,30 @@ export function createPersonsAdminRouter(): Router {
             res.status(404).json({ error: 'Person not found' });
             return;
         }
-        const { fullName, nickname, birthYear, notes } = req.body as {
-            fullName?: string;
-            nickname?: string | null;
-            birthYear?: number | null;
-            notes?: string | null;
-        };
+        const { fullName, nickname, birthYear, notes, sex, birthDate, deathDate, birthPlace, deathPlace } =
+            req.body as {
+                fullName?: string;
+                nickname?: string | null;
+                birthYear?: number | null;
+                notes?: string | null;
+                sex?: 'M' | 'F' | 'U' | null;
+                birthDate?: string | null;
+                deathDate?: string | null;
+                birthPlace?: string | null;
+                deathPlace?: string | null;
+            };
         try {
-            const person = updatePerson(req.params.id, { fullName, nickname, birthYear, notes });
+            const person = updatePerson(req.params.id, {
+                fullName,
+                nickname,
+                birthYear,
+                notes,
+                sex,
+                birthDate,
+                deathDate,
+                birthPlace,
+                deathPlace,
+            });
             res.json(person);
         } catch {
             res.status(500).json({ error: 'Failed to update person' });

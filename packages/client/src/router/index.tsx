@@ -1,5 +1,6 @@
 import { AdminQueryProvider } from '@/app/features/admin/contexts/admin-query.context';
 import { FoldersAdminPage } from '@/app/features/admin/pages/folders-admin-page';
+import { PersonsAdminPage } from '@/app/features/admin/pages/persons-admin-page';
 import { AuthGuard } from '@/app/features/auth/components/auth-guard';
 import { AdminGuard } from '@/app/features/auth/components/admin-guard';
 import { ChangePasswordPage } from '@/app/features/auth/pages/change-password-page';
@@ -48,6 +49,28 @@ export const router = createBrowserRouter([
                         <FoldersAdminPage />
                     </AdminQueryProvider>
                 </AdminGuard>
+            </AuthGuard>
+        ),
+    },
+    {
+        path: '/admin/persons',
+        element: (
+            <AuthGuard>
+                <AdminGuard>
+                    <AdminQueryProvider>
+                        <PersonsAdminPage />
+                    </AdminQueryProvider>
+                </AdminGuard>
+            </AuthGuard>
+        ),
+    },
+    {
+        path: '/persons',
+        element: (
+            <AuthGuard>
+                <AdminQueryProvider>
+                    <PersonsAdminPage />
+                </AdminQueryProvider>
             </AuthGuard>
         ),
     },

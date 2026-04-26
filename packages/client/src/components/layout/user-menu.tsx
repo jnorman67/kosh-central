@@ -7,7 +7,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { ChevronDown, FolderCog, KeyRound, LogOut } from 'lucide-react';
+import { ChevronDown, FolderCog, KeyRound, LogOut, Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export function UserMenu() {
@@ -34,14 +34,16 @@ export function UserMenu() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
                 {isAdmin && (
-                    <>
-                        <DropdownMenuItem onSelect={() => navigate('/admin/folders')}>
-                            <FolderCog />
-                            Folders
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                    </>
+                    <DropdownMenuItem onSelect={() => navigate('/admin/folders')}>
+                        <FolderCog />
+                        Folders
+                    </DropdownMenuItem>
                 )}
+                <DropdownMenuItem onSelect={() => navigate('/persons')}>
+                    <Users />
+                    Persons
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem onSelect={() => navigate('/account/password')}>
                     <KeyRound />
                     Change password
