@@ -3,6 +3,7 @@ import { CommentPanel } from '@/app/features/comments/components/comment-panel';
 import { AlbumGallery } from '@/app/features/photos/components/album-gallery';
 import { FolderSelector } from '@/app/features/photos/components/folder-selector';
 import { LetterboxViewer } from '@/app/features/photos/components/letterbox-viewer';
+import { MobilePanel } from '@/app/features/photos/components/mobile-panel';
 import { PhotoControls } from '@/app/features/photos/components/photo-controls';
 import { PhotoGallery } from '@/app/features/photos/components/photo-gallery';
 import { PhotoPagesReader } from '@/app/features/photos/components/photo-pages-reader';
@@ -299,6 +300,22 @@ export function ViewerPage() {
                             )}
                         </div>
                     )
+                }
+                mobilePanel={
+                    isPhoto && !enlargedRelated && me && currentPhoto?.catalogId ? (
+                        <MobilePanel
+                            photoId={currentPhoto.catalogId}
+                            currentUserId={me.id}
+                            isAdmin={isAdmin}
+                            initialBody={
+                                disputeTarget
+                                    ? `I don't think @[${disputeTarget.personName}](person:${disputeTarget.personId}) is in this photo.`
+                                    : undefined
+                            }
+                            onCommentPosted={() => setDisputeTarget(null)}
+                            onDisputeSubject={(personId, personName) => setDisputeTarget({ personId, personName })}
+                        />
+                    ) : undefined
                 }
                 rightPanel={
                     isPhoto && !enlargedRelated && me && currentPhoto?.catalogId ? (
