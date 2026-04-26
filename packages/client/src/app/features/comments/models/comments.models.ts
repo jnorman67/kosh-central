@@ -27,4 +27,5 @@ export interface MentionCandidate {
     id: string;
     displayLabel: string;
     insertLabel: string;
+    nickname?: string;
 }

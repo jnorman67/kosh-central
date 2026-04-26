@@ -105,7 +105,9 @@ export function CommentForm({
     const filteredCandidates = useMemo(() => {
         if (mentionQuery === null) return [];
         const q = mentionQuery.trimEnd().toLowerCase();
-        const matches = allCandidates.filter((c) => c.displayLabel.toLowerCase().includes(q));
+        const matches = allCandidates.filter(
+            (c) => c.displayLabel.toLowerCase().includes(q) || c.nickname?.toLowerCase().includes(q),
+        );
         matches.sort((a, b) => {
             const aStarts = a.displayLabel.toLowerCase().startsWith(q);
             const bStarts = b.displayLabel.toLowerCase().startsWith(q);
@@ -207,7 +209,7 @@ export function CommentForm({
 
     function submitEditor() {
         const editor = editorRef.current;
-        if (!editor || isSubmitting) return;
+        if (!editor || isSubmitting || mentionQuery !== null) return;
         const { body, mentions } = getEditorContent(editor);
         if (!body) return;
         onSubmit(body, mentions);
@@ -254,7 +256,7 @@ export function CommentForm({
                         Cancel
                     </Button>
                 )}
-                <Button type="submit" size="sm" disabled={isEmpty || isSubmitting}>
+                <Button type="submit" size="sm" disabled={isEmpty || isSubmitting || mentionQuery !== null}>
                     {isSubmitting ? 'Saving…' : submitLabel}
                 </Button>
             </div>

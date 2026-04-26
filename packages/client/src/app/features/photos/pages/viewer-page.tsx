@@ -132,6 +132,8 @@ export function ViewerPage() {
     useEffect(() => {
         function onKey(e: KeyboardEvent) {
             if (e.key !== 'Escape') return;
+            const t = e.target as HTMLElement;
+            if (t.isContentEditable || t.tagName === 'INPUT' || t.tagName === 'TEXTAREA') return;
             if (enlargedRelated) setEnlargedRelatedId(null);
             else if (navView === 'photo') backToGallery();
         }

@@ -82,7 +82,10 @@ export function FavoritesPage() {
     useEffect(() => {
         if (view !== 'photo') return;
         function onKey(e: KeyboardEvent) {
-            if (e.key === 'Escape') backToGallery();
+            if (e.key !== 'Escape') return;
+            const t = e.target as HTMLElement;
+            if (t.isContentEditable || t.tagName === 'INPUT' || t.tagName === 'TEXTAREA') return;
+            backToGallery();
         }
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);

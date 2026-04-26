@@ -11,7 +11,7 @@ export function MentionAutocomplete({ candidates, activeIndex, onSelect, onActiv
     if (candidates.length === 0) return null;
 
     return (
-        <div className="absolute bottom-full left-0 z-50 mb-1 w-64 overflow-hidden rounded-md border border-amber-200 bg-white shadow-md">
+        <div className="absolute bottom-full left-0 z-50 mb-1 w-72 overflow-hidden rounded-md border border-amber-200 bg-white shadow-md">
             {candidates.slice(0, 8).map((c, i) => (
                 <button
                     key={`${c.type}:${c.id}`}
@@ -25,8 +25,21 @@ export function MentionAutocomplete({ candidates, activeIndex, onSelect, onActiv
                         onSelect(c);
                     }}
                 >
-                    <span className="shrink-0 text-xs text-muted-foreground">{c.type === 'user' ? '@' : '★'}</span>
-                    <span className="truncate">{c.displayLabel}</span>
+                    {c.type === 'user' ? (
+                        <span className="shrink-0 rounded px-1.5 py-0.5 text-xs font-semibold bg-blue-100 text-blue-700">
+                            User
+                        </span>
+                    ) : (
+                        <span className="shrink-0 rounded px-1.5 py-0.5 text-xs font-semibold bg-amber-100 text-amber-800">
+                            Person
+                        </span>
+                    )}
+                    <div className="min-w-0">
+                        <div className="truncate">{c.displayLabel}</div>
+                        {c.nickname && (
+                            <div className="truncate text-xs text-muted-foreground">"{c.nickname}"</div>
+                        )}
+                    </div>
                 </button>
             ))}
         </div>

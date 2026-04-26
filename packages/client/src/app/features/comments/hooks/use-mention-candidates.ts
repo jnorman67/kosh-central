@@ -30,8 +30,9 @@ export function useMentionCandidates(): MentionCandidate[] {
             ...persons.map((p) => ({
                 type: 'person' as const,
                 id: p.id,
-                displayLabel: p.fullName + (p.nickname ? ` (${p.nickname})` : ''),
+                displayLabel: p.fullName,
                 insertLabel: p.fullName,
+                nickname: p.nickname ?? undefined,
             })),
         ],
         [users, persons],
