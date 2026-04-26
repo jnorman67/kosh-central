@@ -1436,6 +1436,15 @@ const migrations: Migration[] = [
             INSERT OR IGNORE INTO person_relationships(id,from_person_id,to_person_id,relation_type,created_at,created_by) VALUES('5017084e-2531-4804-9dae-43edb17e85e2','fddcb118-7f2a-4ad8-9202-6717f8f40b62','989fc05a-abc1-43c8-9172-fd0b079c82fa','spouse-of','2026-04-26 01:33:53',NULL);
         `,
     },
+    {
+        version: 19,
+        description: 'Add gedcom_uid and import_status to persons for safe GEDCOM reconciliation',
+        sql: `
+            ALTER TABLE persons ADD COLUMN gedcom_uid TEXT;
+            ALTER TABLE persons ADD COLUMN import_status TEXT CHECK(import_status IN ('confirmed', 'needs_review', 'new'));
+            CREATE UNIQUE INDEX idx_persons_gedcom_uid ON persons(gedcom_uid) WHERE gedcom_uid IS NOT NULL;
+        `,
+    },
 ];
 
 /**

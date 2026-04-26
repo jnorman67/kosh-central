@@ -4,11 +4,13 @@ import {
     addPhotoSubject,
     addRelationship,
     addSeriesSubject,
+    confirmPersonImport,
     createPerson,
     deletePerson,
     deleteRelationship,
     findPersonById,
     findRelationshipById,
+    listPersonsNeedingReview,
     removePhotoSubject,
     removeSeriesSubject,
     updatePerson,
@@ -97,12 +99,38 @@ export function createPersonsAdminRouter(): Router {
         }
     });
 
-    /** Delete a person (cascades to relationships, photo tags, series tags). */
+    /** Delete a person. Refused if the person has photo or series tags. */
     router.delete('/:id', (req, res) => {
-        if (!deletePerson(req.params.id)) {
+        if (!findPersonById(req.params.id)) {
             res.status(404).json({ error: 'Person not found' });
             return;
         }
+        const result = deletePerson(req.params.id);
+        if (!result.deleted) {
+            res.status(409).json({
+                error: result.reason === 'has_photo_tags'
+                    ? 'Cannot delete: person is tagged in one or more photos'
+                    : 'Cannot delete: person is tagged in one or more series',
+            });
+            return;
+        }
+        res.status(204).end();
+    });
+
+    // ── GEDCOM import review ───────────────────────────────────────────────────
+
+    /** List persons flagged needs_review after a GEDCOM reconciliation import. */
+    router.get('/import/needs-review', (req, res) => {
+        res.json(listPersonsNeedingReview());
+    });
+
+    /** Confirm a needs_review match (sets import_status to confirmed). */
+    router.post('/:id/confirm-import', (req, res) => {
+        if (!findPersonById(req.params.id)) {
+            res.status(404).json({ error: 'Person not found' });
+            return;
+        }
+        confirmPersonImport(req.params.id);
         res.status(204).end();
     });
 

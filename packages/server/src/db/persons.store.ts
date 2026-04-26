@@ -3,6 +3,7 @@ import { getDb } from './database.js';
 
 export type RelationshipType = 'parent-of' | 'spouse-of' | 'sibling-of' | 'friend-of';
 export type SubjectSource = 'manual' | 'auto';
+export type ImportStatus = 'confirmed' | 'needs_review' | 'new';
 
 export interface StoredPerson {
     id: string;
@@ -16,8 +17,15 @@ export interface StoredPerson {
     birthPlace: string | null;
     deathPlace: string | null;
     gedcomId: string | null;
+    gedcomUid: string | null;
+    importStatus: ImportStatus | null;
     createdAt: string;
     createdBy: string | null;
+}
+
+export interface DeletePersonResult {
+    deleted: boolean;
+    reason?: 'has_photo_tags' | 'has_series_tags';
 }
 
 export interface StoredRelationship {
@@ -74,6 +82,8 @@ interface PersonRow {
     birth_place: string | null;
     death_place: string | null;
     gedcom_id: string | null;
+    gedcom_uid: string | null;
+    import_status: string | null;
     created_at: string;
     created_by: string | null;
 }
@@ -130,6 +140,8 @@ function rowToPerson(row: PersonRow): StoredPerson {
         birthPlace: row.birth_place,
         deathPlace: row.death_place,
         gedcomId: row.gedcom_id,
+        gedcomUid: row.gedcom_uid,
+        importStatus: (row.import_status as ImportStatus) ?? null,
         createdAt: row.created_at,
         createdBy: row.created_by,
     };
@@ -182,6 +194,8 @@ export function createPerson(
         birthPlace?: string;
         deathPlace?: string;
         gedcomId?: string;
+        gedcomUid?: string;
+        importStatus?: ImportStatus;
         createdBy?: string;
     } = {},
 ): StoredPerson {
@@ -189,8 +203,8 @@ export function createPerson(
     getDb()
         .prepare(
             `INSERT INTO persons
-             (id, full_name, nickname, birth_year, notes, sex, birth_date, death_date, birth_place, death_place, gedcom_id, created_by)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             (id, full_name, nickname, birth_year, notes, sex, birth_date, death_date, birth_place, death_place, gedcom_id, gedcom_uid, import_status, created_by)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
             id,
@@ -204,6 +218,8 @@ export function createPerson(
             opts.birthPlace ?? null,
             opts.deathPlace ?? null,
             opts.gedcomId ?? null,
+            opts.gedcomUid ?? null,
+            opts.importStatus ?? null,
             opts.createdBy ?? null,
         );
     return findPersonById(id)!;
@@ -212,6 +228,41 @@ export function createPerson(
 export function findPersonByGedcomId(gedcomId: string): StoredPerson | undefined {
     const row = getDb().prepare('SELECT * FROM persons WHERE gedcom_id = ?').get(gedcomId) as PersonRow | undefined;
     return row ? rowToPerson(row) : undefined;
+}
+
+export function findPersonByGedcomUid(gedcomUid: string): StoredPerson | undefined {
+    const row = getDb().prepare('SELECT * FROM persons WHERE gedcom_uid = ?').get(gedcomUid) as PersonRow | undefined;
+    return row ? rowToPerson(row) : undefined;
+}
+
+/** Exact case-insensitive name + birth date match. Returns undefined if zero or multiple match. */
+export function findPersonByNameAndBirthDate(fullName: string, birthDate: string): StoredPerson | undefined {
+    const rows = getDb()
+        .prepare('SELECT * FROM persons WHERE full_name = ? COLLATE NOCASE AND birth_date = ?')
+        .all(fullName, birthDate) as PersonRow[];
+    return rows.length === 1 ? rowToPerson(rows[0]) : undefined;
+}
+
+/** Case-insensitive name + birth year match. Returns all matches for caller to evaluate ambiguity. */
+export function findPersonsByNameAndBirthYear(fullName: string, birthYear: number): StoredPerson[] {
+    const rows = getDb()
+        .prepare('SELECT * FROM persons WHERE full_name = ? COLLATE NOCASE AND birth_year = ?')
+        .all(fullName, birthYear) as PersonRow[];
+    return rows.map(rowToPerson);
+}
+
+export function listPersonsNeedingReview(): StoredPerson[] {
+    const rows = getDb()
+        .prepare("SELECT * FROM persons WHERE import_status = 'needs_review' ORDER BY full_name")
+        .all() as PersonRow[];
+    return rows.map(rowToPerson);
+}
+
+export function confirmPersonImport(id: string): boolean {
+    const result = getDb()
+        .prepare("UPDATE persons SET import_status = 'confirmed' WHERE id = ?")
+        .run(id);
+    return result.changes > 0;
 }
 
 export function findPersonById(id: string): StoredPerson | undefined {
@@ -245,6 +296,8 @@ export function updatePerson(
         deathDate?: string | null;
         birthPlace?: string | null;
         deathPlace?: string | null;
+        gedcomUid?: string | null;
+        importStatus?: ImportStatus | null;
     },
 ): StoredPerson {
     const current = findPersonById(id);
@@ -254,7 +307,8 @@ export function updatePerson(
         .prepare(
             `UPDATE persons SET
              full_name = ?, nickname = ?, birth_year = ?, notes = ?,
-             sex = ?, birth_date = ?, death_date = ?, birth_place = ?, death_place = ?
+             sex = ?, birth_date = ?, death_date = ?, birth_place = ?, death_place = ?,
+             gedcom_uid = ?, import_status = ?
              WHERE id = ?`,
         )
         .run(
@@ -267,14 +321,22 @@ export function updatePerson(
             'deathDate' in updates ? updates.deathDate : current.deathDate,
             'birthPlace' in updates ? updates.birthPlace : current.birthPlace,
             'deathPlace' in updates ? updates.deathPlace : current.deathPlace,
+            'gedcomUid' in updates ? updates.gedcomUid : current.gedcomUid,
+            'importStatus' in updates ? updates.importStatus : current.importStatus,
             id,
         );
     return findPersonById(id)!;
 }
 
-export function deletePerson(id: string): boolean {
-    const result = getDb().prepare('DELETE FROM persons WHERE id = ?').run(id);
-    return result.changes > 0;
+/** Refuses deletion if the person has any photo or series tags. */
+export function deletePerson(id: string): DeletePersonResult {
+    const db = getDb();
+    const photoCount = (db.prepare('SELECT COUNT(*) as n FROM photo_subjects WHERE person_id = ?').get(id) as { n: number }).n;
+    if (photoCount > 0) return { deleted: false, reason: 'has_photo_tags' };
+    const seriesCount = (db.prepare('SELECT COUNT(*) as n FROM series_subjects WHERE person_id = ?').get(id) as { n: number }).n;
+    if (seriesCount > 0) return { deleted: false, reason: 'has_series_tags' };
+    const result = db.prepare('DELETE FROM persons WHERE id = ?').run(id);
+    return { deleted: result.changes > 0 };
 }
 
 // ─── Relationships ────────────────────────────────────────────────────────────

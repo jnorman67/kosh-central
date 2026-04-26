@@ -1,20 +1,15 @@
 #!/usr/bin/env npx tsx
 /**
- * Import a GEDCOM 5.5 file into the persons catalog.
+ * Import a GEDCOM 5.5 file into the persons catalog with full reconciliation.
  *
- * Reads INDI (individual) and FAM (family) records and creates:
- *   - persons rows for each individual
- *   - person_relationships rows (spouse-of, parent-of) derived from FAM records
+ * Match priority for each INDI record (stops at first hit):
+ *   1. gedcom_uid match (_UID field) — same-source re-export, high confidence
+ *   2. Name + exact birth date match  — cross-source, high confidence
+ *   3. Name + birth year match        — medium confidence, flags needs_review
+ *   4. No match                       — inserts new person, flags new
  *
- * The import is idempotent: persons are matched by gedcom_id, so re-running
- * will update existing rows rather than creating duplicates.
- *
- * GEDCOM data NOT currently stored (noted for future expansion):
- *   - Marriage dates and places (on FAM records; no field on person_relationships)
- *   - Burial info (BURI tag)
- *   - Nationalities (NATI tag)
- *   - Biographical events (EVEN tag)
- *   - MyHeritage media URLs (OBJE tags)
+ * Existing associations (photo tags, series tags, relationships) are never
+ * touched — only genealogical fields are updated on matched persons.
  *
  * Usage:
  *   npx tsx scripts/import-gedcom.ts <path-to-file.ged> [--dry-run]
@@ -26,9 +21,13 @@ import { fileURLToPath } from 'node:url';
 import { initDb } from '../src/db/database.js';
 import {
     addRelationship,
+    confirmPersonImport,
     createPerson,
-    findPersonByGedcomId,
+    findPersonByGedcomUid,
+    findPersonByNameAndBirthDate,
+    findPersonsByNameAndBirthYear,
     updatePerson,
+    type ImportStatus,
 } from '../src/db/persons.store.js';
 
 const args = process.argv.slice(2);
@@ -50,7 +49,7 @@ if (!fs.existsSync(gedPath)) {
 
 interface GedcomLine {
     level: number;
-    xref: string | null;  // e.g. "@I1@" — only on level-0 records
+    xref: string | null;
     tag: string;
     value: string;
 }
@@ -58,7 +57,7 @@ interface GedcomLine {
 function parseLines(text: string): GedcomLine[] {
     return text
         .split(/\r?\n/)
-        .map((raw) => raw.replace(/^﻿/, '').trim()) // strip BOM and whitespace
+        .map((raw) => raw.replace(/^﻿/, '').trim())
         .filter(Boolean)
         .map((line) => {
             const match = line.match(/^(\d+)\s+(@[^@]+@)?\s*(\w+)(?:\s+(.*))?$/);
@@ -74,15 +73,14 @@ function parseLines(text: string): GedcomLine[] {
 }
 
 interface GedcomRecord {
-    id: string;       // e.g. "@I1@"
-    type: string;     // "INDI" or "FAM"
+    id: string;
+    type: string;
     lines: GedcomLine[];
 }
 
 function groupRecords(lines: GedcomLine[]): GedcomRecord[] {
     const records: GedcomRecord[] = [];
     let current: GedcomRecord | null = null;
-
     for (const line of lines) {
         if (line.level === 0 && line.xref) {
             if (current) records.push(current);
@@ -95,15 +93,10 @@ function groupRecords(lines: GedcomLine[]): GedcomRecord[] {
     return records;
 }
 
-// Get all values under a given tag path within a record's lines.
-// e.g. getTag(lines, 'BIRT', 'DATE') returns the first DATE value under BIRT.
 function getSubValue(lines: GedcomLine[], parentTag: string, childTag: string): string | null {
     let inParent = false;
     for (const line of lines) {
-        if (line.level === 1 && line.tag === parentTag) {
-            inParent = true;
-            continue;
-        }
+        if (line.level === 1 && line.tag === parentTag) { inParent = true; continue; }
         if (inParent) {
             if (line.level === 1) inParent = false;
             else if (line.level === 2 && line.tag === childTag) return line.value || null;
@@ -120,15 +113,12 @@ function getValue(lines: GedcomLine[], tag: string, level = 1): string | null {
     return getValues(lines, tag, level)[0] ?? null;
 }
 
-// Extract 4-digit year from a GEDCOM date string like "25 JUN 1940", "ABT 1940", "1940"
 function extractYear(dateStr: string | null): number | null {
     if (!dateStr) return null;
     const m = dateStr.match(/\b(\d{4})\b/);
     return m ? parseInt(m[1], 10) : null;
 }
 
-// Parse GEDCOM NAME tag: "Donald McGee /Norman/" → "Donald McGee Norman"
-// Preserves the full name but removes the slashes around the surname.
 function parseName(nameValue: string): string {
     return nameValue.replace(/\//g, '').replace(/\s+/g, ' ').trim();
 }
@@ -147,17 +137,16 @@ console.log(`Found ${individuals.length} individuals, ${families.length} familie
 if (dryRun) console.log('(dry-run — no DB writes)');
 
 if (!dryRun) {
-    // Resolve DB path relative to this script: scripts/ → server/
     const serverRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
     process.env.KOSH_DB_PATH = process.env.KOSH_DB_PATH ?? path.join(serverRoot, 'kosh.db');
     initDb();
 }
 
-// Pass 1: create or update persons
-const gedcomToDbId = new Map<string, string>(); // "@I1@" → uuid
+// Pass 1: reconcile persons
+const gedcomToDbId = new Map<string, string>();
 
-let created = 0;
-let updated = 0;
+const counts = { uid: 0, date: 0, year: 0, created: 0 };
+const needsReview: { name: string; reason: string }[] = [];
 
 for (const rec of individuals) {
     const rawName = getValue(rec.lines, 'NAME') ?? '(unknown)';
@@ -169,46 +158,77 @@ for (const rec of individuals) {
     const deathDate = getSubValue(rec.lines, 'DEAT', 'DATE');
     const deathPlace = getSubValue(rec.lines, 'DEAT', 'PLAC');
     const birthYear = extractYear(birthDate);
+    const gedcomUid = getValue(rec.lines, '_UID');
 
-    // Collect notes (NOTE tags, EVEN entries)
     const noteParts: string[] = [];
     for (const line of rec.lines) {
         if (line.level === 1 && line.tag === 'NOTE' && line.value) noteParts.push(line.value);
     }
     const notes = noteParts.length > 0 ? noteParts.join('\n') : null;
 
+    const fields = { fullName, sex: sex ?? undefined, birthDate: birthDate ?? undefined, birthPlace: birthPlace ?? undefined, deathDate: deathDate ?? undefined, deathPlace: deathPlace ?? undefined, birthYear: birthYear ?? undefined, notes: notes ?? undefined };
+
     if (dryRun) {
-        console.log(`  ${rec.id}: ${fullName} (${sex ?? '?'}) b.${birthDate ?? '?'} d.${deathDate ?? '?'}`);
-        gedcomToDbId.set(rec.id, rec.id); // placeholder for dry-run relationship logging
+        console.log(`  ${rec.id}: ${fullName} (${sex ?? '?'}) b.${birthDate ?? '?'} uid:${gedcomUid ?? 'none'}`);
+        gedcomToDbId.set(rec.id, rec.id);
         continue;
     }
 
-    const existing = findPersonByGedcomId(rec.id);
-    if (existing) {
-        updatePerson(existing.id, { fullName, sex, birthDate, birthPlace, deathDate, deathPlace });
-        // birthYear stored separately; update if changed
-        if (birthYear !== existing.birthYear) {
-            updatePerson(existing.id, { birthYear: birthYear ?? undefined });
+    // ── 1. Match by _UID (same-source re-export) ──────────────────────────────
+    if (gedcomUid) {
+        const existing = findPersonByGedcomUid(gedcomUid);
+        if (existing) {
+            updatePerson(existing.id, { ...fields, gedcomUid, importStatus: 'confirmed' });
+            gedcomToDbId.set(rec.id, existing.id);
+            counts.uid++;
+            continue;
         }
-        gedcomToDbId.set(rec.id, existing.id);
-        updated++;
-    } else {
-        const person = createPerson(fullName, {
-            sex: sex ?? undefined,
-            birthDate: birthDate ?? undefined,
-            birthPlace: birthPlace ?? undefined,
-            deathDate: deathDate ?? undefined,
-            deathPlace: deathPlace ?? undefined,
-            birthYear: birthYear ?? undefined,
-            notes: notes ?? undefined,
-            gedcomId: rec.id,
-        });
-        gedcomToDbId.set(rec.id, person.id);
-        created++;
     }
+
+    // ── 2. Match by name + exact birth date ───────────────────────────────────
+    if (birthDate) {
+        const existing = findPersonByNameAndBirthDate(fullName, birthDate);
+        if (existing) {
+            updatePerson(existing.id, { ...fields, gedcomUid: gedcomUid ?? null, importStatus: 'confirmed' });
+            gedcomToDbId.set(rec.id, existing.id);
+            counts.date++;
+            continue;
+        }
+    }
+
+    // ── 3. Match by name + birth year (medium confidence) ────────────────────
+    if (birthYear) {
+        const candidates = findPersonsByNameAndBirthYear(fullName, birthYear);
+        if (candidates.length === 1) {
+            updatePerson(candidates[0].id, { ...fields, gedcomUid: gedcomUid ?? null, importStatus: 'needs_review' });
+            gedcomToDbId.set(rec.id, candidates[0].id);
+            counts.year++;
+            needsReview.push({ name: fullName, reason: `name + birth year ${birthYear} matched one person` });
+            continue;
+        }
+    }
+
+    // ── 4. No match — insert new ──────────────────────────────────────────────
+    const person = createPerson(fullName, {
+        ...fields,
+        gedcomId: rec.id,
+        gedcomUid: gedcomUid ?? undefined,
+        importStatus: 'new',
+    });
+    gedcomToDbId.set(rec.id, person.id);
+    counts.created++;
 }
 
-console.log(`Persons: ${created} created, ${updated} updated`);
+if (!dryRun) {
+    console.log(
+        `Persons: ${counts.uid} matched by UID, ${counts.date} by name+date, ` +
+        `${counts.year} by name+year (needs_review), ${counts.created} new`,
+    );
+    if (needsReview.length > 0) {
+        console.log(`\n⚠  ${needsReview.length} person(s) need review in the admin UI:`);
+        for (const r of needsReview) console.log(`   • ${r.name} — ${r.reason}`);
+    }
+}
 
 // Pass 2: create relationships from FAM records
 let relsCreated = 0;
@@ -231,22 +251,19 @@ for (const fam of families) {
         continue;
     }
 
-    // Spouse relationship (symmetric — addRelationship writes both directions)
     if (husbDbId && wifeDbId) {
         try {
             addRelationship(husbDbId, wifeDbId, 'spouse-of');
-            relsCreated += 2; // forward + inverse
+            relsCreated += 2;
         } catch (err: unknown) {
             if (err instanceof Error && err.message.includes('UNIQUE')) relsSkipped++;
             else throw err;
         }
     }
 
-    // Parent-child relationships
     for (const childGedId of childGedIds) {
         const childDbId = gedcomToDbId.get(childGedId);
         if (!childDbId) continue;
-
         for (const parentDbId of [husbDbId, wifeDbId]) {
             if (!parentDbId) continue;
             try {
@@ -260,5 +277,10 @@ for (const fam of families) {
     }
 }
 
-console.log(`Relationships: ${relsCreated} created, ${relsSkipped} skipped (already exist)`);
+if (!dryRun) {
+    console.log(`Relationships: ${relsCreated} created, ${relsSkipped} skipped (already exist)`);
+}
 console.log('Done.');
+
+// Re-export for programmatic use
+export { confirmPersonImport };
