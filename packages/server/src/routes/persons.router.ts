@@ -2,13 +2,14 @@ import { Router } from 'express';
 import {
     findPersonById,
     getPhotosForPerson,
+    getPeopleForPhotoEnriched,
+    getPersonMentionSuggestionsForPhoto,
     getPersonsForSeries,
     getRelationshipsForPerson,
     getSeriesForPerson,
     listPersons,
     searchPersons,
 } from '../db/persons.store.js';
-import { getPeopleForPhoto } from '../db/persons.store.js';
 
 export function createPersonsRouter(): Router {
     const router = Router();
@@ -65,7 +66,19 @@ export function createPhotoSubjectsRouter(): Router {
 
     router.get('/', (req, res) => {
         const { photoId } = req.params as Record<string, string>;
-        res.json(getPeopleForPhoto(photoId));
+        res.json(getPeopleForPhotoEnriched(photoId));
+    });
+
+    return router;
+}
+
+/** Sub-router for photo subject suggestions (comment-derived), mounted at /:photoId/subject-suggestions */
+export function createPhotoSubjectSuggestionsRouter(): Router {
+    const router = Router({ mergeParams: true });
+
+    router.get('/', (req, res) => {
+        const { photoId } = req.params as Record<string, string>;
+        res.json(getPersonMentionSuggestionsForPhoto(photoId));
     });
 
     return router;

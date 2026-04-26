@@ -97,10 +97,10 @@ kosh-central/
 
 Two endpoints:
 
-| Method | Path | Returns |
-|--------|------|---------|
-| GET | `/api/folders` | `{ id: string, displayName: string }[]` — the hardcoded folder list |
-| GET | `/api/folders/:id/photos` | `{ id: string, name: string, downloadUrl: string, mimeType: string }[]` — photos in that folder |
+| Method | Path                      | Returns                                                                                         |
+| ------ | ------------------------- | ----------------------------------------------------------------------------------------------- |
+| GET    | `/api/folders`            | `{ id: string, displayName: string }[]` — the hardcoded folder list                             |
+| GET    | `/api/folders/:id/photos` | `{ id: string, name: string, downloadUrl: string, mimeType: string }[]` — photos in that folder |
 
 ### OneDrive resolution
 
@@ -115,12 +115,12 @@ Two endpoints:
 
 ```typescript
 export interface FolderConfig {
-    displayName: string;
-    sharingUrl: string;  // e.g. 'https://1drv.ms/f/s!...'
+  displayName: string;
+  sharingUrl: string; // e.g. 'https://1drv.ms/f/s!...'
 }
 
 export const FOLDERS: FolderConfig[] = [
-    // ADD YOUR ONEDRIVE SHARING URLS HERE
+  // ADD YOUR ONEDRIVE SHARING URLS HERE
 ];
 ```
 
@@ -144,6 +144,7 @@ CSS grid with named areas, designed for future panels:
 ### Letterbox viewer (letterbox-viewer.tsx)
 
 Pure CSS letterboxing — no JS calculations:
+
 - Outer container: `w-full h-full bg-black flex items-center justify-center`
 - Image: `max-w-full max-h-full object-contain`
 - `object-contain` preserves aspect ratio; the black background fills remaining space
@@ -175,6 +176,7 @@ shadcn/ui `Select` component in the header, populated from `useGetFolders()`
 ## Styling
 
 Tailwind CSS with CSS variables, matching reference project conventions:
+
 - `.prettierrc`: 4-space indent, single quotes, trailing commas, 140 width, `prettier-plugin-organize-imports`
 - Path alias: `@/` → `./src/`
 - shadcn/ui initialized with default theme (neutral base, CSS variables)
@@ -195,6 +197,7 @@ In production, Express serves `packages/client/dist/` as static files with SPA f
 ## Implementation Order
 
 ### Step 1: Project scaffold
+
 - Root `package.json` with npm workspaces
 - `.gitignore`
 - `packages/server/` — package.json, tsconfig, minimal Express server
@@ -205,6 +208,7 @@ In production, Express serves `packages/client/dist/` as static files with SPA f
 - `concurrently` for `npm run dev` at root
 
 ### Step 2: Backend
+
 - `folders.config.ts` with placeholder URLs
 - `onedrive.service.ts` — URL encoding, Graph API fetch, in-memory cache
 - `folders.router.ts` — `/api/folders` and `/api/folders/:id/photos`
@@ -212,6 +216,7 @@ In production, Express serves `packages/client/dist/` as static files with SPA f
 - Test with curl
 
 ### Step 3: Frontend data layer
+
 - `photos.models.ts` — TypeScript interfaces
 - `photos.service.ts` — fetch wrapper
 - `photos.queries.ts` — React Query factory
@@ -219,6 +224,7 @@ In production, Express serves `packages/client/dist/` as static files with SPA f
 - `app.tsx` — QueryClientProvider + RouterProvider
 
 ### Step 4: UI components
+
 - `viewer-layout.tsx` — CSS grid shell
 - `letterbox-viewer.tsx` — image display with loading state
 - `photo-controls.tsx` — prev/next, counter, keyboard bindings
@@ -227,11 +233,13 @@ In production, Express serves `packages/client/dist/` as static files with SPA f
 - Router setup with single `/` route
 
 ### Step 5: Polish
+
 - ESLint config
 - Prettier config
 - README.md with setup instructions, architecture overview, and how to add folders
 
 ### Step 6: Azure infrastructure
+
 - `infra/main.bicep` + `parameters.json`
 - Production static file serving in Express
 

@@ -8,7 +8,9 @@ import { PhotoGallery } from '@/app/features/photos/components/photo-gallery';
 import { PhotoPagesReader } from '@/app/features/photos/components/photo-pages-reader';
 import { RelatedStrip } from '@/app/features/photos/components/related-strip';
 import { RelatedThumbnail } from '@/app/features/photos/components/related-thumbnail';
+import { SubjectsPanel } from '@/app/features/photos/components/subjects-panel';
 import { usePhotosQueries } from '@/app/features/photos/contexts/photos-query.context';
+import { SubjectsQueryProvider } from '@/app/features/photos/contexts/subjects-query.context';
 import { useViewerState } from '@/app/features/photos/hooks/use-viewer-state';
 import type { Photo } from '@/app/features/photos/models/photos.models';
 import { BrandMark } from '@/components/layout/brand-mark';
@@ -59,6 +61,7 @@ export function ViewerPage() {
     const [enlargedRelatedId, setEnlargedRelatedId] = useState<string | null>(null);
     const [uncatalogedOnly, setUncatalogedOnly] = useState(false);
     const [pagesView, setPagesView] = useState(false);
+    const [disputeTarget, setDisputeTarget] = useState<{ personId: string; personName: string } | null>(null);
 
     const { data: folders = [], isLoading: foldersLoading } = useGetFolders();
 
@@ -299,21 +302,40 @@ export function ViewerPage() {
                 }
                 rightPanel={
                     isPhoto && !enlargedRelated && me && currentPhoto?.catalogId ? (
-                        <div className="flex h-full flex-col">
-                            {relatedPhotos.length > 0 && (
-                                <div className="flex shrink-0 flex-col gap-3 border-b border-amber-200 p-4">
-                                    {relatedPhotos.map((r) => (
-                                        <RelatedThumbnail
-                                            key={r.photo.id}
-                                            photo={r.photo}
-                                            label={r.label}
-                                            onClick={() => setEnlargedRelatedId(r.photo.id)}
-                                        />
-                                    ))}
-                                </div>
-                            )}
-                            <CommentPanel photoId={currentPhoto.catalogId} currentUserId={me.id} isAdmin={isAdmin} className="min-h-0 flex-1" />
-                        </div>
+                        <SubjectsQueryProvider>
+                            <div className="flex h-full flex-col">
+                                {relatedPhotos.length > 0 && (
+                                    <div className="flex shrink-0 flex-col gap-3 border-b border-amber-200 p-4">
+                                        {relatedPhotos.map((r) => (
+                                            <RelatedThumbnail
+                                                key={r.photo.id}
+                                                photo={r.photo}
+                                                label={r.label}
+                                                onClick={() => setEnlargedRelatedId(r.photo.id)}
+                                            />
+                                        ))}
+                                    </div>
+                                )}
+                                <SubjectsPanel
+                                    photoId={currentPhoto.catalogId}
+                                    isAdmin={isAdmin}
+                                    onDisputeSubject={(personId, personName) => setDisputeTarget({ personId, personName })}
+                                    className="shrink-0"
+                                />
+                                <CommentPanel
+                                    photoId={currentPhoto.catalogId}
+                                    currentUserId={me.id}
+                                    isAdmin={isAdmin}
+                                    initialBody={
+                                        disputeTarget
+                                            ? `I don't think @[${disputeTarget.personName}](person:${disputeTarget.personId}) is in this photo.`
+                                            : undefined
+                                    }
+                                    onCommentPosted={() => setDisputeTarget(null)}
+                                    className="min-h-0 flex-1"
+                                />
+                            </div>
+                        </SubjectsQueryProvider>
                     ) : undefined
                 }
                 toolbar={

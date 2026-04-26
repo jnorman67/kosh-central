@@ -40,6 +40,18 @@ export interface StoredPhotoSubject {
     createdBy: string | null;
 }
 
+export interface StoredPhotoSubjectEnriched extends StoredPhotoSubject {
+    fullName: string;
+    nickname: string | null;
+}
+
+export interface PersonMentionSuggestion {
+    id: string;
+    fullName: string;
+    nickname: string | null;
+    mentionCount: number;
+}
+
 export interface StoredSeriesSubject {
     seriesId: string;
     personId: string;
@@ -84,6 +96,18 @@ interface PhotoSubjectRow {
     verified: number;
     created_at: string;
     created_by: string | null;
+}
+
+interface PhotoSubjectEnrichedRow extends PhotoSubjectRow {
+    full_name: string;
+    nickname: string | null;
+}
+
+interface PersonMentionSuggestionRow {
+    id: string;
+    full_name: string;
+    nickname: string | null;
+    mention_count: number;
 }
 
 interface SeriesSubjectRow {
@@ -371,6 +395,48 @@ export function getPeopleForPhoto(photoId: string): StoredPhotoSubject[] {
         .prepare('SELECT * FROM photo_subjects WHERE photo_id = ? ORDER BY created_at')
         .all(photoId) as PhotoSubjectRow[];
     return rows.map(rowToPhotoSubject);
+}
+
+export function getPeopleForPhotoEnriched(photoId: string): StoredPhotoSubjectEnriched[] {
+    const rows = getDb()
+        .prepare(
+            `SELECT ps.*, p.full_name, p.nickname
+             FROM photo_subjects ps
+             JOIN persons p ON ps.person_id = p.id
+             WHERE ps.photo_id = ?
+             ORDER BY ps.created_at`,
+        )
+        .all(photoId) as PhotoSubjectEnrichedRow[];
+    return rows.map((row) => ({
+        ...rowToPhotoSubject(row),
+        fullName: row.full_name,
+        nickname: row.nickname,
+    }));
+}
+
+export function getPersonMentionSuggestionsForPhoto(photoId: string): PersonMentionSuggestion[] {
+    const rows = getDb()
+        .prepare(
+            `SELECT p.id, p.full_name, p.nickname, COUNT(cm.comment_id) AS mention_count
+             FROM comment_mentions cm
+             JOIN photo_comments c ON cm.comment_id = c.id
+             JOIN persons p ON cm.mentioned_id = p.id
+             WHERE c.photo_id = ?
+               AND cm.mention_type = 'person'
+               AND NOT EXISTS (
+                   SELECT 1 FROM photo_subjects ps
+                   WHERE ps.photo_id = c.photo_id AND ps.person_id = p.id
+               )
+             GROUP BY p.id
+             ORDER BY mention_count DESC`,
+        )
+        .all(photoId) as PersonMentionSuggestionRow[];
+    return rows.map((row) => ({
+        id: row.id,
+        fullName: row.full_name,
+        nickname: row.nickname,
+        mentionCount: row.mention_count,
+    }));
 }
 
 export function getPhotosForPerson(personId: string): StoredPhotoSubject[] {

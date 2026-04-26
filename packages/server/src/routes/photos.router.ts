@@ -3,9 +3,13 @@ import { listFolders } from '../db/folders.store.js';
 import { findPhotoById, getPhotoLocations, importManifest, listPhotos, type PhotoManifestEntry } from '../db/photos.store.js';
 import { getRelationsForPhoto } from '../db/relations.store.js';
 import { getSeriesForPhoto } from '../db/series.store.js';
+import { createPhotoSubjectsRouter, createPhotoSubjectSuggestionsRouter } from './persons.router.js';
 
 export function createPhotosRouter(): Router {
     const router = Router();
+
+    router.use('/:photoId/subjects', createPhotoSubjectsRouter());
+    router.use('/:photoId/subject-suggestions', createPhotoSubjectSuggestionsRouter());
 
     /** List all cataloged photos. */
     router.get('/', (_req, res) => {

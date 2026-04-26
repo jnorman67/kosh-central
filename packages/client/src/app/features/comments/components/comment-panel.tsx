@@ -7,16 +7,18 @@ interface CommentPanelProps {
     photoId: string;
     currentUserId: string;
     isAdmin: boolean;
+    initialBody?: string;
+    onCommentPosted?: () => void;
     className?: string;
 }
 
-export function CommentPanel({ photoId, currentUserId, isAdmin, className }: CommentPanelProps) {
+export function CommentPanel({ photoId, currentUserId, isAdmin, initialBody, onCommentPosted, className }: CommentPanelProps) {
     const { useGetComments, useCreateComment } = useCommentsQueries();
     const { data: comments = [], isLoading } = useGetComments(photoId);
     const createMutation = useCreateComment();
 
     function handleCreate(body: string, mentions: MentionInput[]) {
-        createMutation.mutate({ photoId, body, mentions });
+        createMutation.mutate({ photoId, body, mentions }, { onSuccess: onCommentPosted });
     }
 
     return (
@@ -35,7 +37,9 @@ export function CommentPanel({ photoId, currentUserId, isAdmin, className }: Com
             </div>
             <div className="shrink-0 border-t border-amber-200 p-4">
                 <CommentForm
+                    key={initialBody ?? ''}
                     photoId={photoId}
+                    initialBody={initialBody}
                     onSubmit={handleCreate}
                     isSubmitting={createMutation.isPending}
                 />
