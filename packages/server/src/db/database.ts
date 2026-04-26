@@ -379,6 +379,19 @@ const migrations: Migration[] = [
             CREATE INDEX idx_comment_mentions_mentioned_id ON comment_mentions(mentioned_id);
         `,
     },
+    {
+        version: 17,
+        description: 'Expand persons table with sex, dates, places, gedcom_id',
+        sql: `
+            ALTER TABLE persons ADD COLUMN sex TEXT;
+            ALTER TABLE persons ADD COLUMN birth_date TEXT;
+            ALTER TABLE persons ADD COLUMN death_date TEXT;
+            ALTER TABLE persons ADD COLUMN birth_place TEXT;
+            ALTER TABLE persons ADD COLUMN death_place TEXT;
+            ALTER TABLE persons ADD COLUMN gedcom_id TEXT;
+            CREATE UNIQUE INDEX idx_persons_gedcom_id ON persons(gedcom_id) WHERE gedcom_id IS NOT NULL;
+        `,
+    },
 ];
 
 /**

@@ -10,6 +10,12 @@ export interface StoredPerson {
     nickname: string | null;
     birthYear: number | null;
     notes: string | null;
+    sex: 'M' | 'F' | 'U' | null;
+    birthDate: string | null;
+    deathDate: string | null;
+    birthPlace: string | null;
+    deathPlace: string | null;
+    gedcomId: string | null;
     createdAt: string;
     createdBy: string | null;
 }
@@ -50,6 +56,12 @@ interface PersonRow {
     nickname: string | null;
     birth_year: number | null;
     notes: string | null;
+    sex: string | null;
+    birth_date: string | null;
+    death_date: string | null;
+    birth_place: string | null;
+    death_place: string | null;
+    gedcom_id: string | null;
     created_at: string;
     created_by: string | null;
 }
@@ -88,6 +100,12 @@ function rowToPerson(row: PersonRow): StoredPerson {
         nickname: row.nickname,
         birthYear: row.birth_year,
         notes: row.notes,
+        sex: (row.sex as 'M' | 'F' | 'U') ?? null,
+        birthDate: row.birth_date,
+        deathDate: row.death_date,
+        birthPlace: row.birth_place,
+        deathPlace: row.death_place,
+        gedcomId: row.gedcom_id,
         createdAt: row.created_at,
         createdBy: row.created_by,
     };
@@ -130,15 +148,46 @@ function rowToSeriesSubject(row: SeriesSubjectRow): StoredSeriesSubject {
 
 export function createPerson(
     fullName: string,
-    opts: { nickname?: string; birthYear?: number; notes?: string; createdBy?: string } = {},
+    opts: {
+        nickname?: string;
+        birthYear?: number;
+        notes?: string;
+        sex?: 'M' | 'F' | 'U';
+        birthDate?: string;
+        deathDate?: string;
+        birthPlace?: string;
+        deathPlace?: string;
+        gedcomId?: string;
+        createdBy?: string;
+    } = {},
 ): StoredPerson {
     const id = crypto.randomUUID();
     getDb()
         .prepare(
-            'INSERT INTO persons (id, full_name, nickname, birth_year, notes, created_by) VALUES (?, ?, ?, ?, ?, ?)',
+            `INSERT INTO persons
+             (id, full_name, nickname, birth_year, notes, sex, birth_date, death_date, birth_place, death_place, gedcom_id, created_by)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
-        .run(id, fullName, opts.nickname ?? null, opts.birthYear ?? null, opts.notes ?? null, opts.createdBy ?? null);
+        .run(
+            id,
+            fullName,
+            opts.nickname ?? null,
+            opts.birthYear ?? null,
+            opts.notes ?? null,
+            opts.sex ?? null,
+            opts.birthDate ?? null,
+            opts.deathDate ?? null,
+            opts.birthPlace ?? null,
+            opts.deathPlace ?? null,
+            opts.gedcomId ?? null,
+            opts.createdBy ?? null,
+        );
     return findPersonById(id)!;
+}
+
+export function findPersonByGedcomId(gedcomId: string): StoredPerson | undefined {
+    const row = getDb().prepare('SELECT * FROM persons WHERE gedcom_id = ?').get(gedcomId) as PersonRow | undefined;
+    return row ? rowToPerson(row) : undefined;
 }
 
 export function findPersonById(id: string): StoredPerson | undefined {
@@ -162,18 +211,38 @@ export function searchPersons(query: string): StoredPerson[] {
 
 export function updatePerson(
     id: string,
-    updates: { fullName?: string; nickname?: string | null; birthYear?: number | null; notes?: string | null },
+    updates: {
+        fullName?: string;
+        nickname?: string | null;
+        birthYear?: number | null;
+        notes?: string | null;
+        sex?: 'M' | 'F' | 'U' | null;
+        birthDate?: string | null;
+        deathDate?: string | null;
+        birthPlace?: string | null;
+        deathPlace?: string | null;
+    },
 ): StoredPerson {
     const current = findPersonById(id);
     if (!current) throw new Error(`Person not found: ${id}`);
 
     getDb()
-        .prepare('UPDATE persons SET full_name = ?, nickname = ?, birth_year = ?, notes = ? WHERE id = ?')
+        .prepare(
+            `UPDATE persons SET
+             full_name = ?, nickname = ?, birth_year = ?, notes = ?,
+             sex = ?, birth_date = ?, death_date = ?, birth_place = ?, death_place = ?
+             WHERE id = ?`,
+        )
         .run(
             updates.fullName ?? current.fullName,
             'nickname' in updates ? updates.nickname : current.nickname,
             'birthYear' in updates ? updates.birthYear : current.birthYear,
             'notes' in updates ? updates.notes : current.notes,
+            'sex' in updates ? updates.sex : current.sex,
+            'birthDate' in updates ? updates.birthDate : current.birthDate,
+            'deathDate' in updates ? updates.deathDate : current.deathDate,
+            'birthPlace' in updates ? updates.birthPlace : current.birthPlace,
+            'deathPlace' in updates ? updates.deathPlace : current.deathPlace,
             id,
         );
     return findPersonById(id)!;
