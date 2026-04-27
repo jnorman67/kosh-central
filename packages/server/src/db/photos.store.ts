@@ -102,6 +102,13 @@ export function createPhoto(
     return findPhotoById(photo.id)!;
 }
 
+export function getBundleIdForPhoto(photoId: string): string | null {
+    const row = getDb()
+        .prepare('SELECT bundle_id FROM photos WHERE id = ?')
+        .get(photoId) as { bundle_id: string | null } | undefined;
+    return row?.bundle_id ?? null;
+}
+
 export function getPhotoThumbnail(photoId: string): Buffer | null {
     const row = getDb()
         .prepare('SELECT thumbnail FROM photos WHERE id = ?')

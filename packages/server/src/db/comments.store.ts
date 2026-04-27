@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { getDb } from './database.js';
+import { getBundleIdForPhoto } from './photos.store.js';
 
 export type MentionType = 'user' | 'person';
 
@@ -27,7 +28,7 @@ export interface MentionInput {
 
 interface CommentRow {
     id: string;
-    photo_id: string;
+    bundle_id: string;
     author_id: string;
     author_display_name: string;
     body: string;
@@ -41,10 +42,10 @@ interface MentionRow {
     mentioned_id: string;
 }
 
-function rowToComment(row: CommentRow, mentions: StoredMention[]): StoredComment {
+function rowToComment(row: CommentRow, photoId: string, mentions: StoredMention[]): StoredComment {
     return {
         id: row.id,
-        photoId: row.photo_id,
+        photoId,
         authorId: row.author_id,
         authorDisplayName: row.author_display_name,
         body: row.body,
@@ -99,35 +100,41 @@ function validateMentions(mentions: MentionInput[]): void {
 }
 
 export function listCommentsForPhoto(photoId: string): StoredComment[] {
+    const bundleId = getBundleIdForPhoto(photoId);
+    if (!bundleId) return [];
     const rows = getDb()
         .prepare(
-            `SELECT c.id, c.photo_id, c.author_id, u.display_name AS author_display_name,
+            `SELECT c.id, c.bundle_id, c.author_id, u.display_name AS author_display_name,
                     c.body, c.created_at, c.edited_at
              FROM photo_comments c
              JOIN users u ON u.id = c.author_id
-             WHERE c.photo_id = ?
+             WHERE c.bundle_id = ?
              ORDER BY c.created_at ASC`,
         )
-        .all(photoId) as CommentRow[];
+        .all(bundleId) as CommentRow[];
 
     const mentionMap = fetchMentionsForComments(rows.map((r) => r.id));
-    return rows.map((r) => rowToComment(r, mentionMap.get(r.id) ?? []));
+    return rows.map((r) => rowToComment(r, photoId, mentionMap.get(r.id) ?? []));
 }
 
 export function findCommentById(id: string): StoredComment | undefined {
     const row = getDb()
         .prepare(
-            `SELECT c.id, c.photo_id, c.author_id, u.display_name AS author_display_name,
-                    c.body, c.created_at, c.edited_at
+            `SELECT c.id, c.bundle_id, c.author_id, u.display_name AS author_display_name,
+                    c.body, c.created_at, c.edited_at,
+                    (SELECT ph.id FROM photos ph
+                     WHERE ph.bundle_id = c.bundle_id AND ph.is_preferred = 1
+                     ORDER BY (ph.side = 'front') DESC
+                     LIMIT 1) AS representative_photo_id
              FROM photo_comments c
              JOIN users u ON u.id = c.author_id
              WHERE c.id = ?`,
         )
-        .get(id) as CommentRow | undefined;
+        .get(id) as (CommentRow & { representative_photo_id: string | null }) | undefined;
 
     if (!row) return undefined;
     const mentionMap = fetchMentionsForComments([id]);
-    return rowToComment(row, mentionMap.get(id) ?? []);
+    return rowToComment(row, row.representative_photo_id ?? '', mentionMap.get(id) ?? []);
 }
 
 export function createComment(
@@ -136,14 +143,16 @@ export function createComment(
     body: string,
     mentions: MentionInput[],
 ): StoredComment {
+    const bundleId = getBundleIdForPhoto(photoId);
+    if (!bundleId) throw new Error(`Photo ${photoId} has no bundle`);
     validateMentions(mentions);
     const id = crypto.randomUUID();
     const db = getDb();
 
     db.transaction(() => {
         db.prepare(
-            'INSERT INTO photo_comments (id, photo_id, author_id, body) VALUES (?, ?, ?, ?)',
-        ).run(id, photoId, authorId, body);
+            'INSERT INTO photo_comments (id, bundle_id, author_id, body) VALUES (?, ?, ?, ?)',
+        ).run(id, bundleId, authorId, body);
         insertMentions(id, mentions);
     })();
 

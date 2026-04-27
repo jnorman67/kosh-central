@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { getDb } from './database.js';
+import { getBundleIdForPhoto } from './photos.store.js';
 
 export type RelationshipType = 'parent-of' | 'spouse-of' | 'sibling-of' | 'friend-of';
 export type SubjectSource = 'manual' | 'auto';
@@ -100,7 +101,7 @@ interface RelationshipRow {
 }
 
 interface PhotoSubjectRow {
-    photo_id: string;
+    bundle_id: string;
     person_id: string;
     source: string;
     confidence: number | null;
@@ -161,9 +162,9 @@ function rowToRelationship(row: RelationshipRow): StoredRelationship {
     };
 }
 
-function rowToPhotoSubject(row: PhotoSubjectRow): StoredPhotoSubject {
+function rowToPhotoSubject(row: PhotoSubjectRow, photoId: string): StoredPhotoSubject {
     return {
-        photoId: row.photo_id,
+        photoId,
         personId: row.person_id,
         source: row.source as SubjectSource,
         confidence: row.confidence,
@@ -440,70 +441,70 @@ export function addPhotoSubject(
         createdBy?: string;
     } = {},
 ): StoredPhotoSubject {
+    const bundleId = getBundleIdForPhoto(photoId);
+    if (!bundleId) throw new Error(`Photo ${photoId} has no bundle`);
     const source = opts.source ?? 'manual';
     const verified = source === 'manual' ? 1 : 0;
     getDb()
         .prepare(
             `INSERT INTO photo_subjects
-             (photo_id, person_id, source, confidence, face_region, verified, created_by)
+             (bundle_id, person_id, source, confidence, face_region, verified, created_by)
              VALUES (?, ?, ?, ?, ?, ?, ?)`,
         )
-        .run(
-            photoId,
-            personId,
-            source,
-            opts.confidence ?? null,
-            opts.faceRegion ?? null,
-            verified,
-            opts.createdBy ?? null,
-        );
+        .run(bundleId, personId, source, opts.confidence ?? null, opts.faceRegion ?? null, verified, opts.createdBy ?? null);
     const row = getDb()
-        .prepare('SELECT * FROM photo_subjects WHERE photo_id = ? AND person_id = ?')
-        .get(photoId, personId) as PhotoSubjectRow;
-    return rowToPhotoSubject(row);
+        .prepare('SELECT * FROM photo_subjects WHERE bundle_id = ? AND person_id = ?')
+        .get(bundleId, personId) as PhotoSubjectRow;
+    return rowToPhotoSubject(row, photoId);
 }
 
 export function getPeopleForPhoto(photoId: string): StoredPhotoSubject[] {
+    const bundleId = getBundleIdForPhoto(photoId);
+    if (!bundleId) return [];
     const rows = getDb()
-        .prepare('SELECT * FROM photo_subjects WHERE photo_id = ? ORDER BY created_at')
-        .all(photoId) as PhotoSubjectRow[];
-    return rows.map(rowToPhotoSubject);
+        .prepare('SELECT * FROM photo_subjects WHERE bundle_id = ? ORDER BY created_at')
+        .all(bundleId) as PhotoSubjectRow[];
+    return rows.map((row) => rowToPhotoSubject(row, photoId));
 }
 
 export function getPeopleForPhotoEnriched(photoId: string): StoredPhotoSubjectEnriched[] {
+    const bundleId = getBundleIdForPhoto(photoId);
+    if (!bundleId) return [];
     const rows = getDb()
         .prepare(
             `SELECT ps.*, p.full_name, p.nickname
              FROM photo_subjects ps
              JOIN persons p ON ps.person_id = p.id
-             WHERE ps.photo_id = ?
+             WHERE ps.bundle_id = ?
              ORDER BY ps.created_at`,
         )
-        .all(photoId) as PhotoSubjectEnrichedRow[];
+        .all(bundleId) as PhotoSubjectEnrichedRow[];
     return rows.map((row) => ({
-        ...rowToPhotoSubject(row),
+        ...rowToPhotoSubject(row, photoId),
         fullName: row.full_name,
         nickname: row.nickname,
     }));
 }
 
 export function getPersonMentionSuggestionsForPhoto(photoId: string): PersonMentionSuggestion[] {
+    const bundleId = getBundleIdForPhoto(photoId);
+    if (!bundleId) return [];
     const rows = getDb()
         .prepare(
             `SELECT p.id, p.full_name, p.nickname, COUNT(cm.comment_id) AS mention_count
              FROM comment_mentions cm
              JOIN photo_comments c ON cm.comment_id = c.id
              JOIN persons p ON cm.mentioned_id = p.id
-             WHERE c.photo_id = ?
+             WHERE c.bundle_id = ?
                AND cm.mention_type = 'person'
                AND NOT EXISTS (
                    SELECT 1 FROM photo_subjects ps
-                   WHERE ps.photo_id = c.photo_id AND ps.person_id = p.id
+                   WHERE ps.bundle_id = c.bundle_id AND ps.person_id = p.id
                )
              GROUP BY p.id
              ORDER BY mention_count DESC`,
         )
-        .all(photoId) as PersonMentionSuggestionRow[];
+        .all(bundleId) as PersonMentionSuggestionRow[];
     return rows.map((row) => ({
         id: row.id,
         fullName: row.full_name,
@@ -514,22 +515,35 @@ export function getPersonMentionSuggestionsForPhoto(photoId: string): PersonMent
 
 export function getPhotosForPerson(personId: string): StoredPhotoSubject[] {
     const rows = getDb()
-        .prepare('SELECT * FROM photo_subjects WHERE person_id = ? ORDER BY created_at')
-        .all(personId) as PhotoSubjectRow[];
-    return rows.map(rowToPhotoSubject);
+        .prepare(
+            `SELECT ps.*,
+                (SELECT ph.id FROM photos ph
+                 WHERE ph.bundle_id = ps.bundle_id AND ph.is_preferred = 1
+                 ORDER BY (ph.side = 'front') DESC
+                 LIMIT 1) AS photo_id
+             FROM photo_subjects ps
+             WHERE ps.person_id = ?
+             ORDER BY ps.created_at`,
+        )
+        .all(personId) as (PhotoSubjectRow & { photo_id: string })[];
+    return rows.map((row) => rowToPhotoSubject(row, row.photo_id));
 }
 
 export function verifyPhotoSubject(photoId: string, personId: string): boolean {
+    const bundleId = getBundleIdForPhoto(photoId);
+    if (!bundleId) return false;
     const result = getDb()
-        .prepare('UPDATE photo_subjects SET verified = 1 WHERE photo_id = ? AND person_id = ?')
-        .run(photoId, personId);
+        .prepare('UPDATE photo_subjects SET verified = 1 WHERE bundle_id = ? AND person_id = ?')
+        .run(bundleId, personId);
     return result.changes > 0;
 }
 
 export function removePhotoSubject(photoId: string, personId: string): boolean {
+    const bundleId = getBundleIdForPhoto(photoId);
+    if (!bundleId) return false;
     const result = getDb()
-        .prepare('DELETE FROM photo_subjects WHERE photo_id = ? AND person_id = ?')
-        .run(photoId, personId);
+        .prepare('DELETE FROM photo_subjects WHERE bundle_id = ? AND person_id = ?')
+        .run(bundleId, personId);
     return result.changes > 0;
 }
 

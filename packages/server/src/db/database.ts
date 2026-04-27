@@ -1459,6 +1459,58 @@ const migrations: Migration[] = [
             ALTER TABLE photos ADD COLUMN thumbnail BLOB;
         `,
     },
+    {
+        version: 22,
+        description: 'Move photo_subjects and photo_comments to bundle_id so metadata survives photo re-scans',
+        sql: `
+            CREATE TABLE photo_subjects_new (
+                bundle_id TEXT NOT NULL REFERENCES bundles(id) ON DELETE CASCADE,
+                person_id TEXT NOT NULL REFERENCES persons(id) ON DELETE CASCADE,
+                source TEXT NOT NULL DEFAULT 'manual' CHECK(source IN ('manual', 'auto')),
+                confidence REAL,
+                face_region TEXT,
+                verified INTEGER NOT NULL DEFAULT 1 CHECK(verified IN (0, 1)),
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
+                PRIMARY KEY(bundle_id, person_id)
+            );
+            INSERT OR IGNORE INTO photo_subjects_new
+                    (bundle_id, person_id, source, confidence, face_region, verified, created_at, created_by)
+                SELECT p.bundle_id, ps.person_id, ps.source, ps.confidence,
+                       ps.face_region, ps.verified, ps.created_at, ps.created_by
+                FROM photo_subjects ps
+                JOIN photos p ON p.id = ps.photo_id
+                WHERE p.bundle_id IS NOT NULL;
+            DROP TABLE photo_subjects;
+            ALTER TABLE photo_subjects_new RENAME TO photo_subjects;
+            CREATE INDEX idx_photo_subjects_person_id ON photo_subjects(person_id);
+
+            CREATE TABLE photo_comments_new (
+                id TEXT PRIMARY KEY,
+                bundle_id TEXT NOT NULL REFERENCES bundles(id) ON DELETE CASCADE,
+                author_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                body TEXT NOT NULL CHECK(length(trim(body)) > 0),
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                edited_at TEXT
+            );
+            DELETE FROM comment_mentions
+                WHERE comment_id IN (
+                    SELECT pc.id FROM photo_comments pc
+                    JOIN photos p ON p.id = pc.photo_id
+                    WHERE p.bundle_id IS NULL
+                );
+            INSERT OR IGNORE INTO photo_comments_new
+                    (id, bundle_id, author_id, body, created_at, edited_at)
+                SELECT pc.id, p.bundle_id, pc.author_id, pc.body, pc.created_at, pc.edited_at
+                FROM photo_comments pc
+                JOIN photos p ON p.id = pc.photo_id
+                WHERE p.bundle_id IS NOT NULL;
+            DROP TABLE photo_comments;
+            ALTER TABLE photo_comments_new RENAME TO photo_comments;
+            CREATE INDEX idx_photo_comments_bundle_id ON photo_comments(bundle_id);
+            CREATE INDEX idx_photo_comments_author_id ON photo_comments(author_id);
+        `,
+    },
 ];
 
 /**
