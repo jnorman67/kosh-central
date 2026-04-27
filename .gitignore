@@ -35,3 +35,7 @@ deploy.zip
 
 # Proxied cover-thumbnail cache (regenerable)
 cover-cache/
+
+# Generated manifests (import artifacts, not source)
+packages/server/manifest.json
+packages/server/data/manifest.json
