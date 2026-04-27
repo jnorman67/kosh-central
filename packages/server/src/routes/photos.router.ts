@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { listFolders } from '../db/folders.store.js';
-import { findPhotoById, getPhotoLocations, importManifest, listPhotos, type PhotoManifestEntry } from '../db/photos.store.js';
+import { findPhotoById, getPhotoLocations, getPhotoThumbnail, importManifest, listPhotos, type PhotoManifestEntry } from '../db/photos.store.js';
 import { getRelationsForPhoto } from '../db/relations.store.js';
 import { getSeriesForPhoto } from '../db/series.store.js';
 import { createPhotoSubjectsRouter, createPhotoSubjectSuggestionsRouter } from './persons.router.js';
@@ -14,6 +14,23 @@ export function createPhotosRouter(): Router {
     /** List all cataloged photos. */
     router.get('/', (_req, res) => {
         res.json(listPhotos());
+    });
+
+    /** Serve the stored thumbnail for a photo (JPEG). */
+    router.get('/:photoId/thumbnail', (req, res) => {
+        const photo = findPhotoById(req.params.photoId);
+        if (!photo) {
+            res.status(404).json({ error: 'Photo not found' });
+            return;
+        }
+        const thumbnail = getPhotoThumbnail(req.params.photoId);
+        if (!thumbnail) {
+            res.status(404).json({ error: 'No thumbnail available' });
+            return;
+        }
+        res.setHeader('Content-Type', 'image/jpeg');
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        res.send(thumbnail);
     });
 
     /** Get a single photo with its locations, relations, and series. */

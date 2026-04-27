@@ -15,6 +15,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
+import sharp from "sharp";
 
 const IMAGE_EXTENSIONS = new Set([
   ".jpg",
@@ -52,6 +53,7 @@ interface ScannedFile {
   fileSize: number;
   folderName: string;
   localPath: string;
+  thumbnail?: string;
 }
 
 interface ManifestEntry extends ScannedFile {
@@ -171,6 +173,36 @@ function hashFile(filePath: string): Promise<string> {
   });
 }
 
+async function generateThumbnail(
+  filePath: string,
+  mimeType: string,
+): Promise<string | undefined> {
+  try {
+    let input: Buffer = await fsp.readFile(filePath);
+
+    if (mimeType === "image/heic" || mimeType === "image/heif") {
+      // heic-convert is a devDep; dynamically import to keep it optional
+      const heicConvert = await import("heic-convert");
+      input = Buffer.from(
+        await heicConvert.default({
+          buffer: input,
+          format: "JPEG",
+          quality: 0.85,
+        }),
+      );
+    }
+
+    const thumb = await sharp(input)
+      .resize(200, 200, { fit: "inside", withoutEnlargement: true })
+      .jpeg({ quality: 60 })
+      .toBuffer();
+
+    return thumb.toString("base64");
+  } catch {
+    return undefined;
+  }
+}
+
 async function scanFolderRecursive(
   rootPath: string,
   currentPath: string,
@@ -192,7 +224,9 @@ async function scanFolderRecursive(
     if (!IMAGE_EXTENSIONS.has(ext)) continue;
 
     const stat = await fsp.stat(fullPath);
+    const mimeType = MIME_MAP[ext] ?? "application/octet-stream";
     const contentHash = await hashFile(fullPath);
+    const thumbnail = await generateThumbnail(fullPath, mimeType);
     // Folder name is the file's containing dir, relative to the scan root,
     // normalized to forward slashes for cross-platform consistency.
     const folderName = path
@@ -203,10 +237,11 @@ async function scanFolderRecursive(
     entries.push({
       contentHash,
       fileName: dirEntry.name,
-      mimeType: MIME_MAP[ext] ?? "application/octet-stream",
+      mimeType,
       fileSize: stat.size,
       folderName,
       localPath: fullPath,
+      thumbnail,
     });
 
     const display = folderName

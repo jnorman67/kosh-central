@@ -1452,6 +1452,13 @@ const migrations: Migration[] = [
             ALTER TABLE persons ADD COLUMN portrait_photo_id TEXT REFERENCES photos(id) ON DELETE SET NULL;
         `,
     },
+    {
+        version: 21,
+        description: 'Add thumbnail BLOB to photos for recovery escape hatch',
+        sql: `
+            ALTER TABLE photos ADD COLUMN thumbnail BLOB;
+        `,
+    },
 ];
 
 /**
