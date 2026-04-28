@@ -6,16 +6,22 @@
  * Walks a root folder recursively, computes SHA-256 for each image, groups
  * files that share a base name (ignoring suffixes like `_a`/`_b`/`_back`) into
  * "bundles" representing one physical photograph, assigns each file a side
- * (front/back) and a heuristic preferred hint, and writes a JSON manifest.
+ * (front/back) and a heuristic preferred hint, and writes a kosh-manifest.json
+ * into each folder containing photos.
+ *
+ * OneDrive sync automatically pushes the written manifest files to the cloud,
+ * where the server picks them up via the Graph API.
  *
  * Usage:
- *   npx tsx scan-local.ts <root-path> [-o manifest.json]
+ *   npx tsx scan-local.ts <root-path> [--dry-run]
+ *
+ * Flags:
+ *   --dry-run   Scan and hash files but do not write any kosh-manifest.json files.
  */
 import crypto from "node:crypto";
 import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
-import sharp from "sharp";
 
 const IMAGE_EXTENSIONS = new Set([
   ".jpg",
@@ -43,6 +49,9 @@ const MIME_MAP: Record<string, string> = {
   ".heif": "image/heif",
 };
 
+/** Folder names (case-insensitive) that are silently skipped. */
+const SKIP_FOLDER_NAMES = new Set(["archive", "archived", "ignore", "ignored"]);
+
 type Side = "front" | "back";
 type Variant = "enhanced" | "original" | "back";
 
@@ -53,7 +62,6 @@ interface ScannedFile {
   fileSize: number;
   folderName: string;
   localPath: string;
-  thumbnail?: string;
 }
 
 interface ManifestEntry extends ScannedFile {
@@ -64,7 +72,7 @@ interface ManifestEntry extends ScannedFile {
   preferredHint: boolean;
 }
 
-interface Manifest {
+interface FolderManifest {
   scannedAt: string;
   photos: ManifestEntry[];
 }
@@ -83,15 +91,10 @@ const SUFFIX_PATTERNS: { pattern: RegExp; variant: Variant }[] = [
 ];
 
 interface ParsedName {
-  /** The filename with the variant suffix stripped (still includes no extension). */
   baseName: string;
   variant: Variant | "bare";
 }
 
-/**
- * Strip a known suffix from a basename and classify it. A bare name (no
- * recognized suffix) is the "original" front version.
- */
 function parseFileName(baseName: string): ParsedName {
   for (const { pattern, variant } of SUFFIX_PATTERNS) {
     if (pattern.test(baseName)) {
@@ -102,10 +105,7 @@ function parseFileName(baseName: string): ParsedName {
   return { baseName, variant: "bare" };
 }
 
-/**
- * Rank fronts so the enhanced variant wins as the default preferred. Lower is
- * better. Ties fall through to alphabetical fileName.
- */
+/** Lower rank = higher preference. Ties fall through to alphabetical fileName. */
 function frontRank(variant: ParsedName["variant"]): number {
   if (variant === "enhanced") return 0;
   if (variant === "bare") return 1;
@@ -113,7 +113,6 @@ function frontRank(variant: ParsedName["variant"]): number {
 }
 
 function buildBundles(files: ScannedFile[]): ManifestEntry[] {
-  // Group files by (folder, strippedBaseName). Each group becomes one bundle.
   interface GroupMember {
     file: ScannedFile;
     parsed: ParsedName;
@@ -143,20 +142,10 @@ function buildBundles(files: ScannedFile[]): ManifestEntry[] {
     backs.sort((a, b) => a.file.fileName.localeCompare(b.file.fileName));
 
     fronts.forEach((m, i) => {
-      out.push({
-        ...m.file,
-        bundleKey,
-        side: "front",
-        preferredHint: i === 0,
-      });
+      out.push({ ...m.file, bundleKey, side: "front", preferredHint: i === 0 });
     });
     backs.forEach((m, i) => {
-      out.push({
-        ...m.file,
-        bundleKey,
-        side: "back",
-        preferredHint: i === 0,
-      });
+      out.push({ ...m.file, bundleKey, side: "back", preferredHint: i === 0 });
     });
   }
 
@@ -173,118 +162,117 @@ function hashFile(filePath: string): Promise<string> {
   });
 }
 
-async function generateThumbnail(
-  filePath: string,
-  mimeType: string,
-): Promise<string | undefined> {
-  try {
-    let input: Buffer = await fsp.readFile(filePath);
-
-    if (mimeType === "image/heic" || mimeType === "image/heif") {
-      // heic-convert is a devDep; dynamically import to keep it optional
-      const heicConvert = await import("heic-convert");
-      input = Buffer.from(
-        await heicConvert.default({
-          buffer: input,
-          format: "JPEG",
-          quality: 0.85,
-        }),
-      );
-    }
-
-    const thumb = await sharp(input)
-      .resize(200, 200, { fit: "inside", withoutEnlargement: true })
-      .jpeg({ quality: 60 })
-      .toBuffer();
-
-    return thumb.toString("base64");
-  } catch {
-    return undefined;
-  }
+interface ScanStats {
+  photos: number;
+  bundles: number;
+  folders: number;
 }
 
-async function scanFolderRecursive(
+async function scanFolder(
   rootPath: string,
   currentPath: string,
-): Promise<ScannedFile[]> {
-  const entries: ScannedFile[] = [];
+  dryRun: boolean,
+  stats: ScanStats,
+): Promise<void> {
+  const folderName = path
+    .relative(rootPath, currentPath)
+    .split(path.sep)
+    .join("/");
+
+  const dirBasename = path.basename(currentPath).toLowerCase();
+  if (SKIP_FOLDER_NAMES.has(dirBasename)) {
+    process.stderr.write(`  [skip] ${folderName || "."}\n`);
+    return;
+  }
+
   const dirEntries = await fsp.readdir(currentPath, { withFileTypes: true });
+  const localFiles: ScannedFile[] = [];
+  const subdirs: string[] = [];
 
-  for (const dirEntry of dirEntries) {
-    const fullPath = path.join(currentPath, dirEntry.name);
-
-    if (dirEntry.isDirectory()) {
-      const subEntries = await scanFolderRecursive(rootPath, fullPath);
-      entries.push(...subEntries);
+  for (const entry of dirEntries) {
+    if (entry.isDirectory()) {
+      subdirs.push(path.join(currentPath, entry.name));
       continue;
     }
+    if (!entry.isFile()) continue;
 
-    if (!dirEntry.isFile()) continue;
-    const ext = path.extname(dirEntry.name).toLowerCase();
+    const ext = path.extname(entry.name).toLowerCase();
     if (!IMAGE_EXTENSIONS.has(ext)) continue;
 
+    const fullPath = path.join(currentPath, entry.name);
     const stat = await fsp.stat(fullPath);
     const mimeType = MIME_MAP[ext] ?? "application/octet-stream";
     const contentHash = await hashFile(fullPath);
-    const thumbnail = await generateThumbnail(fullPath, mimeType);
-    // Folder name is the file's containing dir, relative to the scan root,
-    // normalized to forward slashes for cross-platform consistency.
-    const folderName = path
-      .relative(rootPath, currentPath)
-      .split(path.sep)
-      .join("/");
+    const display = folderName ? `${folderName}/${entry.name}` : entry.name;
+    process.stderr.write(`  ${display} → ${contentHash.slice(0, 12)}…\n`);
 
-    entries.push({
+    localFiles.push({
       contentHash,
-      fileName: dirEntry.name,
+      fileName: entry.name,
       mimeType,
       fileSize: stat.size,
       folderName,
       localPath: fullPath,
-      thumbnail,
     });
-
-    const display = folderName
-      ? `${folderName}/${dirEntry.name}`
-      : dirEntry.name;
-    process.stderr.write(`  ${display} → ${contentHash.slice(0, 12)}…\n`);
   }
 
-  return entries;
+  if (localFiles.length > 0) {
+    const photos = buildBundles(localFiles);
+    const bundleCount = new Set(photos.map((p) => p.bundleKey)).size;
+    const manifest: FolderManifest = {
+      scannedAt: new Date().toISOString(),
+      photos,
+    };
+    const manifestPath = path.join(currentPath, "kosh-manifest.json");
+
+    if (dryRun) {
+      process.stderr.write(
+        `  [dry-run] would write ${manifestPath} (${photos.length} photos, ${bundleCount} bundles)\n`,
+      );
+    } else {
+      await fsp.writeFile(manifestPath, JSON.stringify(manifest, null, 2), "utf-8");
+      process.stderr.write(
+        `  → ${manifestPath} (${photos.length} photos, ${bundleCount} bundles)\n`,
+      );
+    }
+
+    stats.photos += photos.length;
+    stats.bundles += bundleCount;
+    stats.folders += 1;
+  }
+
+  for (const subdir of subdirs) {
+    await scanFolder(rootPath, subdir, dryRun, stats);
+  }
 }
 
 function printUsage(): void {
-  console.error("Usage: npx tsx scan-local.ts <root-path> [-o output.json]");
+  console.error("Usage: npx tsx scan-local.ts <root-path> [--dry-run]");
   console.error("");
   console.error(
-    "Walks <root-path> recursively. Each photo's folderName is its",
+    "Walks <root-path> recursively. Writes a kosh-manifest.json into each",
   );
-  console.error("containing directory relative to <root-path>.");
+  console.error(
+    "folder that contains images. OneDrive sync pushes the files to the cloud.",
+  );
+  console.error("");
+  console.error("  --dry-run   Hash files and report without writing manifests.");
   console.error("");
   console.error("Example:");
-  console.error(
-    '  npx tsx scan-local.ts "C:\\Users\\Jim\\OneDrive" -o manifest.json',
-  );
+  console.error('  npx tsx scan-local.ts "C:\\Users\\Jim\\OneDrive\\Photos"');
 }
 
 async function main() {
-  const args = process.argv.slice(2);
-  const outputIdx = args.indexOf("-o");
-
-  let outputPath: string | null = null;
-  if (outputIdx !== -1) {
-    outputPath = args[outputIdx + 1];
-    args.splice(outputIdx, 2); // remove -o and its value from args
-  }
-
-  const [rootPath] = args;
+  const args = process.argv.slice(2).filter((a) => a !== "");
+  const dryRun = args.includes("--dry-run");
+  const positional = args.filter((a) => !a.startsWith("--"));
+  const [rootPath] = positional;
 
   if (!rootPath) {
     printUsage();
     process.exit(1);
   }
 
-  // Verify root exists
   try {
     const stat = await fsp.stat(rootPath);
     if (!stat.isDirectory()) {
@@ -296,26 +284,15 @@ async function main() {
     process.exit(1);
   }
 
-  console.error(`Scanning root: ${rootPath}`);
-  const scanned = await scanFolderRecursive(rootPath, rootPath);
-  const photos = buildBundles(scanned);
-  const bundleCount = new Set(photos.map((p) => p.bundleKey)).size;
-  const manifest: Manifest = {
-    scannedAt: new Date().toISOString(),
-    photos,
-  };
+  if (dryRun) process.stderr.write("[dry-run mode — no files will be written]\n\n");
+  process.stderr.write(`Scanning: ${rootPath}\n\n`);
 
-  console.error(
-    `\nDone. ${photos.length} photos across ${bundleCount} bundles.`,
+  const stats: ScanStats = { photos: 0, bundles: 0, folders: 0 };
+  await scanFolder(rootPath, rootPath, dryRun, stats);
+
+  process.stderr.write(
+    `\nDone. ${stats.photos} photos, ${stats.bundles} bundles across ${stats.folders} folders.\n`,
   );
-
-  const json = JSON.stringify(manifest, null, 2);
-  if (outputPath) {
-    await fsp.writeFile(outputPath, json, "utf-8");
-    console.error(`Manifest written to ${outputPath}`);
-  } else {
-    process.stdout.write(json + "\n");
-  }
 }
 
 main().catch((err) => {
