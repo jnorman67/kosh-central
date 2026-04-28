@@ -104,8 +104,10 @@ To get a sharing URL: right-click a folder in OneDrive > **Share** > **Anyone wi
 
 ```
 cd c:\vc\kosh-central
-npx tsx .\packages\server\scripts\scan-local.ts "C:\Users\jnorm\OneDrive\Photo Vault" -o .\packages\server\manifest.json
+npx tsx .\packages\server\scripts\scan-local.ts "C:\Users\jnorm\OneDrive\Photo Vault"
 ```
+
+The scanner walks the root path recursively and writes a `kosh-manifest.json` into each subfolder that contains images. OneDrive sync pushes those files to the cloud. Add `--dry-run` to hash files and report without writing anything.
 
 ## Running in Production (locally)
 
