@@ -2,8 +2,9 @@ import { Router } from 'express';
 import { requireAdmin } from '../auth/auth.middleware.js';
 import { setPreferredPhoto } from '../db/bundles.store.js';
 import { findPhotoById } from '../db/photos.store.js';
+import type { ManifestSyncService } from '../services/manifest-sync.service.js';
 
-export function createPhotosAdminRouter(): Router {
+export function createPhotosAdminRouter(manifestSyncService: ManifestSyncService): Router {
     const router = Router();
     router.use(requireAdmin);
 
@@ -27,6 +28,17 @@ export function createPhotosAdminRouter(): Router {
         } catch (err) {
             console.error('Set preferred photo error:', err);
             res.status(500).json({ error: 'Failed to set preferred photo' });
+        }
+    });
+
+    /** Trigger an incremental sync of all kosh-manifest.json files from OneDrive. */
+    router.post('/sync', async (_req, res) => {
+        try {
+            const result = await manifestSyncService.sync();
+            res.json(result);
+        } catch (err) {
+            console.error('Manifest sync error:', err);
+            res.status(500).json({ error: 'Manifest sync failed' });
         }
     });
 

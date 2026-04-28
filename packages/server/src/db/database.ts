@@ -1511,6 +1511,18 @@ const migrations: Migration[] = [
             CREATE INDEX idx_photo_comments_author_id ON photo_comments(author_id);
         `,
     },
+    {
+        version: 23,
+        description: 'Track per-folder manifest syncs to enable incremental OneDrive import',
+        sql: `
+            CREATE TABLE manifest_syncs (
+                item_id    TEXT PRIMARY KEY,
+                folder_name TEXT NOT NULL,
+                scanned_at  TEXT NOT NULL,
+                synced_at   TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+        `,
+    },
 ];
 
 /**

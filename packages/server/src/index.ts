@@ -7,9 +7,8 @@ import { fileURLToPath } from 'node:url';
 import { requireAuth } from './auth/auth.middleware.js';
 import { MsalService } from './auth/msal.service.js';
 import { initDb } from './db/database.js';
-import { listFolders, seedFoldersIfEmpty } from './db/folders.store.js';
-import { getDb } from './db/database.js';
-import { importManifest, type PhotoManifestEntry } from './db/photos.store.js';
+import { seedFoldersIfEmpty } from './db/folders.store.js';
+import { ManifestSyncService } from './services/manifest-sync.service.js';
 import { createAuthRouter } from './routes/auth.router.js';
 import { createFavoritesRouter } from './routes/favorites.router.js';
 import { createFoldersAdminRouter } from './routes/folders-admin.router.js';
@@ -45,45 +44,6 @@ boot('initDb...');
 initDb();
 boot('seedFolders...');
 seedFoldersIfEmpty();
-boot('loadManifest...');
-loadManifest();
-boot('loadManifest done');
-
-function loadManifest(): void {
-    // Import is idempotent but expensive (tens of thousands of rows in one txn)
-    // and races with Litestream at startup. Once the DB is populated, skip it.
-    // Set KOSH_FORCE_MANIFEST_IMPORT=1 to force re-import after scanner changes.
-    if (process.env.KOSH_FORCE_MANIFEST_IMPORT !== '1') {
-        const { count } = getDb().prepare('SELECT COUNT(*) AS count FROM photos').get() as { count: number };
-        if (count > 0) {
-            console.log(`Manifest import skipped: ${count} photos already in DB (set KOSH_FORCE_MANIFEST_IMPORT=1 to force)`);
-            return;
-        }
-    }
-
-    const manifestPath = process.env.KOSH_DATA_DIR
-        ? path.join(process.env.KOSH_DATA_DIR, 'manifest.json')
-        : path.resolve(import.meta.dirname, '../data/manifest.json');
-    if (!fs.existsSync(manifestPath)) {
-        console.log(`Manifest not found at ${manifestPath} — skipping import`);
-        return;
-    }
-
-    const raw = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as {
-        photos?: PhotoManifestEntry[];
-    };
-
-    const photoCount = raw.photos?.length ?? 0;
-    console.log(`Manifest: ${photoCount} photos in ${manifestPath}`);
-
-    if (!photoCount) return;
-
-    const result = importManifest(raw.photos!, listFolders().map((f) => f.folderPath));
-    console.log(
-        `Manifest import: ${result.created} new photos, ${result.existing} already known, ` +
-            `${result.bundles} bundles referenced, ${result.seriesMembers} folder-series memberships`,
-    );
-}
 
 const AZURE_CLIENT_ID = process.env.AZURE_CLIENT_ID;
 if (!AZURE_CLIENT_ID) {
@@ -105,6 +65,17 @@ if (!msalService.isAuthenticated()) {
     await msalService.authenticate();
 }
 const oneDriveService = new OneDriveService(msalService);
+const manifestSyncService = new ManifestSyncService(msalService);
+
+// Run an incremental manifest sync in the background on startup.
+// Fire-and-forget: the server is ready immediately; new photos trickle in as sync completes.
+manifestSyncService.sync().then((r) => {
+    if (r.errors.length) console.error('Manifest sync errors:', r.errors);
+    console.log(
+        `Manifest sync complete: ${r.foldersImported} imported, ${r.foldersUpToDate} up-to-date, ` +
+        `${r.photosCreated} new photos`,
+    );
+}).catch((err) => console.error('Manifest sync failed:', err));
 
 // Regenerable cache of proxied cover thumbnail bytes. Defaults vary by environment because
 // Container Apps' /home is SMB-backed (slow for cache traffic) while App Service's /home is
@@ -125,7 +96,7 @@ app.get('/api/version', (_req, res) => {
 });
 app.use('/api/auth', createAuthRouter());
 app.use('/api/admin/folders', requireAuth, createFoldersAdminRouter(oneDriveService));
-app.use('/api/admin/photos', requireAuth, createPhotosAdminRouter());
+app.use('/api/admin/photos', requireAuth, createPhotosAdminRouter(manifestSyncService));
 app.use('/api/favorites', requireAuth, createFavoritesRouter(oneDriveService));
 app.use('/api/folders', requireAuth, createFoldersRouter(oneDriveService, thumbnailCache));
 app.use('/api/photos', requireAuth, createPhotosRouter());
