@@ -2,6 +2,10 @@
 
 Photo viewer for Microsoft 365 Personal OneDrive folders. Displays photos one-by-one in letterbox style, with a layout designed to support future annotation and collaboration features.
 
+## Purpose
+
+The prime purpose of this site is **preservation**: the photos already exist in OneDrive; what the site exists to do is capture what people *know about* those photos — who is in them, when they were taken, what was happening — and keep that knowledge safe for as long as the photos themselves survive. The site is a failure if, someday, the things users write and assert about the photos are lost while the photos still remain.
+
 ## Architecture
 
 - **Frontend** (`packages/client`): Vite + React 19, TypeScript, Tailwind CSS, shadcn/ui, React Router, TanStack React Query
