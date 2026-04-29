@@ -27,7 +27,7 @@ export function FolderSelector({ folders, selectedId, onSelect, isLoading }: Fol
         <div className="flex min-w-0 flex-1 items-center gap-3 px-2 py-2 sm:flex-none sm:px-4">
             <span className="hidden text-sm font-medium sm:inline">Album</span>
             <Select value={selectedId ?? undefined} onValueChange={onSelect}>
-                <SelectTrigger className="min-w-0 flex-1 sm:w-[240px] sm:flex-none">
+                <SelectTrigger className="min-w-0 flex-1 sm:w-[360px] sm:flex-none">
                     <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
