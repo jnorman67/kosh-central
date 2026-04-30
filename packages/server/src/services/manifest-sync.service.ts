@@ -62,7 +62,7 @@ export class ManifestSyncService {
                 const refs = await this.findManifestFiles(folder.sharingUrl);
                 result.foldersChecked += refs.length;
                 for (const ref of refs) {
-                    await this.processManifestFile(ref, folderRoots, result);
+                    await this.processManifestFile(ref, folder.folderPath, folderRoots, result);
                 }
             } catch (err) {
                 result.errors.push(`${folder.slug}: ${(err as Error).message}`);
@@ -121,6 +121,7 @@ export class ManifestSyncService {
 
     private async processManifestFile(
         ref: ManifestFileRef,
+        folderPath: string,
         folderRoots: string[],
         result: ManifestSyncResult,
     ): Promise<void> {
@@ -145,12 +146,26 @@ export class ManifestSyncService {
             return;
         }
 
-        const activeHashes = new Set(raw.photos.map((p) => p.contentHash));
-        for (const folderName of new Set(raw.photos.map((p) => p.folderName))) {
-            result.photosStaleRemoved += this.removeStalePhotos(folderName, activeHashes);
-        }
+        // Derive the absolute folder path from where the manifest lives in OneDrive.
+        // ref.folderName is the subfolder path within the sharing-URL root (empty for the root itself).
+        const absoluteFolderPath = ref.folderName ? `${folderPath}/${ref.folderName}` : folderPath;
 
-        const importResult = importManifest(raw.photos, folderRoots);
+        // Normalise each entry so folderName and bundleKey are absolute regardless
+        // of what root the scanner was run from. bundleKey may already carry the full
+        // path prefix (old scanner format) or just the local base name (new format);
+        // either way we extract the local part after the last "::" and reconstruct.
+        const photos = raw.photos.map((p) => ({
+            ...p,
+            folderName: absoluteFolderPath,
+            bundleKey: p.bundleKey
+                ? `${absoluteFolderPath}::${p.bundleKey.includes('::') ? p.bundleKey.split('::').pop()! : p.bundleKey}`
+                : p.bundleKey,
+        }));
+
+        const activeHashes = new Set(photos.map((p) => p.contentHash));
+        result.photosStaleRemoved += this.removeStalePhotos(absoluteFolderPath, activeHashes);
+
+        const importResult = importManifest(photos, folderRoots);
         result.photosCreated += importResult.created;
         result.photosExisting += importResult.existing;
         result.foldersImported++;

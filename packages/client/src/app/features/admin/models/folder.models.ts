@@ -37,3 +37,13 @@ export interface ImportResponse {
     created: number;
     updated: number;
 }
+
+export interface ManifestSyncResult {
+    foldersChecked: number;
+    foldersImported: number;
+    foldersUpToDate: number;
+    photosCreated: number;
+    photosExisting: number;
+    photosStaleRemoved: number;
+    errors: string[];
+}

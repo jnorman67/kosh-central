@@ -64,7 +64,9 @@ export const createAdminFoldersQueries = (service: AdminFoldersService) => {
         });
     };
 
-    return { useListFolders, useCreateFolder, useUpdateFolder, useDeleteFolder, useImportFolders, useReorderFolders };
+    const useSyncPhotos = () => useMutation({ mutationFn: () => service.syncPhotos() });
+
+    return { useListFolders, useCreateFolder, useUpdateFolder, useDeleteFolder, useImportFolders, useReorderFolders, useSyncPhotos };
 };
 
 export type AdminFoldersQueries = ReturnType<typeof createAdminFoldersQueries>;

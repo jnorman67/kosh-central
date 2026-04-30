@@ -123,6 +123,8 @@ function buildBundles(files: ScannedFile[]): ManifestEntry[] {
     const ext = path.extname(file.fileName);
     const baseName = path.basename(file.fileName, ext);
     const parsed = parseFileName(baseName);
+    // Group key includes folderName so subfolders within one scan stay separate,
+    // but the emitted bundleKey is local-only — the server prepends the absolute path.
     const key = `${file.folderName}::${parsed.baseName.toLowerCase()}`;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key)!.push({ file, parsed });
@@ -130,7 +132,8 @@ function buildBundles(files: ScannedFile[]): ManifestEntry[] {
 
   const out: ManifestEntry[] = [];
 
-  for (const [bundleKey, members] of groups) {
+  for (const [, members] of groups) {
+    const localBundleKey = members[0].parsed.baseName.toLowerCase();
     const fronts = members.filter((m) => m.parsed.variant !== "back");
     const backs = members.filter((m) => m.parsed.variant === "back");
 
@@ -141,11 +144,13 @@ function buildBundles(files: ScannedFile[]): ManifestEntry[] {
     );
     backs.sort((a, b) => a.file.fileName.localeCompare(b.file.fileName));
 
+    // folderName is omitted (empty) — the manifest is relative to its own folder.
+    // The server derives the absolute folder path from where it finds the manifest.
     fronts.forEach((m, i) => {
-      out.push({ ...m.file, bundleKey, side: "front", preferredHint: i === 0 });
+      out.push({ ...m.file, folderName: "", bundleKey: localBundleKey, side: "front", preferredHint: i === 0 });
     });
     backs.forEach((m, i) => {
-      out.push({ ...m.file, bundleKey, side: "back", preferredHint: i === 0 });
+      out.push({ ...m.file, folderName: "", bundleKey: localBundleKey, side: "back", preferredHint: i === 0 });
     });
   }
 

@@ -21,13 +21,13 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { hideSplash } from '@/lib/splash';
 import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { ArrowLeft, Download, Plus, Upload } from 'lucide-react';
+import { ArrowLeft, Download, Plus, RefreshCw, Upload } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 export function FoldersAdminPage() {
     const navigate = useNavigate();
-    const { useListFolders, useCreateFolder, useUpdateFolder, useDeleteFolder, useImportFolders, useReorderFolders } =
+    const { useListFolders, useCreateFolder, useUpdateFolder, useDeleteFolder, useImportFolders, useReorderFolders, useSyncPhotos } =
         useAdminFoldersQueries();
     const service = useAdminFoldersService();
 
@@ -40,6 +40,7 @@ export function FoldersAdminPage() {
     const deleteFolder = useDeleteFolder();
     const importFolders = useImportFolders();
     const reorderFolders = useReorderFolders();
+    const syncPhotos = useSyncPhotos();
 
     const [formMode, setFormMode] = useState<'create' | 'edit' | null>(null);
     const [editing, setEditing] = useState<AdminFolder | null>(null);
@@ -124,6 +125,15 @@ export function FoldersAdminPage() {
         return result;
     }
 
+    async function handleSync() {
+        const result = await syncPhotos.mutateAsync();
+        const parts = [`${result.foldersImported} imported`, `${result.foldersUpToDate} up to date`];
+        if (result.photosCreated > 0) parts.push(`${result.photosCreated} new photos`);
+        if (result.photosStaleRemoved > 0) parts.push(`${result.photosStaleRemoved} stale removed`);
+        if (result.errors.length > 0) parts.push(`${result.errors.length} errors`);
+        setToast(`Sync complete — ${parts.join(', ')}`);
+    }
+
     return (
         <ViewerLayout
             header={
@@ -150,6 +160,10 @@ export function FoldersAdminPage() {
                         <div className="flex flex-wrap items-center justify-between gap-2">
                             <h1 className="text-xl font-semibold">Folders</h1>
                             <div className="flex items-center gap-2">
+                                <Button variant="outline" size="sm" onClick={handleSync} disabled={syncPhotos.isPending}>
+                                    <RefreshCw className={`h-4 w-4 ${syncPhotos.isPending ? 'animate-spin' : ''}`} />
+                                    {syncPhotos.isPending ? 'Syncing…' : 'Sync photos'}
+                                </Button>
                                 <Button variant="outline" size="sm" asChild>
                                     <a href={service.exportUrl()} download>
                                         <Download className="h-4 w-4" />

@@ -1,4 +1,4 @@
-import type { AdminFolder, FolderExport, FolderInput, ImportResponse } from '@/app/features/admin/models/folder.models';
+import type { AdminFolder, FolderExport, FolderInput, ImportResponse, ManifestSyncResult } from '@/app/features/admin/models/folder.models';
 import { apiFetch } from '@/lib/api-client';
 
 export class AdminFoldersService {
@@ -32,6 +32,10 @@ export class AdminFoldersService {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ slugs }),
         });
+    }
+
+    async syncPhotos(): Promise<ManifestSyncResult> {
+        return apiFetch<ManifestSyncResult>('/api/admin/photos/sync', { method: 'POST' });
     }
 
     async importFolders(folders: FolderInput[], mode: 'upsert' | 'replace'): Promise<ImportResponse> {

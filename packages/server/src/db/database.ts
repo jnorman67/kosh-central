@@ -1523,6 +1523,22 @@ const migrations: Migration[] = [
             );
         `,
     },
+    {
+        version: 24,
+        description: 'Remove photo_location records with empty folder_name left by wrong-root scanner runs',
+        fn: (db) => {
+            // Photos whose only locations have folder_name='' will become uncataloged;
+            // clear their bundle membership so they surface in the viewer as uncataloged
+            // rather than silently disappearing from bundles.
+            db.prepare(`
+                UPDATE photos SET bundle_id = NULL, side = NULL, is_preferred = 0
+                WHERE bundle_id IS NOT NULL
+                  AND id IN     (SELECT photo_id FROM photo_locations WHERE folder_name = '')
+                  AND id NOT IN (SELECT photo_id FROM photo_locations WHERE folder_name != '')
+            `).run();
+            db.prepare(`DELETE FROM photo_locations WHERE folder_name = ''`).run();
+        },
+    },
 ];
 
 /**
