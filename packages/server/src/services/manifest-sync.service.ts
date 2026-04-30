@@ -9,6 +9,7 @@ export interface ManifestSyncResult {
     foldersUpToDate: number;
     photosCreated: number;
     photosExisting: number;
+    photosStaleRemoved: number;
     errors: string[];
 }
 
@@ -52,6 +53,7 @@ export class ManifestSyncService {
             foldersUpToDate: 0,
             photosCreated: 0,
             photosExisting: 0,
+            photosStaleRemoved: 0,
             errors: [],
         };
 
@@ -143,6 +145,11 @@ export class ManifestSyncService {
             return;
         }
 
+        const activeHashes = new Set(raw.photos.map((p) => p.contentHash));
+        for (const folderName of new Set(raw.photos.map((p) => p.folderName))) {
+            result.photosStaleRemoved += this.removeStalePhotos(folderName, activeHashes);
+        }
+
         const importResult = importManifest(raw.photos, folderRoots);
         result.photosCreated += importResult.created;
         result.photosExisting += importResult.existing;
@@ -158,7 +165,48 @@ export class ManifestSyncService {
         `).run(ref.itemId, ref.folderName, raw.scannedAt);
 
         console.log(
-            `Manifest sync: ${ref.folderName || 'root'} — ${importResult.created} new, ${importResult.existing} existing`,
+            `Manifest sync: ${ref.folderName || 'root'} — ${importResult.created} new, ${importResult.existing} existing, ${result.photosStaleRemoved} stale removed`,
         );
+    }
+
+    /**
+     * For a single folder, delete location records for photos absent from the
+     * new manifest, then clear bundle membership for any photo that has no
+     * remaining locations. Photo rows themselves are kept as content-addressed
+     * preservation records.
+     */
+    private removeStalePhotos(folderName: string, activeHashes: Set<string>): number {
+        const db = getDb();
+        interface Row { id: string; content_hash: string; bundle_id: string | null; side: string | null }
+
+        const inFolder = db.prepare(`
+            SELECT p.id, p.content_hash, p.bundle_id, p.side
+            FROM photos p
+            JOIN photo_locations l ON l.photo_id = p.id
+            WHERE l.folder_name = ? COLLATE NOCASE
+        `).all(folderName) as Row[];
+
+        const stale = inFolder.filter((p) => !activeHashes.has(p.content_hash));
+        if (stale.length === 0) return 0;
+
+        const deleteLocation = db.prepare(
+            'DELETE FROM photo_locations WHERE photo_id = ? AND folder_name = ? COLLATE NOCASE',
+        );
+        const countLocations = db.prepare('SELECT COUNT(*) as cnt FROM photo_locations WHERE photo_id = ?');
+        const clearBundle = db.prepare(
+            'UPDATE photos SET bundle_id = NULL, side = NULL, is_preferred = 0 WHERE id = ?',
+        );
+
+        db.transaction(() => {
+            for (const photo of stale) {
+                deleteLocation.run(photo.id, folderName);
+                const { cnt } = countLocations.get(photo.id) as { cnt: number };
+                if (cnt === 0 && (photo.bundle_id || photo.side)) {
+                    clearBundle.run(photo.id);
+                }
+            }
+        })();
+
+        return stale.length;
     }
 }
