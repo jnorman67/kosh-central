@@ -4,15 +4,17 @@ import { TableCell, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, Pencil, Trash2 } from 'lucide-react';
+import { GripVertical, Pencil, RefreshCw, Trash2 } from 'lucide-react';
 
 interface Props {
     folder: AdminFolder;
     onEdit: (folder: AdminFolder) => void;
     onDelete: (folder: AdminFolder) => void;
+    onSync: (folder: AdminFolder) => void;
+    isSyncing: boolean;
 }
 
-export function SortableFolderRow({ folder, onEdit, onDelete }: Props) {
+export function SortableFolderRow({ folder, onEdit, onDelete, onSync, isSyncing }: Props) {
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
         id: folder.slug,
     });
@@ -58,6 +60,14 @@ export function SortableFolderRow({ folder, onEdit, onDelete }: Props) {
             </TableCell>
             <TableCell className="text-right">
                 <div className="flex justify-end gap-1">
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button variant="ghost" size="icon" onClick={() => onSync(folder)} disabled={isSyncing} aria-label="Sync">
+                                <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>{isSyncing ? 'Syncing…' : 'Sync photos'}</TooltipContent>
+                    </Tooltip>
                     <Tooltip>
                         <TooltipTrigger asChild>
                             <Button variant="ghost" size="icon" onClick={() => onEdit(folder)} aria-label="Edit">

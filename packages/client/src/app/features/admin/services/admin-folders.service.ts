@@ -38,6 +38,10 @@ export class AdminFoldersService {
         return apiFetch<ManifestSyncResult>('/api/admin/photos/sync', { method: 'POST' });
     }
 
+    async syncFolder(slug: string): Promise<ManifestSyncResult> {
+        return apiFetch<ManifestSyncResult>(`/api/admin/photos/sync/${encodeURIComponent(slug)}`, { method: 'POST' });
+    }
+
     async importFolders(folders: FolderInput[], mode: 'upsert' | 'replace'): Promise<ImportResponse> {
         return apiFetch<ImportResponse>('/api/admin/folders/import', {
             method: 'POST',

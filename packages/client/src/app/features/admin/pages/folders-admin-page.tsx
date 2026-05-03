@@ -27,8 +27,16 @@ import { useNavigate } from 'react-router-dom';
 
 export function FoldersAdminPage() {
     const navigate = useNavigate();
-    const { useListFolders, useCreateFolder, useUpdateFolder, useDeleteFolder, useImportFolders, useReorderFolders, useSyncPhotos } =
-        useAdminFoldersQueries();
+    const {
+        useListFolders,
+        useCreateFolder,
+        useUpdateFolder,
+        useDeleteFolder,
+        useImportFolders,
+        useReorderFolders,
+        useSyncPhotos,
+        useSyncFolder,
+    } = useAdminFoldersQueries();
     const service = useAdminFoldersService();
 
     const { data, isLoading, error } = useListFolders();
@@ -41,8 +49,10 @@ export function FoldersAdminPage() {
     const importFolders = useImportFolders();
     const reorderFolders = useReorderFolders();
     const syncPhotos = useSyncPhotos();
+    const syncFolder = useSyncFolder();
 
     const [formMode, setFormMode] = useState<'create' | 'edit' | null>(null);
+    const [syncingSlug, setSyncingSlug] = useState<string | null>(null);
     const [editing, setEditing] = useState<AdminFolder | null>(null);
     const [importOpen, setImportOpen] = useState(false);
     const [deleting, setDeleting] = useState<AdminFolder | null>(null);
@@ -123,6 +133,20 @@ export function FoldersAdminPage() {
                 : `Imported folders: ${result.created} created, ${result.updated} updated`,
         );
         return result;
+    }
+
+    async function handleSyncFolder(folder: AdminFolder) {
+        setSyncingSlug(folder.slug);
+        try {
+            const result = await syncFolder.mutateAsync(folder.slug);
+            const parts = [`${result.foldersImported} imported`, `${result.foldersUpToDate} up to date`];
+            if (result.photosCreated > 0) parts.push(`${result.photosCreated} new photos`);
+            if (result.photosStaleRemoved > 0) parts.push(`${result.photosStaleRemoved} stale removed`);
+            if (result.errors.length > 0) parts.push(`${result.errors.length} errors`);
+            setToast(`${folder.displayName} sync — ${parts.join(', ')}`);
+        } finally {
+            setSyncingSlug(null);
+        }
     }
 
     async function handleSync() {
@@ -230,6 +254,8 @@ export function FoldersAdminPage() {
                                                         folder={folder}
                                                         onEdit={openEdit}
                                                         onDelete={setDeleting}
+                                                        onSync={handleSyncFolder}
+                                                        isSyncing={syncingSlug === folder.slug}
                                                     />
                                                 ))}
                                             </SortableContext>

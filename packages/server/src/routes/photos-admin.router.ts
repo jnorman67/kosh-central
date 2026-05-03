@@ -42,5 +42,18 @@ export function createPhotosAdminRouter(manifestSyncService: ManifestSyncService
         }
     });
 
+    /** Trigger an incremental sync for a single folder. */
+    router.post('/sync/:folderId', async (req, res) => {
+        try {
+            const result = await manifestSyncService.syncOne(req.params.folderId);
+            res.json(result);
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : 'Manifest sync failed';
+            const status = msg.startsWith('Folder not found') ? 404 : 500;
+            console.error('Manifest sync error:', err);
+            res.status(status).json({ error: msg });
+        }
+    });
+
     return router;
 }

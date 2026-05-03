@@ -1,7 +1,7 @@
-import type { MsalService } from '../auth/msal.service.js';
-import { getDb } from '../db/database.js';
-import { listFolders } from '../db/folders.store.js';
-import { importManifest, type PhotoManifestEntry } from '../db/photos.store.js';
+import type { MsalService } from "../auth/msal.service.js";
+import { getDb } from "../db/database.js";
+import { findFolderBySlug, listFolders } from "../db/folders.store.js";
+import { importManifest, type PhotoManifestEntry } from "../db/photos.store.js";
 
 export interface ManifestSyncResult {
     foldersChecked: number;
@@ -22,7 +22,7 @@ interface ManifestFileRef {
 type GraphItem = {
     id: string;
     name: string;
-    '@microsoft.graph.downloadUrl'?: string;
+    "@microsoft.graph.downloadUrl"?: string;
     file?: { mimeType: string };
     folder?: object;
     parentReference?: { driveId?: string };
@@ -30,23 +30,35 @@ type GraphItem = {
 
 type GraphResponse = {
     value?: GraphItem[];
-    '@odata.nextLink'?: string;
+    "@odata.nextLink"?: string;
 };
 
 const FETCH_TIMEOUT_MS = 30_000;
-const SKIP_FOLDER_NAMES = new Set(['archive', 'archived', 'ignore', 'ignored']);
+const SKIP_FOLDER_NAMES = new Set(["archive", "archived", "ignore", "ignored"]);
 
 function encodeSharingUrl(url: string): string {
-    const base64 = Buffer.from(url).toString('base64');
-    return `u!${base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')}`;
+    const base64 = Buffer.from(url).toString("base64");
+    return `u!${base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "")}`;
 }
 
 export class ManifestSyncService {
     constructor(private msalService: MsalService) {}
 
     async sync(): Promise<ManifestSyncResult> {
-        const folders = listFolders();
-        const folderRoots = folders.map((f) => f.folderPath);
+        return this.syncFolders(listFolders());
+    }
+
+    async syncOne(slug: string): Promise<ManifestSyncResult> {
+        const folder = findFolderBySlug(slug);
+        if (!folder) throw new Error(`Folder not found: ${slug}`);
+        return this.syncFolders([folder], true);
+    }
+
+    private async syncFolders(
+        folders: ReturnType<typeof listFolders>,
+        force = false,
+    ): Promise<ManifestSyncResult> {
+        const folderRoots = listFolders().map((f) => f.folderPath);
         const result: ManifestSyncResult = {
             foldersChecked: 0,
             foldersImported: 0,
@@ -62,7 +74,13 @@ export class ManifestSyncService {
                 const refs = await this.findManifestFiles(folder.sharingUrl);
                 result.foldersChecked += refs.length;
                 for (const ref of refs) {
-                    await this.processManifestFile(ref, folder.folderPath, folderRoots, result);
+                    await this.processManifestFile(
+                        ref,
+                        folder.folderPath,
+                        folderRoots,
+                        result,
+                        force,
+                    );
                 }
             } catch (err) {
                 result.errors.push(`${folder.slug}: ${(err as Error).message}`);
@@ -72,12 +90,14 @@ export class ManifestSyncService {
         return result;
     }
 
-    private async findManifestFiles(sharingUrl: string): Promise<ManifestFileRef[]> {
+    private async findManifestFiles(
+        sharingUrl: string,
+    ): Promise<ManifestFileRef[]> {
         const accessToken = await this.msalService.getAccessToken();
         const encoded = encodeSharingUrl(sharingUrl);
         const rootUrl = `https://graph.microsoft.com/v1.0/shares/${encoded}/driveItem/children`;
         const refs: ManifestFileRef[] = [];
-        await this.collectManifestFiles(rootUrl, accessToken, '', refs);
+        await this.collectManifestFiles(rootUrl, accessToken, "", refs);
         return refs;
     }
 
@@ -89,10 +109,15 @@ export class ManifestSyncService {
     ): Promise<void> {
         const response = await fetch(childrenUrl, {
             signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-            headers: { Accept: 'application/json', Authorization: `Bearer ${accessToken}` },
+            headers: {
+                Accept: "application/json",
+                Authorization: `Bearer ${accessToken}`,
+            },
         });
         if (!response.ok) {
-            throw new Error(`Graph API error listing ${subfolderPath || 'root'}: ${response.status} ${response.statusText}`);
+            throw new Error(
+                `Graph API error listing ${subfolderPath || "root"}: ${response.status} ${response.statusText}`,
+            );
         }
 
         const json = (await response.json()) as GraphResponse;
@@ -103,19 +128,35 @@ export class ManifestSyncService {
                 const driveId = item.parentReference?.driveId;
                 if (!driveId) continue;
                 const childUrl = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${item.id}/children`;
-                const nextPath = subfolderPath ? `${subfolderPath}/${item.name}` : item.name;
-                await this.collectManifestFiles(childUrl, accessToken, nextPath, out);
+                const nextPath = subfolderPath
+                    ? `${subfolderPath}/${item.name}`
+                    : item.name;
+                await this.collectManifestFiles(
+                    childUrl,
+                    accessToken,
+                    nextPath,
+                    out,
+                );
                 continue;
             }
 
-            if (item.name !== 'kosh-manifest.json') continue;
-            const downloadUrl = item['@microsoft.graph.downloadUrl'];
+            if (item.name !== "kosh-manifest.json") continue;
+            const downloadUrl = item["@microsoft.graph.downloadUrl"];
             if (!downloadUrl) continue;
-            out.push({ itemId: item.id, folderName: subfolderPath, downloadUrl });
+            out.push({
+                itemId: item.id,
+                folderName: subfolderPath,
+                downloadUrl,
+            });
         }
 
-        if (json['@odata.nextLink']) {
-            await this.collectManifestFiles(json['@odata.nextLink'], accessToken, subfolderPath, out);
+        if (json["@odata.nextLink"]) {
+            await this.collectManifestFiles(
+                json["@odata.nextLink"],
+                accessToken,
+                subfolderPath,
+                out,
+            );
         }
     }
 
@@ -124,6 +165,7 @@ export class ManifestSyncService {
         folderPath: string,
         folderRoots: string[],
         result: ManifestSyncResult,
+        force = false,
     ): Promise<void> {
         const db = getDb();
 
@@ -131,24 +173,31 @@ export class ManifestSyncService {
             signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
         });
         if (!response.ok) {
-            throw new Error(`Failed to download manifest for ${ref.folderName || 'root'}: ${response.status}`);
+            throw new Error(
+                `Failed to download manifest for ${ref.folderName || "root"}: ${response.status}`,
+            );
         }
 
-        const raw = (await response.json()) as { scannedAt?: string; photos?: PhotoManifestEntry[] };
+        const raw = (await response.json()) as {
+            scannedAt?: string;
+            photos?: PhotoManifestEntry[];
+        };
         if (!raw.scannedAt || !raw.photos?.length) return;
 
         const existing = db
-            .prepare('SELECT scanned_at FROM manifest_syncs WHERE item_id = ?')
+            .prepare("SELECT scanned_at FROM manifest_syncs WHERE item_id = ?")
             .get(ref.itemId) as { scanned_at: string } | undefined;
 
-        if (existing && existing.scanned_at >= raw.scannedAt) {
+        if (!force && existing && existing.scanned_at >= raw.scannedAt) {
             result.foldersUpToDate++;
             return;
         }
 
         // Derive the absolute folder path from where the manifest lives in OneDrive.
         // ref.folderName is the subfolder path within the sharing-URL root (empty for the root itself).
-        const absoluteFolderPath = ref.folderName ? `${folderPath}/${ref.folderName}` : folderPath;
+        const absoluteFolderPath = ref.folderName
+            ? `${folderPath}/${ref.folderName}`
+            : folderPath;
 
         // Normalise each entry so folderName and bundleKey are absolute regardless
         // of what root the scanner was run from. bundleKey may already carry the full
@@ -158,29 +207,34 @@ export class ManifestSyncService {
             ...p,
             folderName: absoluteFolderPath,
             bundleKey: p.bundleKey
-                ? `${absoluteFolderPath}::${p.bundleKey.includes('::') ? p.bundleKey.split('::').pop()! : p.bundleKey}`
+                ? `${absoluteFolderPath}::${p.bundleKey.includes("::") ? p.bundleKey.split("::").pop()! : p.bundleKey}`
                 : p.bundleKey,
         }));
 
         const activeHashes = new Set(photos.map((p) => p.contentHash));
-        result.photosStaleRemoved += this.removeStalePhotos(absoluteFolderPath, activeHashes);
+        result.photosStaleRemoved += this.removeStalePhotos(
+            absoluteFolderPath,
+            activeHashes,
+        );
 
         const importResult = importManifest(photos, folderRoots);
         result.photosCreated += importResult.created;
         result.photosExisting += importResult.existing;
         result.foldersImported++;
 
-        db.prepare(`
+        db.prepare(
+            `
             INSERT INTO manifest_syncs (item_id, folder_name, scanned_at, synced_at)
             VALUES (?, ?, ?, datetime('now'))
             ON CONFLICT(item_id) DO UPDATE SET
                 folder_name = excluded.folder_name,
                 scanned_at  = excluded.scanned_at,
                 synced_at   = excluded.synced_at
-        `).run(ref.itemId, ref.folderName, raw.scannedAt);
+        `,
+        ).run(ref.itemId, ref.folderName, raw.scannedAt);
 
         console.log(
-            `Manifest sync: ${ref.folderName || 'root'} — ${importResult.created} new, ${importResult.existing} existing, ${result.photosStaleRemoved} stale removed`,
+            `Manifest sync: ${ref.folderName || "root"} — ${importResult.created} new, ${importResult.existing} existing, ${result.photosStaleRemoved} stale removed`,
         );
     }
 
@@ -190,26 +244,40 @@ export class ManifestSyncService {
      * remaining locations. Photo rows themselves are kept as content-addressed
      * preservation records.
      */
-    private removeStalePhotos(folderName: string, activeHashes: Set<string>): number {
+    private removeStalePhotos(
+        folderName: string,
+        activeHashes: Set<string>,
+    ): number {
         const db = getDb();
-        interface Row { id: string; content_hash: string; bundle_id: string | null; side: string | null }
+        interface Row {
+            id: string;
+            content_hash: string;
+            bundle_id: string | null;
+            side: string | null;
+        }
 
-        const inFolder = db.prepare(`
+        const inFolder = db
+            .prepare(
+                `
             SELECT p.id, p.content_hash, p.bundle_id, p.side
             FROM photos p
             JOIN photo_locations l ON l.photo_id = p.id
             WHERE l.folder_name = ? COLLATE NOCASE
-        `).all(folderName) as Row[];
+        `,
+            )
+            .all(folderName) as Row[];
 
         const stale = inFolder.filter((p) => !activeHashes.has(p.content_hash));
         if (stale.length === 0) return 0;
 
         const deleteLocation = db.prepare(
-            'DELETE FROM photo_locations WHERE photo_id = ? AND folder_name = ? COLLATE NOCASE',
+            "DELETE FROM photo_locations WHERE photo_id = ? AND folder_name = ? COLLATE NOCASE",
         );
-        const countLocations = db.prepare('SELECT COUNT(*) as cnt FROM photo_locations WHERE photo_id = ?');
+        const countLocations = db.prepare(
+            "SELECT COUNT(*) as cnt FROM photo_locations WHERE photo_id = ?",
+        );
         const clearBundle = db.prepare(
-            'UPDATE photos SET bundle_id = NULL, side = NULL, is_preferred = 0 WHERE id = ?',
+            "UPDATE photos SET bundle_id = NULL, side = NULL, is_preferred = 0 WHERE id = ?",
         );
 
         db.transaction(() => {
