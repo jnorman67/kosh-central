@@ -1539,6 +1539,27 @@ const migrations: Migration[] = [
             db.prepare(`DELETE FROM photo_locations WHERE folder_name = ''`).run();
         },
     },
+    {
+        version: 25,
+        description: 'Deduplicate photo_locations by (photo_id, folder_name) and add unique index',
+        fn: (db) => {
+            // The UNIQUE(photo_id, folder_url) constraint was ineffective for manifest-imported
+            // photos because folder_url is always NULL (SQLite treats NULL != NULL for UNIQUE).
+            // Each sync run would insert a duplicate location row, causing findPhotoByFolderAndName
+            // to return an unpredictable row when multiple photo rows match the same file.
+            db.prepare(`
+                DELETE FROM photo_locations
+                WHERE rowid NOT IN (
+                    SELECT MIN(rowid) FROM photo_locations
+                    GROUP BY photo_id, folder_name
+                )
+            `).run();
+            db.prepare(`
+                CREATE UNIQUE INDEX idx_photo_locations_photo_folder
+                ON photo_locations(photo_id, folder_name)
+            `).run();
+        },
+    },
 ];
 
 /**

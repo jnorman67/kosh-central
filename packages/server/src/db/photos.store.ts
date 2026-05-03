@@ -136,6 +136,7 @@ export function findPhotoByFolderAndName(folderName: string, fileName: string): 
              JOIN photo_locations l ON l.photo_id = p.id
              WHERE l.folder_name = ? COLLATE NOCASE
                AND p.file_name = ? COLLATE NOCASE
+             ORDER BY (p.bundle_id IS NOT NULL) DESC, p.is_preferred DESC
              LIMIT 1`,
         )
         .get(folderName, fileName) as PhotoRow | undefined;
