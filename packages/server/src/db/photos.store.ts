@@ -231,6 +231,12 @@ export function importManifest(
             let photo = findPhotoByHash(entry.contentHash);
 
             if (photo) {
+                // A file may have been renamed on OneDrive while its content stays the same.
+                // Update the stored file_name so findPhotoByFolderAndName can match it.
+                if (photo.fileName !== entry.fileName) {
+                    db.prepare('UPDATE photos SET file_name = ? WHERE id = ?').run(entry.fileName, photo.id);
+                    photo = { ...photo, fileName: entry.fileName };
+                }
                 existing++;
             } else {
                 const thumbnail = entry.thumbnail ? Buffer.from(entry.thumbnail, 'base64') : null;
