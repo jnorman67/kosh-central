@@ -21,6 +21,8 @@ import { createPersonsRouter } from './routes/persons.router.js';
 import { createRelationsRouter } from './routes/relations.router.js';
 import { createCommentsRouter } from './routes/comments.router.js';
 import { createSeriesRouter } from './routes/series.router.js';
+import { createOcrRouter } from './routes/ocr.router.js';
+import { createOcrAdminRouter } from './routes/ocr-admin.router.js';
 import { OneDriveService } from './services/onedrive.service.js';
 import { ThumbnailCacheService } from './services/thumbnail-cache.service.js';
 
@@ -106,6 +108,8 @@ app.use('/api/persons', requireAuth, createPersonsRouter(oneDriveService, thumbn
 app.use('/api/relations', requireAuth, createRelationsRouter());
 app.use('/api/series', requireAuth, createSeriesRouter());
 app.use('/api/comments', requireAuth, createCommentsRouter());
+app.use('/api/ocr', requireAuth, createOcrRouter());
+app.use('/api/admin/ocr', requireAuth, createOcrAdminRouter(oneDriveService));
 
 // Global error handler — catches synchronous throws from route handlers and
 // errors forwarded via next(err). Must have 4 parameters for Express to treat it as an error handler.

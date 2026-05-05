@@ -148,6 +148,18 @@ export function findPhotoByFolderAndName(folderName: string, fileName: string): 
  * Used to surface bundle siblings via the folder photos endpoint so the client
  * can render related-photo thumbnails without a second round trip.
  */
+/** Return the preferred photo for each side present in a bundle. */
+export function listPreferredPhotosForBundle(bundleId: string): StoredPhoto[] {
+    const rows = getDb()
+        .prepare(
+            `SELECT * FROM photos
+             WHERE bundle_id = ? AND is_preferred = 1
+             ORDER BY side`,
+        )
+        .all(bundleId) as PhotoRow[];
+    return rows.map(rowToPhoto);
+}
+
 export function getBundleSiblingIds(bundleId: string, excludePhotoId: string): string[] {
     const rows = getDb()
         .prepare('SELECT id FROM photos WHERE bundle_id = ? AND id != ?')

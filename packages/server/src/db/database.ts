@@ -1560,6 +1560,19 @@ const migrations: Migration[] = [
             `).run();
         },
     },
+    {
+        version: 26,
+        description: 'Create ocr_results table',
+        sql: `
+            CREATE TABLE ocr_results (
+                id TEXT PRIMARY KEY,
+                bundle_id TEXT NOT NULL REFERENCES bundles(id) ON DELETE CASCADE,
+                text TEXT NOT NULL,
+                ran_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE UNIQUE INDEX idx_ocr_results_bundle ON ocr_results(bundle_id);
+        `,
+    },
 ];
 
 /**

@@ -1,4 +1,6 @@
 import { CommentPanel } from '@/app/features/comments/components/comment-panel';
+import { OcrQueryProvider } from '@/app/features/ocr/contexts/ocr-query.context';
+import { OcrPanel } from '@/app/features/ocr/components/ocr-panel';
 import { SubjectsQueryProvider } from '@/app/features/photos/contexts/subjects-query.context';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -6,6 +8,7 @@ import { SubjectsPanel } from './subjects-panel';
 
 interface MobilePanelProps {
     photoId: string;
+    bundleId?: string | null;
     currentUserId: string;
     isAdmin: boolean;
     initialBody?: string;
@@ -13,7 +16,7 @@ interface MobilePanelProps {
     onDisputeSubject: (personId: string, personName: string) => void;
 }
 
-export function MobilePanel({ photoId, currentUserId, isAdmin, initialBody, onCommentPosted, onDisputeSubject }: MobilePanelProps) {
+export function MobilePanel({ photoId, bundleId, currentUserId, isAdmin, initialBody, onCommentPosted, onDisputeSubject }: MobilePanelProps) {
     const [peopleOpen, setPeopleOpen] = useState(false);
     const [commentsOpen, setCommentsOpen] = useState(false);
 
@@ -61,6 +64,16 @@ export function MobilePanel({ photoId, currentUserId, isAdmin, initialBody, onCo
                     initialBody={initialBody}
                     onCommentPosted={onCommentPosted}
                 />
+            )}
+
+            {bundleId && (
+                <OcrQueryProvider>
+                    <OcrPanel
+                        bundleId={bundleId}
+                        isAdmin={isAdmin}
+                        className="border-t border-amber-200"
+                    />
+                </OcrQueryProvider>
             )}
         </SubjectsQueryProvider>
     );

@@ -8,6 +8,7 @@
         "start": "NODE_ENV=production node --env-file-if-exists=.env dist/index.js"
     },
     "dependencies": {
+        "@anthropic-ai/sdk": "^0.93.0",
         "@azure/msal-node": "^5.1.2",
         "bcryptjs": "^3.0.3",
         "better-sqlite3": "^12.8.0",
