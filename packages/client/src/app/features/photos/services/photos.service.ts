@@ -42,10 +42,6 @@ export class PhotosService {
         return apiFetch<FavoritesPage>(`/api/favorites?offset=${offset}&limit=${limit}`);
     }
 
-    async setPreferredPhoto(catalogId: string): Promise<void> {
-        await apiFetch<void>(`/api/admin/photos/${catalogId}/preferred`, { method: 'PUT' });
-    }
-
     async getShareLink(folderId: string, itemId: string): Promise<string> {
         const body = await apiFetch<{ webUrl: string }>(`/api/folders/${folderId}/photos/${encodeURIComponent(itemId)}/share-link`);
         return body.webUrl;

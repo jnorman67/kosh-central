@@ -20,7 +20,7 @@ import { ViewerLayout } from '@/components/layout/viewer-layout';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { hideSplash } from '@/lib/splash';
-import { ArrowRight, BookOpen, Check, ExternalLink, Filter, LayoutGrid, List, Star, StarOff, X } from 'lucide-react';
+import { ArrowRight, BookOpen, ExternalLink, Filter, LayoutGrid, List, Star, StarOff, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
@@ -52,11 +52,10 @@ function findRelatedPhotos(main: Photo, allPhotos: Photo[]): RelatedPhoto[] {
 
 export function ViewerPage() {
     const [searchParams] = useSearchParams();
-    const { useGetFolders, useGetPhotos, useSetFolderCover, useClearFolderCover, useSetPreferredPhoto, useGetShareLink } =
+    const { useGetFolders, useGetPhotos, useSetFolderCover, useClearFolderCover, useGetShareLink } =
         usePhotosQueries();
     const setCover = useSetFolderCover();
     const clearCover = useClearFolderCover();
-    const setPreferred = useSetPreferredPhoto();
     const { useGetMe } = useAuthQueries();
     const { data: me } = useGetMe();
     const [enlargedRelatedId, setEnlargedRelatedId] = useState<string | null>(null);
@@ -166,13 +165,6 @@ export function ViewerPage() {
         }
     };
 
-    const displayPhotoIsPreferred = !!displayPhoto?.isPreferred;
-    const canSetPreferred = !!displayPhoto?.catalogId && !!displayPhoto.bundleId && !displayPhotoIsPreferred;
-    const handleSetPreferred = () => {
-        if (!displayPhoto?.catalogId || !currentFolder) return;
-        setPreferred.mutate({ catalogId: displayPhoto.catalogId, folderId: currentFolder.id });
-    };
-
     return (
         <>
             {/* Preload next 2 photos when viewing a single photo */}
@@ -232,23 +224,6 @@ export function ViewerPage() {
                                         </>
                                     )}
                                 </Button>
-                            )}
-                            {isAdmin && isPhoto && canSetPreferred && (
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={handleSetPreferred}
-                                            disabled={setPreferred.isPending}
-                                            className="hidden md:inline-flex"
-                                        >
-                                            <Check className="h-4 w-4" />
-                                            Set as preferred
-                                        </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>Make this the preferred version for its side of the bundle</TooltipContent>
-                                </Tooltip>
                             )}
                             <UserMenu />
                         </div>

@@ -41,66 +41,24 @@ export function upsertBundleByScannerKey(scannerKey: string): StoredBundle {
     return createBundle(scannerKey);
 }
 
-/**
- * Assign a photo to a bundle on the given side.
- *
- * When `forcePreferred` is true (manifest import), the photo is always made
- * preferred for its (bundle, side), clearing any previous preferred entry.
- * When false (future admin overrides), `preferredHint` is only applied when
- * no photo is currently preferred — preserving explicit admin choices.
- */
+/** Assign a photo to a bundle on the given side. The manifest's preferredHint always wins. */
 export function setBundleMembership(
     photoId: string,
     bundleId: string,
     side: BundleSide,
     preferredHint: boolean,
-    forcePreferred = false,
 ): void {
     const db = getDb();
     const tx = db.transaction(() => {
         db.prepare('UPDATE photos SET bundle_id = ?, side = ? WHERE id = ?').run(bundleId, side, photoId);
         if (preferredHint) {
-            if (forcePreferred) {
-                db.prepare('UPDATE photos SET is_preferred = 0 WHERE bundle_id = ? AND side = ? AND id != ?').run(
-                    bundleId,
-                    side,
-                    photoId,
-                );
-                db.prepare('UPDATE photos SET is_preferred = 1 WHERE id = ?').run(photoId);
-            } else {
-                const existing = db
-                    .prepare(
-                        'SELECT 1 FROM photos WHERE bundle_id = ? AND side = ? AND is_preferred = 1 AND id != ? LIMIT 1',
-                    )
-                    .get(bundleId, side, photoId);
-                if (!existing) {
-                    db.prepare('UPDATE photos SET is_preferred = 1 WHERE id = ?').run(photoId);
-                }
-            }
+            db.prepare('UPDATE photos SET is_preferred = 0 WHERE bundle_id = ? AND side = ? AND id != ?').run(
+                bundleId,
+                side,
+                photoId,
+            );
+            db.prepare('UPDATE photos SET is_preferred = 1 WHERE id = ?').run(photoId);
         }
-    });
-    tx();
-}
-
-/**
- * Mark the given photo as the preferred version for its (bundle, side),
- * unsetting any other preferred photo in the same group. Throws if the photo
- * has no bundle or side set.
- */
-export function setPreferredPhoto(photoId: string): void {
-    const db = getDb();
-    const row = db
-        .prepare('SELECT bundle_id, side FROM photos WHERE id = ?')
-        .get(photoId) as { bundle_id: string | null; side: string | null } | undefined;
-    if (!row) throw new Error(`Photo ${photoId} not found`);
-    if (!row.bundle_id || !row.side) throw new Error(`Photo ${photoId} has no bundle membership`);
-
-    const tx = db.transaction(() => {
-        db.prepare('UPDATE photos SET is_preferred = 0 WHERE bundle_id = ? AND side = ?').run(
-            row.bundle_id,
-            row.side,
-        );
-        db.prepare('UPDATE photos SET is_preferred = 1 WHERE id = ?').run(photoId);
     });
     tx();
 }

@@ -266,7 +266,7 @@ export function importManifest(
                     bundleId = upsertBundleByScannerKey(entry.bundleKey).id;
                     bundleIdByKey.set(entry.bundleKey, bundleId);
                 }
-                setBundleMembership(photo.id, bundleId, entry.side, !!entry.preferredHint, true);
+                setBundleMembership(photo.id, bundleId, entry.side, !!entry.preferredHint);
                 bundleAssigned.add(entry.contentHash);
             }
 
