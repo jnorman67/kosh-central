@@ -30,7 +30,9 @@ The companion thumbnail script lives at
 Neither producer rewrites the other's primary output. The server reads both
 and never writes either back.
 
-## Folders both producers skip
+## Folders skipped
+
+### Hard skip — both producers ignore entirely
 
 Case-insensitive folder name match:
 
@@ -38,10 +40,13 @@ Case-insensitive folder name match:
 archive, archived, ignore, ignored
 ```
 
-Cowork additionally skips `pages` in the Dorothy's-albums collection (folders
-containing pre-disassembly iPhone shots of whole album pages, not individual
-photos). If we want this honored everywhere, add it to
-`SKIP_FOLDER_NAMES` in [scan-local.ts](../packages/server/scripts/scan-local.ts).
+### Cowork sidecar skip — `pages`
+
+Folders named `pages` contain pre-disassembly iPhone shots of whole album
+pages, not individual photos. Cowork does not write sidecar JSONs for them
+(no OCR, face detection, or thumbnails). The local scanner and server may
+still index images in these folders via `kosh-manifest.json` — `pages` is a
+different content type, not a folder to be ignored entirely.
 
 ## Versioning
 
@@ -258,16 +263,23 @@ The server exposes (or will expose) an **import-sidecars** flow that:
    `\n\n`. (Earlier draft suggested back-wins; concatenation is safer — no
    data lost.)
 
-   **Faces** → for each box in `faces[]`, insert a row into `photo_subjects`:
+   **Faces** → on **first import** (no `photo_subjects` rows exist yet for this
+   bundle), insert one row per box in `faces[]`:
    - `bundle_id`: resolved bundle UUID
    - `person_id`: NULL (Cowork detects faces but does not identify people)
    - `source`: `"cowork-yunet"`
    - `confidence`: 1.0 (YuNet's per-detection score is not stored in the sidecar)
-   - `face_region`: JSON string of the normalized box
+   - `face_region`: JSON string of the normalized box `{"x":…,"y":…,"w":…,"h":…}`
    - `verified`: 0
 
-   Before inserting, delete existing `cowork-yunet` rows for the same bundle
-   so re-imports stay clean.
+   On **re-import** (rows already exist for this bundle): do nothing.  Once a
+   face box is in the DB it may have a person assigned to it; silently
+   overwriting or reordering rows would corrupt those associations.  If face
+   detection needs to be re-run for a bundle, an operator must explicitly clear
+   the existing unverified rows first through the admin UI (future feature).
+
+   Rationale: the sidecar is the *input* to the DB, not a mirror of it.  The
+   order of boxes in `faces[]` is not meaningful; the DB row's primary key is.
 
    **photoType** → requires a new column (see [Open work](#open-work) below).
 
