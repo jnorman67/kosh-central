@@ -21,6 +21,12 @@ Both feed the importer in
 | `*.json` sidecar (excluding `kosh-manifest`)  | Cowork         | Never overwrite      |
 | `face_detection_yunet_2023mar.onnx`           | Cowork tooling | Ignore               |
 
+The model file lives at
+`packages/server/scripts/models/face_detection_yunet_2023mar.onnx` in the
+repo and should be copied to the album folder before running face detection.
+The companion thumbnail script lives at
+`packages/server/scripts/generate_thumbnails.py`.
+
 Neither producer rewrites the other's primary output. The server reads both
 and never writes either back.
 
@@ -226,8 +232,9 @@ Empty array means face detection ran and found nothing. Omit the field
 entirely if face detection was not run.
 
 Detected via OpenCV YuNet (`face_detection_yunet_2023mar.onnx`, confidence
-threshold 0.6, 20% padding). The model file lives at the album root and is
-ignored by the server.
+threshold 0.6, 20% padding). Model file:
+`packages/server/scripts/models/face_detection_yunet_2023mar.onnx`.
+The server ignores it.
 
 ## How the server ingests sidecars
 
