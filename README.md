@@ -113,6 +113,21 @@ npx tsx .\packages\server\scripts\scan-local.ts "C:\Users\jnorm\OneDrive\Photo V
 
 The scanner walks the root path recursively and writes a `kosh-manifest.json` into each subfolder that contains images. OneDrive sync pushes those files to the cloud. Add `--dry-run` to hash files and report without writing anything.
 
+## Database Migrations
+
+Schema migrations live in the `migrations` array in [packages/server/src/db/database.ts](packages/server/src/db/database.ts). Each one has an integer `version`, a `description`, and `sql` and/or `fn`. The server applies pending migrations in one transaction on every startup and records each in `schema_version`. Its `applied_at` timestamp is filled only for migrations applied after it was added, so it is NULL on older rows. To add one, append an entry with the next version number. Never edit or renumber one that has already shipped.
+
+A migration is pending when its version is missing from `schema_version`. That check is a set difference, not "greater than the max applied", so a lower-numbered migration that lands late (for example, from a merge) still runs.
+
+```bash
+make db-status        # applied/pending for the dev DB (read-only; exits 1 if anything is pending)
+make db-migrate       # apply pending migrations to the dev DB without starting the server
+make db-prod-status   # same check against the prod snapshot (make db-pull first)
+npx tsx packages/server/scripts/migrate.ts status --db path/to/any.db
+```
+
+`status` also reports **unknown** versions: versions recorded in the database that no migration in the code defines. That usually means the database was migrated by a newer branch.
+
 ## Running in Production (locally)
 
 ```bash

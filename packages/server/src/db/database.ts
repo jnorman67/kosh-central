@@ -4,7 +4,7 @@ import path from 'node:path';
 
 const DB_FILENAME = 'kosh.db';
 
-function getDbPath(): string {
+export function getDbPath(): string {
     // Container Apps: DB lives on local container disk and is replicated to
     // blob storage by Litestream. Cannot live on the SMB-backed file share.
     if (process.env.KOSH_DB_PATH) {
@@ -45,21 +45,26 @@ export function initDb(): Database.Database {
 function runMigrations(db: Database.Database): void {
     db.exec(`
         CREATE TABLE IF NOT EXISTS schema_version (
-            version INTEGER PRIMARY KEY
+            version INTEGER PRIMARY KEY,
+            applied_at TEXT
         )
     `);
+    // applied_at was added after the table existed; rows from before then stay NULL.
+    const columns = db.prepare('PRAGMA table_info(schema_version)').all() as { name: string }[];
+    if (!columns.some((c) => c.name === 'applied_at')) {
+        db.exec('ALTER TABLE schema_version ADD COLUMN applied_at TEXT');
+    }
 
-    const currentVersion = db.prepare('SELECT MAX(version) as v FROM schema_version').get() as { v: number | null };
-    const version = currentVersion?.v ?? 0;
-
-    const toRun = migrations.filter((m) => m.version > version);
+    const toRun = getMigrationStatus(db).pending;
     if (toRun.length === 0) return;
 
     const runAll = db.transaction(() => {
         for (const migration of toRun) {
             if (migration.sql) db.exec(migration.sql);
             if (migration.fn) migration.fn(db);
-            db.prepare('INSERT INTO schema_version (version) VALUES (?)').run(migration.version);
+            db.prepare("INSERT INTO schema_version (version, applied_at) VALUES (?, datetime('now'))").run(
+                migration.version,
+            );
             console.log(`Migration ${migration.version}: ${migration.description}`);
         }
     });
@@ -67,7 +72,56 @@ function runMigrations(db: Database.Database): void {
     runAll();
 }
 
-interface Migration {
+export interface MigrationStatus {
+    /** Migrations recorded in schema_version, with when they ran (null if before applied_at existed). */
+    applied: { version: number; description: string; appliedAt: string | null }[];
+    /** Migrations in the code that the database has not recorded, in version order. */
+    pending: Migration[];
+    /** Versions recorded in the database that no migration in the code defines. */
+    unknown: number[];
+}
+
+/**
+ * Compare the migrations defined in code against the database's schema_version
+ * table without changing anything. Pending is a set difference, not "greater
+ * than the max applied", so a lower-numbered migration that arrives late (e.g.
+ * from a merge) is still reported and run.
+ */
+export function getMigrationStatus(db: Database.Database): MigrationStatus {
+    const hasTable = db
+        .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'schema_version'")
+        .get();
+    const rows: { version: number; applied_at: string | null }[] = [];
+    if (hasTable) {
+        const hasAppliedAt = (db.prepare('PRAGMA table_info(schema_version)').all() as { name: string }[]).some(
+            (c) => c.name === 'applied_at',
+        );
+        rows.push(
+            ...(db
+                .prepare(
+                    `SELECT version, ${hasAppliedAt ? 'applied_at' : 'NULL AS applied_at'} FROM schema_version ORDER BY version`,
+                )
+                .all() as { version: number; applied_at: string | null }[]),
+        );
+    }
+
+    const byVersion = new Map(migrations.map((m) => [m.version, m]));
+    const appliedVersions = new Set(rows.map((r) => r.version));
+
+    return {
+        applied: rows
+            .filter((r) => byVersion.has(r.version))
+            .map((r) => ({
+                version: r.version,
+                description: byVersion.get(r.version)!.description,
+                appliedAt: r.applied_at,
+            })),
+        pending: migrations.filter((m) => !appliedVersions.has(m.version)).sort((a, b) => a.version - b.version),
+        unknown: rows.filter((r) => !byVersion.has(r.version)).map((r) => r.version),
+    };
+}
+
+export interface Migration {
     version: number;
     description: string;
     sql?: string;

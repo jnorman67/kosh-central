@@ -64,7 +64,7 @@ endef
 .PHONY: help install \
         dev dev-server dev-client dev-prod-db kill start \
         build build-server build-client typecheck lint format \
-        db-shell db-backup db-pull db-prod-shell \
+        db-status db-migrate db-prod-status db-shell db-backup db-pull db-prod-shell \
         scan scan-dry convert-heic import-gedcom import-gedcom-dry thumbnails \
         deploy deploy-image deploy-restart logs logs-live \
         clean
@@ -147,6 +147,19 @@ format:
 	npm run format -w $(CLIENT_WS)
 
 # --- database ---------------------------------------------------------------
+
+## db-status: list applied and pending migrations for the dev database (read-only)
+db-status:
+	npx tsx $(SCRIPTS_DIR)/migrate.ts status --db $(DEV_DB)
+
+## db-migrate: apply pending migrations to the dev database (the server also does this on startup)
+db-migrate:
+	npx tsx $(SCRIPTS_DIR)/migrate.ts up --db $(DEV_DB)
+
+## db-prod-status: list applied and pending migrations for the prod snapshot (run db-pull first)
+db-prod-status:
+	@test -f $(PROD_DB) || { echo "$(PROD_DB) not found. Run 'make db-pull' first."; exit 1; }
+	npx tsx $(SCRIPTS_DIR)/migrate.ts status --db $(PROD_DB)
 
 ## db-shell: sqlite3 shell on the local dev database
 db-shell:

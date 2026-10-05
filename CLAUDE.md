@@ -52,6 +52,7 @@ packages/server/src/
   services/onedrive.service.ts       # Microsoft Graph API client
 packages/server/scripts/
   scan-local.ts                      # SHA-256 scanner → JSON manifest
+  migrate.ts                         # Migration status (read-only) / apply
 
 packages/client/src/
   app.tsx                            # Root: QueryClient + AuthQuery + Router
@@ -72,7 +73,7 @@ Server env lives in `packages/server/.env` (gitignored):
 
 ## Database
 
-SQLite with sequential migrations defined in `packages/server/src/db/database.ts`. Add new migrations to the `migrations` array — they run automatically on server startup. The database file is gitignored.
+SQLite with sequential migrations defined in `packages/server/src/db/database.ts`. Add new migrations to the `migrations` array — they run automatically on server startup. `make db-status` lists applied/pending migrations without applying them (`make db-prod-status` for the prod snapshot). The database file is gitignored.
 
 Tables: `users`, `photos` (content-addressed by SHA-256 hash, carry `bundle_id` / `side` / `is_preferred`), `photo_locations` (multiple locations per photo), `bundles` (one per physical photograph; scanner-keyed for idempotent re-import), `photo_relations` (cross-bundle `duplicate-of` only; front/back/original grouping lives on bundles), `photo_series` + `photo_series_members` (ordered groups), `folders` (admin-editable folder config, seeded once from `folders.seed.ts`).
 
