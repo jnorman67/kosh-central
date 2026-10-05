@@ -1,4 +1,11 @@
-import type { AdminFolder, FolderExport, FolderInput, ImportResponse, ManifestSyncResult } from '@/app/features/admin/models/folder.models';
+import type {
+    AdminFolder,
+    FolderExport,
+    FolderInput,
+    ImportResponse,
+    ManifestSyncResult,
+    SidecarImportResult,
+} from '@/app/features/admin/models/folder.models';
 import { apiFetch } from '@/lib/api-client';
 
 export class AdminFoldersService {
@@ -40,6 +47,10 @@ export class AdminFoldersService {
 
     async syncFolder(slug: string): Promise<ManifestSyncResult> {
         return apiFetch<ManifestSyncResult>(`/api/admin/photos/sync/${encodeURIComponent(slug)}`, { method: 'POST' });
+    }
+
+    async importSidecars(slug: string): Promise<SidecarImportResult> {
+        return apiFetch<SidecarImportResult>(`/api/admin/sidecars/${encodeURIComponent(slug)}`, { method: 'POST' });
     }
 
     async importFolders(folders: FolderInput[], mode: 'upsert' | 'replace'): Promise<ImportResponse> {

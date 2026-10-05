@@ -47,3 +47,11 @@ export interface ManifestSyncResult {
     photosStaleRemoved: number;
     errors: string[];
 }
+
+export interface SidecarImportResult {
+    sidecarsSeen: number;
+    bundlesMatched: number;
+    bundlesSkipped: number;
+    facesInserted: number;
+    errors: string[];
+}

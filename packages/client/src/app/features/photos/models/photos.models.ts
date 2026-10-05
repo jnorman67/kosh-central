@@ -65,3 +65,11 @@ export interface FavoritesPage {
     offset: number;
     limit: number;
 }
+
+/** Face bounding box in normalized image coordinates (0–1, origin top-left). */
+export interface FaceBox {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+}

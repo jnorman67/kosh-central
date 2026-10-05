@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { listFolders } from '../db/folders.store.js';
+import { getFacesForPhoto } from '../db/persons.store.js';
 import { findPhotoById, getPhotoLocations, getPhotoThumbnail, importManifest, listPhotos, type PhotoManifestEntry } from '../db/photos.store.js';
 import { getRelationsForPhoto } from '../db/relations.store.js';
 import { getSeriesForPhoto } from '../db/series.store.js';
@@ -14,6 +15,16 @@ export function createPhotosRouter(): Router {
     /** List all cataloged photos. */
     router.get('/', (_req, res) => {
         res.json(listPhotos());
+    });
+
+    /** Face bounding boxes (normalized 0..1) for this photo's bundle. */
+    router.get('/:photoId/faces', (req, res) => {
+        const photo = findPhotoById(req.params.photoId);
+        if (!photo) {
+            res.status(404).json({ error: 'Photo not found' });
+            return;
+        }
+        res.json(getFacesForPhoto(req.params.photoId));
     });
 
     /** Serve the stored thumbnail for a photo (JPEG). */

@@ -3,7 +3,7 @@ import { getDb } from './database.js';
 import { getBundleIdForPhoto } from './photos.store.js';
 
 export type RelationshipType = 'parent-of' | 'spouse-of' | 'sibling-of' | 'friend-of';
-export type SubjectSource = 'manual' | 'auto';
+export type SubjectSource = 'manual' | 'auto' | 'cowork-yunet';
 export type ImportStatus = 'confirmed' | 'needs_review' | 'new';
 
 export interface StoredPerson {
@@ -40,8 +40,9 @@ export interface StoredRelationship {
 }
 
 export interface StoredPhotoSubject {
+    subjectId: string;
     photoId: string;
-    personId: string;
+    personId: string | null;
     source: SubjectSource;
     confidence: number | null;
     faceRegion: string | null;
@@ -50,9 +51,21 @@ export interface StoredPhotoSubject {
     createdBy: string | null;
 }
 
-export interface StoredPhotoSubjectEnriched extends StoredPhotoSubject {
+export interface StoredPhotoSubjectEnriched extends Omit<StoredPhotoSubject, 'personId'> {
+    personId: string;
     fullName: string;
     nickname: string | null;
+}
+
+export interface FaceBox {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+}
+
+export interface SidedFaceBox extends FaceBox {
+    side: 'front' | 'back';
 }
 
 export interface PersonMentionSuggestion {
@@ -101,8 +114,9 @@ interface RelationshipRow {
 }
 
 interface PhotoSubjectRow {
+    subject_id: string;
     bundle_id: string;
-    person_id: string;
+    person_id: string | null;
     source: string;
     confidence: number | null;
     face_region: string | null;
@@ -164,6 +178,7 @@ function rowToRelationship(row: RelationshipRow): StoredRelationship {
 
 function rowToPhotoSubject(row: PhotoSubjectRow, photoId: string): StoredPhotoSubject {
     return {
+        subjectId: row.subject_id,
         photoId,
         personId: row.person_id,
         source: row.source as SubjectSource,
@@ -445,16 +460,17 @@ export function addPhotoSubject(
     if (!bundleId) throw new Error(`Photo ${photoId} has no bundle`);
     const source = opts.source ?? 'manual';
     const verified = source === 'manual' ? 1 : 0;
+    const subjectId = crypto.randomUUID();
     getDb()
         .prepare(
             `INSERT INTO photo_subjects
-             (bundle_id, person_id, source, confidence, face_region, verified, created_by)
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+             (subject_id, bundle_id, person_id, source, confidence, face_region, verified, created_by)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         )
-        .run(bundleId, personId, source, opts.confidence ?? null, opts.faceRegion ?? null, verified, opts.createdBy ?? null);
+        .run(subjectId, bundleId, personId, source, opts.confidence ?? null, opts.faceRegion ?? null, verified, opts.createdBy ?? null);
     const row = getDb()
-        .prepare('SELECT * FROM photo_subjects WHERE bundle_id = ? AND person_id = ?')
-        .get(bundleId, personId) as PhotoSubjectRow;
+        .prepare('SELECT * FROM photo_subjects WHERE subject_id = ?')
+        .get(subjectId) as PhotoSubjectRow;
     return rowToPhotoSubject(row, photoId);
 }
 
@@ -462,9 +478,64 @@ export function getPeopleForPhoto(photoId: string): StoredPhotoSubject[] {
     const bundleId = getBundleIdForPhoto(photoId);
     if (!bundleId) return [];
     const rows = getDb()
-        .prepare('SELECT * FROM photo_subjects WHERE bundle_id = ? ORDER BY created_at')
+        .prepare('SELECT * FROM photo_subjects WHERE bundle_id = ? AND person_id IS NOT NULL ORDER BY created_at')
         .all(bundleId) as PhotoSubjectRow[];
     return rows.map((row) => rowToPhotoSubject(row, photoId));
+}
+
+/** Face boxes (no identification) for a photo, drawn from cowork-yunet sidecar rows. */
+export function getFacesForPhoto(photoId: string): FaceBox[] {
+    const photoRow = getDb()
+        .prepare('SELECT bundle_id, side FROM photos WHERE id = ?')
+        .get(photoId) as { bundle_id: string | null; side: string | null } | undefined;
+    if (!photoRow?.bundle_id || !photoRow.side) return [];
+    const rows = getDb()
+        .prepare(
+            `SELECT face_region FROM photo_subjects
+             WHERE bundle_id = ? AND source = 'cowork-yunet'
+               AND side = ? AND face_region IS NOT NULL
+             ORDER BY created_at`,
+        )
+        .all(photoRow.bundle_id, photoRow.side) as { face_region: string }[];
+    const out: FaceBox[] = [];
+    for (const row of rows) {
+        try {
+            const parsed = JSON.parse(row.face_region) as Partial<FaceBox>;
+            if (
+                typeof parsed.x === 'number' &&
+                typeof parsed.y === 'number' &&
+                typeof parsed.w === 'number' &&
+                typeof parsed.h === 'number'
+            ) {
+                out.push({ x: parsed.x, y: parsed.y, w: parsed.w, h: parsed.h });
+            }
+        } catch {
+            // Skip malformed rows rather than failing the whole response.
+        }
+    }
+    return out;
+}
+
+/**
+ * Replace all cowork-yunet face boxes for a bundle with the given set. Used by
+ * the sidecar importer so re-imports are idempotent.
+ */
+export function replaceCoworkFacesForBundle(bundleId: string, boxes: SidedFaceBox[]): number {
+    const db = getDb();
+    const insert = db.prepare(
+        `INSERT INTO photo_subjects
+         (subject_id, bundle_id, person_id, source, confidence, face_region, side, verified, created_by)
+         VALUES (?, ?, NULL, 'cowork-yunet', 1.0, ?, ?, 0, NULL)`,
+    );
+    const tx = db.transaction(() => {
+        db.prepare("DELETE FROM photo_subjects WHERE bundle_id = ? AND source = 'cowork-yunet'").run(bundleId);
+        for (const box of boxes) {
+            const { side, ...region } = box;
+            insert.run(crypto.randomUUID(), bundleId, JSON.stringify(region), side);
+        }
+    });
+    tx();
+    return boxes.length;
 }
 
 export function getPeopleForPhotoEnriched(photoId: string): StoredPhotoSubjectEnriched[] {
@@ -479,11 +550,16 @@ export function getPeopleForPhotoEnriched(photoId: string): StoredPhotoSubjectEn
              ORDER BY ps.created_at`,
         )
         .all(bundleId) as PhotoSubjectEnrichedRow[];
-    return rows.map((row) => ({
-        ...rowToPhotoSubject(row, photoId),
-        fullName: row.full_name,
-        nickname: row.nickname,
-    }));
+    // The INNER JOIN on persons guarantees person_id is non-null here.
+    return rows.map((row) => {
+        const subject = rowToPhotoSubject(row, photoId);
+        return {
+            ...subject,
+            personId: subject.personId!,
+            fullName: row.full_name,
+            nickname: row.nickname,
+        };
+    });
 }
 
 export function getPersonMentionSuggestionsForPhoto(photoId: string): PersonMentionSuggestion[] {

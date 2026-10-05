@@ -4,7 +4,7 @@ import { TableCell, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, Pencil, RefreshCw, Trash2 } from 'lucide-react';
+import { GripVertical, Pencil, RefreshCw, ScanFace, Trash2 } from 'lucide-react';
 
 interface Props {
     folder: AdminFolder;
@@ -12,9 +12,11 @@ interface Props {
     onDelete: (folder: AdminFolder) => void;
     onSync: (folder: AdminFolder) => void;
     isSyncing: boolean;
+    onImportSidecars: (folder: AdminFolder) => void;
+    isImportingSidecars: boolean;
 }
 
-export function SortableFolderRow({ folder, onEdit, onDelete, onSync, isSyncing }: Props) {
+export function SortableFolderRow({ folder, onEdit, onDelete, onSync, isSyncing, onImportSidecars, isImportingSidecars }: Props) {
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
         id: folder.slug,
     });
@@ -67,6 +69,20 @@ export function SortableFolderRow({ folder, onEdit, onDelete, onSync, isSyncing 
                             </Button>
                         </TooltipTrigger>
                         <TooltipContent>{isSyncing ? 'Syncing…' : 'Sync photos'}</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => onImportSidecars(folder)}
+                                disabled={isImportingSidecars}
+                                aria-label="Import sidecars"
+                            >
+                                <ScanFace className={`h-4 w-4 ${isImportingSidecars ? 'animate-pulse' : ''}`} />
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>{isImportingSidecars ? 'Importing sidecars…' : 'Import sidecars (faces, …)'}</TooltipContent>
                     </Tooltip>
                     <Tooltip>
                         <TooltipTrigger asChild>

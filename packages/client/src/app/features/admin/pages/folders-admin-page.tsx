@@ -36,6 +36,7 @@ export function FoldersAdminPage() {
         useReorderFolders,
         useSyncPhotos,
         useSyncFolder,
+        useImportSidecars,
     } = useAdminFoldersQueries();
     const service = useAdminFoldersService();
 
@@ -50,13 +51,16 @@ export function FoldersAdminPage() {
     const reorderFolders = useReorderFolders();
     const syncPhotos = useSyncPhotos();
     const syncFolder = useSyncFolder();
+    const importSidecars = useImportSidecars();
 
     const [formMode, setFormMode] = useState<'create' | 'edit' | null>(null);
     const [syncingSlug, setSyncingSlug] = useState<string | null>(null);
+    const [importingSidecarsSlug, setImportingSidecarsSlug] = useState<string | null>(null);
     const [editing, setEditing] = useState<AdminFolder | null>(null);
     const [importOpen, setImportOpen] = useState(false);
     const [deleting, setDeleting] = useState<AdminFolder | null>(null);
     const [toast, setToast] = useState<string | null>(null);
+    const [importErrors, setImportErrors] = useState<{ folder: string; errors: string[] } | null>(null);
     // Local copy of the list so drags reorder immediately without waiting on the server.
     const [ordered, setOrdered] = useState<AdminFolder[]>(folders);
 
@@ -149,6 +153,20 @@ export function FoldersAdminPage() {
         }
     }
 
+    async function handleImportSidecars(folder: AdminFolder) {
+        setImportingSidecarsSlug(folder.slug);
+        try {
+            const result = await importSidecars.mutateAsync(folder.slug);
+            const parts = [`${result.sidecarsSeen} sidecars`, `${result.bundlesMatched} matched`, `${result.facesInserted} faces`];
+            if (result.bundlesSkipped > 0) parts.push(`${result.bundlesSkipped} skipped`);
+            if (result.errors.length > 0) parts.push(`${result.errors.length} errors`);
+            setToast(`${folder.displayName} sidecars — ${parts.join(', ')}`);
+            setImportErrors(result.errors.length > 0 ? { folder: folder.displayName, errors: result.errors } : null);
+        } finally {
+            setImportingSidecarsSlug(null);
+        }
+    }
+
     async function handleSync() {
         const result = await syncPhotos.mutateAsync();
         const parts = [`${result.foldersImported} imported`, `${result.foldersUpToDate} up to date`];
@@ -214,6 +232,29 @@ export function FoldersAdminPage() {
                             </div>
                         )}
 
+                        {importErrors && (
+                            <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
+                                <div className="mb-1 flex items-center justify-between gap-2">
+                                    <span className="font-medium">
+                                        Sidecar import errors for {importErrors.folder} ({importErrors.errors.length})
+                                    </span>
+                                    <button className="text-xs underline" onClick={() => setImportErrors(null)}>
+                                        dismiss
+                                    </button>
+                                </div>
+                                <ul className="space-y-0.5 font-mono text-xs">
+                                    {importErrors.errors.slice(0, 20).map((msg, i) => (
+                                        <li key={i}>{msg}</li>
+                                    ))}
+                                </ul>
+                                {importErrors.errors.length > 20 && (
+                                    <p className="mt-1 text-xs italic">
+                                        …and {importErrors.errors.length - 20} more (see server logs).
+                                    </p>
+                                )}
+                            </div>
+                        )}
+
                         {error && (
                             <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
                                 Failed to load folders: {error instanceof Error ? error.message : String(error)}
@@ -256,6 +297,8 @@ export function FoldersAdminPage() {
                                                         onDelete={setDeleting}
                                                         onSync={handleSyncFolder}
                                                         isSyncing={syncingSlug === folder.slug}
+                                                        onImportSidecars={handleImportSidecars}
+                                                        isImportingSidecars={importingSidecarsSlug === folder.slug}
                                                     />
                                                 ))}
                                             </SortableContext>

@@ -1,4 +1,4 @@
-import type { FavoritesPage, FolderCover, PhotoFolder, PhotosResponse } from '@/app/features/photos/models/photos.models';
+import type { FaceBox, FavoritesPage, FolderCover, PhotoFolder, PhotosResponse } from '@/app/features/photos/models/photos.models';
 import { apiFetch } from '@/lib/api-client';
 
 export class PhotosService {
@@ -45,5 +45,9 @@ export class PhotosService {
     async getShareLink(folderId: string, itemId: string): Promise<string> {
         const body = await apiFetch<{ webUrl: string }>(`/api/folders/${folderId}/photos/${encodeURIComponent(itemId)}/share-link`);
         return body.webUrl;
+    }
+
+    async getFaces(photoId: string): Promise<FaceBox[]> {
+        return apiFetch<FaceBox[]>(`/api/photos/${photoId}/faces`);
     }
 }

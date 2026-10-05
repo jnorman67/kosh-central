@@ -1,6 +1,6 @@
-import type { Photo } from '@/app/features/photos/models/photos.models';
+import type { FaceBox, Photo } from '@/app/features/photos/models/photos.models';
 import type { PointerEvent as ReactPointerEvent } from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 interface LetterboxViewerProps {
     photo: Photo | null;
@@ -11,6 +11,10 @@ interface LetterboxViewerProps {
     onSwipeNext?: () => void;
     /** Called on a rightward horizontal swipe at scale 1. */
     onSwipePrev?: () => void;
+    /** When true and `faces` is non-empty, overlays bounding boxes on detected faces. */
+    showFaces?: boolean;
+    /** Normalized face bounding boxes (0..1 image coordinates) from the sidecar. */
+    faces?: FaceBox[];
 }
 
 const MIN_SCALE = 1;
@@ -43,12 +47,15 @@ interface PinchStart {
     oy: number;
 }
 
-export function LetterboxViewer({ photo, isLoading, onClick, onSwipeNext, onSwipePrev }: LetterboxViewerProps) {
+export function LetterboxViewer({ photo, isLoading, onClick, onSwipeNext, onSwipePrev, showFaces, faces }: LetterboxViewerProps) {
     const [imgLoaded, setImgLoaded] = useState(false);
     const [scale, setScale] = useState(1);
     const [offset, setOffset] = useState({ x: 0, y: 0 });
     const [isDragging, setIsDragging] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
+    const imgRef = useRef<HTMLImageElement>(null);
+    // The image's rendered rect (object-contain). Used to size the face overlay.
+    const [imgRect, setImgRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
 
     // Refs mirror state so handlers read the freshest value without waiting for a re-render.
     const scaleRef = useRef(1);
@@ -65,10 +72,43 @@ export function LetterboxViewer({ photo, isLoading, onClick, onSwipeNext, onSwip
         setImgLoaded(false);
         setScale(1);
         setOffset({ x: 0, y: 0 });
+        setImgRect(null);
         pointers.current.clear();
         singleStart.current = null;
         pinchStart.current = null;
     }, [photo?.downloadUrl]);
+
+    // Track the image's rendered rect (object-contain leaves letterbox bars), so the
+    // face overlay SVG can be sized to match the image, not the container.
+    useLayoutEffect(() => {
+        if (!imgLoaded) return;
+        const container = containerRef.current;
+        const img = imgRef.current;
+        if (!container || !img) return;
+
+        function measure() {
+            if (!container || !img) return;
+            const cw = container.clientWidth;
+            const ch = container.clientHeight;
+            const iw = img.naturalWidth;
+            const ih = img.naturalHeight;
+            if (!cw || !ch || !iw || !ih) return;
+            const scale = Math.min(cw / iw, ch / ih);
+            const width = iw * scale;
+            const height = ih * scale;
+            setImgRect({
+                left: (cw - width) / 2,
+                top: (ch - height) / 2,
+                width,
+                height,
+            });
+        }
+
+        measure();
+        const ro = new ResizeObserver(measure);
+        ro.observe(container);
+        return () => ro.disconnect();
+    }, [imgLoaded, photo?.downloadUrl]);
 
     // Wheel zoom, centered on the cursor. Non-passive so we can preventDefault.
     useEffect(() => {
@@ -253,6 +293,7 @@ export function LetterboxViewer({ photo, isLoading, onClick, onSwipeNext, onSwip
         >
             {photo && (
                 <img
+                    ref={imgRef}
                     src={photo.downloadUrl}
                     alt={photo.name}
                     onLoad={() => setImgLoaded(true)}
@@ -260,6 +301,35 @@ export function LetterboxViewer({ photo, isLoading, onClick, onSwipeNext, onSwip
                     style={{ transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})` }}
                     className={`max-h-full max-w-full object-contain select-none transition-opacity duration-150 ${imgLoaded ? 'opacity-100' : 'opacity-40'}`}
                 />
+            )}
+            {photo && showFaces && imgRect && faces && faces.length > 0 && (
+                <svg
+                    viewBox="0 0 1 1"
+                    preserveAspectRatio="none"
+                    className="pointer-events-none absolute"
+                    style={{
+                        left: imgRect.left,
+                        top: imgRect.top,
+                        width: imgRect.width,
+                        height: imgRect.height,
+                        transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})`,
+                        transformOrigin: 'center center',
+                    }}
+                >
+                    {faces.map((f, i) => (
+                        <rect
+                            key={i}
+                            x={f.x}
+                            y={f.y}
+                            width={f.w}
+                            height={f.h}
+                            fill="none"
+                            stroke="#34d399"
+                            strokeWidth={2}
+                            vectorEffect="non-scaling-stroke"
+                        />
+                    ))}
+                </svg>
             )}
             {!photo && !isLoading && <div className="text-zinc-500">No photo selected</div>}
             {showSpinner && (

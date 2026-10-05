@@ -23,7 +23,9 @@ import { createCommentsRouter } from './routes/comments.router.js';
 import { createSeriesRouter } from './routes/series.router.js';
 import { createOcrRouter } from './routes/ocr.router.js';
 import { createOcrAdminRouter } from './routes/ocr-admin.router.js';
+import { createSidecarsAdminRouter } from './routes/sidecars-admin.router.js';
 import { OneDriveService } from './services/onedrive.service.js';
+import { SidecarImportService } from './services/sidecar-import.service.js';
 import { ThumbnailCacheService } from './services/thumbnail-cache.service.js';
 
 /** Synchronous stdout write, bypasses Node's block-buffered stdout. Use for boot markers
@@ -68,6 +70,7 @@ if (!msalService.isAuthenticated()) {
 }
 const oneDriveService = new OneDriveService(msalService);
 const manifestSyncService = new ManifestSyncService(msalService);
+const sidecarImportService = new SidecarImportService(msalService);
 
 // Run an incremental manifest sync in the background on startup.
 // Fire-and-forget: the server is ready immediately; new photos trickle in as sync completes.
@@ -110,6 +113,7 @@ app.use('/api/series', requireAuth, createSeriesRouter());
 app.use('/api/comments', requireAuth, createCommentsRouter());
 app.use('/api/ocr', requireAuth, createOcrRouter());
 app.use('/api/admin/ocr', requireAuth, createOcrAdminRouter(oneDriveService));
+app.use('/api/admin/sidecars', requireAuth, createSidecarsAdminRouter(sidecarImportService));
 
 // Global error handler — catches synchronous throws from route handlers and
 // errors forwarded via next(err). Must have 4 parameters for Express to treat it as an error handler.

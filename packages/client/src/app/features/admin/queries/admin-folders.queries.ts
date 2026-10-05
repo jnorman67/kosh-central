@@ -68,6 +68,8 @@ export const createAdminFoldersQueries = (service: AdminFoldersService) => {
 
     const useSyncFolder = () => useMutation({ mutationFn: (slug: string) => service.syncFolder(slug) });
 
+    const useImportSidecars = () => useMutation({ mutationFn: (slug: string) => service.importSidecars(slug) });
+
     return {
         useListFolders,
         useCreateFolder,
@@ -77,6 +79,7 @@ export const createAdminFoldersQueries = (service: AdminFoldersService) => {
         useReorderFolders,
         useSyncPhotos,
         useSyncFolder,
+        useImportSidecars,
     };
 };
 

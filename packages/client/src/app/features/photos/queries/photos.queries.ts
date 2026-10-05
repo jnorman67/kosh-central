@@ -8,6 +8,7 @@ export const PhotosQueryKeys = {
     favoritesInfinite: (limit: number) => ['Photos', 'Favorites', 'infinite', limit] as const,
     favoritesAll: ['Photos', 'Favorites'] as const,
     shareLink: (folderId: string, itemId: string) => ['Photos', 'ShareLink', folderId, itemId] as const,
+    faces: (photoId: string) => ['Photos', 'Faces', photoId] as const,
 } as const;
 
 export const createPhotosQueries = (service: PhotosService) => {
@@ -92,6 +93,15 @@ export const createPhotosQueries = (service: PhotosService) => {
         });
     };
 
+    const useGetFaces = (photoId: string | null | undefined, enabled: boolean) => {
+        return useQuery({
+            queryKey: PhotosQueryKeys.faces(photoId!),
+            queryFn: () => service.getFaces(photoId!),
+            enabled: !!photoId && enabled,
+            staleTime: Infinity,
+        });
+    };
+
     return {
         useGetFolders,
         useGetFolderCovers,
@@ -101,6 +111,7 @@ export const createPhotosQueries = (service: PhotosService) => {
         useRatePhoto,
         useGetFavoritesInfinite,
         useGetShareLink,
+        useGetFaces,
     };
 };
 

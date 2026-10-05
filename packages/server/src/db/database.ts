@@ -1573,6 +1573,71 @@ const migrations: Migration[] = [
             CREATE UNIQUE INDEX idx_ocr_results_bundle ON ocr_results(bundle_id);
         `,
     },
+    {
+        version: 27,
+        description: 'photo_subjects: subject_id PK, nullable person_id, allow cowork-yunet source',
+        // Multiple unidentified face boxes per bundle (from sidecar import) need their
+        // own surrogate PK; the old (bundle_id, person_id) key required a person_id.
+        sql: `
+            CREATE TABLE photo_subjects_new (
+                subject_id TEXT PRIMARY KEY,
+                bundle_id TEXT NOT NULL REFERENCES bundles(id) ON DELETE CASCADE,
+                person_id TEXT REFERENCES persons(id) ON DELETE CASCADE,
+                source TEXT NOT NULL DEFAULT 'manual' CHECK(source IN ('manual', 'auto', 'cowork-yunet')),
+                confidence REAL,
+                face_region TEXT,
+                verified INTEGER NOT NULL DEFAULT 1 CHECK(verified IN (0, 1)),
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                created_by TEXT REFERENCES users(id) ON DELETE SET NULL
+            );
+            INSERT INTO photo_subjects_new
+                    (subject_id, bundle_id, person_id, source, confidence, face_region, verified, created_at, created_by)
+                SELECT lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-4' ||
+                       substr(lower(hex(randomblob(2))), 2) || '-' ||
+                       substr('89ab', 1 + (abs(random()) % 4), 1) ||
+                       substr(lower(hex(randomblob(2))), 2) || '-' ||
+                       lower(hex(randomblob(6))),
+                       bundle_id, person_id, source, confidence, face_region, verified, created_at, created_by
+                FROM photo_subjects;
+            DROP TABLE photo_subjects;
+            ALTER TABLE photo_subjects_new RENAME TO photo_subjects;
+            CREATE INDEX idx_photo_subjects_bundle ON photo_subjects(bundle_id);
+            CREATE INDEX idx_photo_subjects_person_id ON photo_subjects(person_id);
+            CREATE UNIQUE INDEX idx_photo_subjects_bundle_person
+                ON photo_subjects(bundle_id, person_id)
+                WHERE person_id IS NOT NULL;
+        `,
+    },
+    {
+        version: 28,
+        description: 'photo_subjects: add side column to scope detected faces to front/back',
+        // Cowork detects faces per file (front vs back); previously we collapsed both onto the
+        // bundle, which made the viewer draw front-side boxes over a back-of-photo image.
+        sql: `
+            ALTER TABLE photo_subjects ADD COLUMN side TEXT
+                CHECK(side IS NULL OR side IN ('front', 'back'));
+        `,
+    },
+    {
+        version: 29,
+        description: 'Create single-row memoriam settings table',
+        // One row (id = 1) holding the admin-configured "In memoriam" landing page.
+        // folder_slug follows folder renames and clears if the album is deleted.
+        sql: `
+            CREATE TABLE memoriam (
+                id INTEGER PRIMARY KEY CHECK(id = 1),
+                enabled INTEGER NOT NULL DEFAULT 0 CHECK(enabled IN (0, 1)),
+                folder_slug TEXT REFERENCES folders(slug) ON UPDATE CASCADE ON DELETE SET NULL,
+                photo_file_name TEXT,
+                name TEXT NOT NULL DEFAULT '',
+                dates TEXT NOT NULL DEFAULT '',
+                message TEXT NOT NULL DEFAULT '',
+                updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_by TEXT REFERENCES users(id) ON DELETE SET NULL
+            );
+            INSERT INTO memoriam (id) VALUES (1);
+        `,
+    },
 ];
 
 /**

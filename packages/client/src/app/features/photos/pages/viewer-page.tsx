@@ -22,7 +22,7 @@ import { ViewerLayout } from '@/components/layout/viewer-layout';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { hideSplash } from '@/lib/splash';
-import { ArrowRight, BookOpen, ExternalLink, Filter, LayoutGrid, List, Star, StarOff, X } from 'lucide-react';
+import { ArrowRight, BookOpen, ExternalLink, Filter, LayoutGrid, List, ScanFace, Star, StarOff, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
@@ -52,10 +52,11 @@ function findRelatedPhotos(main: Photo, allPhotos: Photo[]): RelatedPhoto[] {
     return [...backs.sort(byPreferredThenName), ...others.sort(byPreferredThenName)];
 }
 
+const FACE_MODE_STORAGE_KEY = 'kosh.viewer.faceMode';
+
 export function ViewerPage() {
     const [searchParams] = useSearchParams();
-    const { useGetFolders, useGetPhotos, useSetFolderCover, useClearFolderCover, useGetShareLink } =
-        usePhotosQueries();
+    const { useGetFolders, useGetPhotos, useSetFolderCover, useClearFolderCover, useGetShareLink, useGetFaces } = usePhotosQueries();
     const setCover = useSetFolderCover();
     const clearCover = useClearFolderCover();
     const { useGetMe } = useAuthQueries();
@@ -64,6 +65,14 @@ export function ViewerPage() {
     const [uncatalogedOnly, setUncatalogedOnly] = useState(false);
     const [pagesView, setPagesView] = useState(false);
     const [disputeTarget, setDisputeTarget] = useState<{ personId: string; personName: string } | null>(null);
+    const [faceMode, setFaceMode] = useState<boolean>(() => {
+        if (typeof window === 'undefined') return false;
+        return window.localStorage.getItem(FACE_MODE_STORAGE_KEY) === '1';
+    });
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        window.localStorage.setItem(FACE_MODE_STORAGE_KEY, faceMode ? '1' : '0');
+    }, [faceMode]);
 
     const { data: folders = [], isLoading: foldersLoading } = useGetFolders();
 
@@ -152,6 +161,9 @@ export function ViewerPage() {
     const displayPhoto = enlargedRelated ? enlargedRelated.photo : currentPhoto;
     // Anonymous view link for the displayed photo — fetched lazily and cached forever.
     const { data: shareLink } = useGetShareLink(currentFolder?.id ?? null, displayPhoto?.id ?? null);
+    // Face boxes for the displayed photo. Only fetched when face mode is on AND the
+    // photo is cataloged (uncataloged photos have no bundle and no sidecar rows).
+    const { data: faces } = useGetFaces(displayPhoto?.catalogId, faceMode && !!displayPhoto?.catalogId);
     const isAlbums = navView === 'albums';
     const isGallery = navView === 'gallery';
     const isPhoto = navView === 'photo';
@@ -248,6 +260,8 @@ export function ViewerPage() {
                                 onClick={enlargedRelated ? () => setEnlargedRelatedId(null) : undefined}
                                 onSwipeNext={handleNext}
                                 onSwipePrev={handlePrev}
+                                showFaces={faceMode}
+                                faces={faces}
                             />
                             {currentPhoto && relatedPhotos.length > 0 && (
                                 <RelatedStrip
@@ -413,7 +427,25 @@ export function ViewerPage() {
                                     onNext={handleNext}
                                 />
                             </div>
-                            <div className="flex items-center justify-end" />
+                            <div className="flex items-center justify-end">
+                                {displayPhoto?.catalogId && (
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Button
+                                                variant={faceMode ? 'secondary' : 'ghost'}
+                                                size="sm"
+                                                onClick={() => setFaceMode((v) => !v)}
+                                                aria-pressed={faceMode}
+                                                aria-label="Toggle face boxes"
+                                            >
+                                                <ScanFace className="h-4 w-4" />
+                                                <span className="hidden sm:inline">Faces</span>
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>{faceMode ? 'Hide face boxes' : 'Show face boxes'}</TooltipContent>
+                                    </Tooltip>
+                                )}
+                            </div>
                         </div>
                     )
                 }
