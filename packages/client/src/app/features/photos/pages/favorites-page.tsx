@@ -1,3 +1,4 @@
+import { BackToGalleryButton } from '@/app/features/photos/components/back-to-gallery-button';
 import { LetterboxViewer } from '@/app/features/photos/components/letterbox-viewer';
 import { PhotoControls } from '@/app/features/photos/components/photo-controls';
 import { PhotoGallery } from '@/app/features/photos/components/photo-gallery';
@@ -9,7 +10,7 @@ import { ViewerLayout } from '@/components/layout/viewer-layout';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { hideSplash } from '@/lib/splash';
-import { ArrowLeft, ExternalLink, Heart, LayoutGrid, Play } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Heart, Play } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -99,27 +100,25 @@ export function FavoritesPage() {
                 <div className="flex items-center justify-between gap-2">
                     <div className="flex min-w-0 items-center gap-1 sm:gap-2">
                         <BrandMark onClick={() => navigate('/')} title="Browse albums" />
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <Button variant="ghost" size="sm" onClick={() => navigate(-1)} aria-label="Back to photos">
-                                    <ArrowLeft className="h-4 w-4" />
-                                    <span className="hidden sm:inline">Back to photos</span>
-                                </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Back to photos</TooltipContent>
-                        </Tooltip>
+                        {isPhoto ? (
+                            <BackToGalleryButton onClick={backToGallery} target="favorites" />
+                        ) : (
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button variant="ghost" size="sm" onClick={() => navigate(-1)} aria-label="Back to photos">
+                                        <ArrowLeft className="h-4 w-4" />
+                                        <span className="hidden sm:inline">Back to photos</span>
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Back to photos</TooltipContent>
+                            </Tooltip>
+                        )}
                         <div className="flex items-center gap-2 px-1 py-2 text-sm font-medium sm:px-2">
                             <Heart className="h-4 w-4 fill-rose-500 text-rose-500" />
                             <span className="hidden sm:inline">My favorites</span>
                         </div>
                     </div>
                     <div className="flex shrink-0 items-center gap-1 pr-1 sm:gap-3 sm:px-4">
-                        {isPhoto && (
-                            <Button variant="ghost" size="sm" onClick={backToGallery} aria-label="Back to gallery">
-                                <LayoutGrid className="h-4 w-4" />
-                                <span className="hidden sm:inline">Gallery</span>
-                            </Button>
-                        )}
                         <Tooltip>
                             <TooltipTrigger asChild>
                                 <Button

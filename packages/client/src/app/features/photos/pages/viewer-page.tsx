@@ -3,6 +3,7 @@ import { CommentPanel } from '@/app/features/comments/components/comment-panel';
 import { OcrPanel } from '@/app/features/ocr/components/ocr-panel';
 import { OcrQueryProvider } from '@/app/features/ocr/contexts/ocr-query.context';
 import { AlbumGallery } from '@/app/features/photos/components/album-gallery';
+import { BackToGalleryButton } from '@/app/features/photos/components/back-to-gallery-button';
 import { FolderSelector } from '@/app/features/photos/components/folder-selector';
 import { LetterboxViewer } from '@/app/features/photos/components/letterbox-viewer';
 import { MobilePanel } from '@/app/features/photos/components/mobile-panel';
@@ -22,7 +23,7 @@ import { ViewerLayout } from '@/components/layout/viewer-layout';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { hideSplash } from '@/lib/splash';
-import { ArrowRight, BookOpen, ExternalLink, Filter, LayoutGrid, List, ScanFace, Star, StarOff, X } from 'lucide-react';
+import { ArrowRight, BookOpen, ExternalLink, Filter, LayoutGrid, ScanFace, Star, StarOff, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
@@ -198,6 +199,7 @@ export function ViewerPage() {
                         ) : (
                             <div className="flex min-w-0 flex-1 items-center gap-2 sm:flex-none">
                                 <BrandMark onClick={goToAlbums} title="Browse albums" />
+                                {isPhoto && <BackToGalleryButton onClick={backToGallery} target={pagesView ? 'pages' : 'gallery'} />}
                                 <FolderSelector
                                     folders={folders}
                                     selectedId={currentFolder?.id ?? null}
@@ -207,17 +209,6 @@ export function ViewerPage() {
                             </div>
                         )}
                         <div className="flex shrink-0 items-center gap-1 pr-1 sm:gap-3 sm:px-4">
-                            {isPhoto && (
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={backToGallery}
-                                    aria-label={pagesView ? 'Back to pages' : 'Back to gallery'}
-                                >
-                                    {pagesView ? <List className="h-4 w-4" /> : <LayoutGrid className="h-4 w-4" />}
-                                    <span className="hidden sm:inline">{pagesView ? 'Scroll' : 'Gallery'}</span>
-                                </Button>
-                            )}
                             {isAdmin && isPhoto && currentPhoto && (
                                 <Button
                                     variant="ghost"
