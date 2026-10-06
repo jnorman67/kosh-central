@@ -296,8 +296,11 @@ export function FeaturedAdminPage() {
                             <div className="overflow-hidden rounded-lg border shadow-sm">
                                 <FeaturedDisplay
                                     content={form}
-                                    imageUrl={previewPhoto ? (previewPhoto.thumbnailUrl ?? previewPhoto.downloadUrl) : null}
-                                    imageAlt={previewPhoto?.name ?? ''}
+                                    images={
+                                        previewPhoto
+                                            ? [{ url: previewPhoto.thumbnailUrl ?? previewPhoto.downloadUrl, alt: previewPhoto.name }]
+                                            : []
+                                    }
                                     compact
                                 />
                             </div>

@@ -19,14 +19,13 @@ export function FeaturedPage() {
     if (isError || !featured?.enabled) return <Navigate to="/" replace />;
 
     const albumUrl = `/?folder=${encodeURIComponent(featured.folderId)}`;
-    const photo = featured.photo;
+    const photos = featured.photos;
 
     return (
         <FeaturedDisplay
             content={featured}
-            imageUrl={photo?.imageUrl ?? null}
-            imageAlt={featured.title || featured.folderDisplayName}
-            onOpenPhoto={photo ? () => navigate(`${albumUrl}&photo=${encodeURIComponent(photo.photoKey)}`) : undefined}
+            images={photos.map((p) => ({ url: p.imageUrl, alt: featured.title || featured.folderDisplayName }))}
+            onOpenPhoto={(i) => navigate(`${albumUrl}&photo=${encodeURIComponent(photos[i].photoKey)}`)}
             onViewAlbum={() => navigate(albumUrl)}
             onContinue={() => navigate('/')}
         />

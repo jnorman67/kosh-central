@@ -19,8 +19,8 @@ export function createFeaturedRouter(oneDriveService: OneDriveService): Router {
             return;
         }
 
-        // A OneDrive failure still renders the page — just without a photo.
-        let photo: { name: string; imageUrl: string; thumbnailUrl?: string; photoKey: string } | null = null;
+        // A OneDrive failure still renders the page — just without photos.
+        let photos: { name: string; imageUrl: string; thumbnailUrl?: string; photoKey: string }[] = [];
         try {
             const rawPhotos = await oneDriveService.getPhotos(folder.sharingUrl);
             const galleryPhotos = rawPhotos.filter((p) => !isInPagesSubfolder(p.subfolderPath));
@@ -29,17 +29,23 @@ export function createFeaturedRouter(oneDriveService: OneDriveService): Router {
                 folder.folderPath,
                 config.photoFileName ?? getFolderCover(folder.folderPath),
             );
-            if (chosen) {
-                const fullFolder = chosen.subfolderPath ? `${folder.folderPath}/${chosen.subfolderPath}` : folder.folderPath;
-                const cataloged = findPhotoByFolderAndName(fullFolder, chosen.name);
-                photo = {
-                    name: chosen.name,
-                    imageUrl: chosen.downloadUrl,
-                    thumbnailUrl: chosen.thumbnailUrl,
-                    // Matches the viewer's ?photo= key: content hash if cataloged, else file name.
-                    photoKey: cataloged?.contentHash ?? chosen.name,
-                };
-            }
+            // Same "one photo per bundle" rule the viewer's gallery uses, so the page doesn't
+            // show photo backs or alternate scans.
+            const viewable = galleryPhotos.flatMap((p) => {
+                const fullFolder = p.subfolderPath ? `${folder.folderPath}/${p.subfolderPath}` : folder.folderPath;
+                const cataloged = findPhotoByFolderAndName(fullFolder, p.name);
+                if (p !== chosen && cataloged?.bundleId && !(cataloged.side === 'front' && cataloged.isPreferred)) return [];
+                return [{ source: p, cataloged }];
+            });
+            // The featured photo leads, then the rest of the album in order, wrapping around.
+            const start = Math.max(0, viewable.findIndex((v) => v.source === chosen));
+            photos = [...viewable.slice(start), ...viewable.slice(0, start)].map(({ source, cataloged }) => ({
+                name: source.name,
+                imageUrl: source.downloadUrl,
+                thumbnailUrl: source.thumbnailUrl,
+                // Matches the viewer's ?photo= key: content hash if cataloged, else file name.
+                photoKey: cataloged?.contentHash ?? source.name,
+            }));
         } catch (err) {
             console.error('Featured album photo resolve failed:', err);
         }
@@ -54,7 +60,7 @@ export function createFeaturedRouter(oneDriveService: OneDriveService): Router {
             buttonLabel: config.buttonLabel,
             folderId: folder.slug,
             folderDisplayName: folder.displayName,
-            photo,
+            photos,
         });
     });
 

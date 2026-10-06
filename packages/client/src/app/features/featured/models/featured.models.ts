@@ -28,7 +28,8 @@ export type FeaturedAlbum =
           enabled: true;
           folderId: string;
           folderDisplayName: string;
-          photo: FeaturedPhoto | null;
+          /** Album photos to cycle through, featured photo first. Empty if OneDrive was unreachable. */
+          photos: FeaturedPhoto[];
       });
 
 /** Admin view of the stored settings (GET/PUT /api/admin/featured). */
