@@ -25,7 +25,8 @@ export function LoginPage() {
         login.mutate(
             { email, password },
             {
-                onSuccess: () => navigate('/', { replace: true }),
+                // The featured page forwards to the viewer when no album is featured.
+                onSuccess: () => navigate('/featured', { replace: true }),
             },
         );
     }

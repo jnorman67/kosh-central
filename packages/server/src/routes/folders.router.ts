@@ -9,7 +9,7 @@ import { OneDriveService, type Photo as OneDrivePhoto } from '../services/onedri
 import { ThumbnailCacheService } from '../services/thumbnail-cache.service.js';
 
 /** Returns true when a photo's subfolderPath is (or descends into) a subfolder named "pages". */
-function isInPagesSubfolder(subfolderPath: string): boolean {
+export function isInPagesSubfolder(subfolderPath: string): boolean {
     const lower = subfolderPath.toLowerCase();
     return lower === 'pages' || lower.startsWith('pages/');
 }
@@ -21,7 +21,7 @@ function findFolderBySlug(slug: string | string[] | undefined): StoredFolder | n
 
 /** Mirror of the client's pickCover: prefer the admin-configured cover, else the first
  *  photo that is uncataloged, or cataloged-without-bundle, or a preferred front. */
-function pickCoverPhoto(
+export function pickCoverPhoto(
     photos: OneDrivePhoto[],
     folderPath: string,
     coverFileName: string | undefined,

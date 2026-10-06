@@ -6,14 +6,13 @@ import {
     getJwtSecret,
     requireAuth,
 } from "../auth/auth.middleware.js";
+import { acceptInvite, findInvite } from "../auth/invites.store.js";
 import {
-    createUser,
     findUserByEmail,
     findUserById,
     listUsers,
     updateUserPasswordHash,
 } from "../auth/users.store.js";
-import { findInvite } from "../config/invites.config.js";
 
 const TOKEN_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days
 
@@ -56,7 +55,7 @@ export function createAuthRouter(): Router {
             const passwordHash = await bcrypt.hash(password, 12);
             const id = crypto.randomUUID();
 
-            createUser({
+            acceptInvite({
                 id,
                 email: invite.email, // use canonical casing from invite list
                 displayName: displayName.trim(),
@@ -94,6 +93,11 @@ export function createAuthRouter(): Router {
             const valid = await bcrypt.compare(password, user.passwordHash);
             if (!valid) {
                 res.status(401).json({ error: "Invalid email or password" });
+                return;
+            }
+
+            if (user.disabledAt) {
+                res.status(403).json({ error: "This account has been disabled" });
                 return;
             }
 

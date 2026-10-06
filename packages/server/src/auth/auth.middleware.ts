@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
-import type { Role } from '../config/invites.config.js';
+import { findUserById, type Role } from './users.store.js';
 
 export interface AuthPayload {
     userId: string;
@@ -30,13 +30,23 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
         return;
     }
 
+    let payload: AuthPayload;
     try {
-        const payload = jwt.verify(token, getJwtSecret()) as AuthPayload;
-        req.user = payload;
-        next();
+        payload = jwt.verify(token, getJwtSecret()) as AuthPayload;
     } catch {
         res.status(401).json({ error: 'Invalid or expired token' });
+        return;
     }
+
+    // Re-read the user so role changes and revoked access apply immediately, not when the JWT expires.
+    const user = findUserById(payload.userId);
+    if (!user || user.disabledAt) {
+        res.clearCookie('token');
+        res.status(401).json({ error: user ? 'This account has been disabled' : 'User not found' });
+        return;
+    }
+    req.user = { userId: user.id, email: user.email, role: user.role };
+    next();
 }
 
 export function requireAdmin(req: Request, res: Response, next: NextFunction): void {

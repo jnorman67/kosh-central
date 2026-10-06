@@ -87,6 +87,22 @@ To get a sharing URL: right-click a folder in OneDrive > **Share** > **Anyone wi
 
 `folderPath` is the directory path relative to the local scan root, using forward slashes. It must match the `folderName` recorded by `scan-local.ts` so that local catalog data (content hash, bundle membership, etc.) can be joined to the OneDrive listing at request time. The `slug` is used in bookmarkable URLs and must be stable once published.
 
+## Featured Album
+
+An admin can highlight one album (for example a memorial, a birthday, or a newly scanned collection) from **Featured album** in the user menu (`/admin/featured`). The admin chooses the album, a featured photo (defaults to the album cover), a theme (Classic, Memorial, Celebration, or Vintage), and the text: a small heading, a title, a subtitle, a message, and the button label. A live preview updates as they edit.
+
+While **Show after sign-in** is on, everyone lands on `/featured` after logging in. People already signed in via their cookie aren't redirected, but anyone can reach the page from their user menu. Clicking the photo opens it in the album viewer, and the button opens the album gallery. When the feature is off, or the album has been deleted, `/featured` forwards to the normal viewer. Settings live in the single-row `featured_album` table.
+
+## Users & Invites
+
+Sign-up is invitation-only. An admin manages who can register, and what they can do, from **Users & invites** in the user menu (`/admin/users`):
+
+- **Invite someone:** enter their email and choose a role (User or Admin). No email is sent. Tell them to register at `/register` with that address. Once they register, the invite is used up and they move to the users list with the role from their invite.
+- **Change a role:** applies to pending invites and to existing users. A change to an existing user takes effect on their next request; they don't have to sign in again.
+- **Revoke access:** signs the user out at once and stops them signing in. Their account and comments stay (deleting the account would delete their comments too), and **Restore access** reverses it.
+
+Admins can't change their own role or revoke their own access, so there is always at least one active admin. Pending invites live in the `invites` table; revoked users have `users.disabled_at` set. `requireAuth` re-reads the user row on every request, so the role in the JWT is never trusted on its own.
+
 ## Local Catalog & Matching Strategy
 
 `scripts/scan-local.ts` walks a root directory once, computes SHA-256 for every image, groups files that share a base name (e.g. `photo.jpg`, `photo_a.jpg`, `photo_b.jpg`) into **bundles** representing one physical photograph, assigns each file a `side` (front/back) and a heuristic preferred hint, and emits a manifest. The manifest is imported via `POST /api/photos/import` and stored in SQLite. At request time, files returned by OneDrive are joined to local catalog rows by `(folderPath, fileName)`.

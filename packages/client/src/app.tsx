@@ -1,5 +1,6 @@
 import { AuthQueryProvider } from '@/app/features/auth/contexts/auth-query.context';
 import { AuthQueryKeys } from '@/app/features/auth/queries/auth.queries';
+import { FeaturedQueryProvider } from '@/app/features/featured/contexts/featured-query.context';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { ApiError } from '@/lib/api-client';
 import { router } from '@/router';
@@ -27,9 +28,11 @@ export function App() {
     return (
         <QueryClientProvider client={queryClient}>
             <AuthQueryProvider>
-                <TooltipProvider delayDuration={300}>
-                    <RouterProvider router={router} />
-                </TooltipProvider>
+                <FeaturedQueryProvider>
+                    <TooltipProvider delayDuration={300}>
+                        <RouterProvider router={router} />
+                    </TooltipProvider>
+                </FeaturedQueryProvider>
             </AuthQueryProvider>
         </QueryClientProvider>
     );

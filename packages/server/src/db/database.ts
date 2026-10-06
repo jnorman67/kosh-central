@@ -1692,6 +1692,57 @@ const migrations: Migration[] = [
             INSERT INTO memoriam (id) VALUES (1);
         `,
     },
+    {
+        version: 30,
+        description: 'Replace memoriam with general-purpose featured_album settings table',
+        // The "in memoriam" page generalized to any highlighted album: admin picks a theme and
+        // writes their own heading/title/subtitle/message. memoriam was never populated.
+        sql: `
+            DROP TABLE memoriam;
+            CREATE TABLE featured_album (
+                id INTEGER PRIMARY KEY CHECK(id = 1),
+                enabled INTEGER NOT NULL DEFAULT 0 CHECK(enabled IN (0, 1)),
+                folder_slug TEXT REFERENCES folders(slug) ON UPDATE CASCADE ON DELETE SET NULL,
+                photo_file_name TEXT,
+                theme TEXT NOT NULL DEFAULT 'classic'
+                    CHECK(theme IN ('classic', 'memorial', 'celebration', 'vintage')),
+                eyebrow TEXT NOT NULL DEFAULT '',
+                title TEXT NOT NULL DEFAULT '',
+                subtitle TEXT NOT NULL DEFAULT '',
+                message TEXT NOT NULL DEFAULT '',
+                button_label TEXT NOT NULL DEFAULT '',
+                updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_by TEXT REFERENCES users(id) ON DELETE SET NULL
+            );
+            INSERT INTO featured_album (id) VALUES (1);
+        `,
+    },
+    {
+        version: 31,
+        description: 'Move invite list into the database; add users.disabled_at',
+        // Invites were hardcoded in config/invites.config.ts. A row here is a pending
+        // registration and is deleted when the person registers. Seed with the old list,
+        // skipping anyone who already has an account. Users are disabled rather than deleted
+        // because deleting would cascade to their comments.
+        sql: `
+            CREATE TABLE invites (
+                email TEXT PRIMARY KEY COLLATE NOCASE,
+                role TEXT NOT NULL CHECK (role IN ('admin', 'user')),
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                created_by TEXT REFERENCES users(id) ON DELETE SET NULL
+            );
+            INSERT INTO invites (email, role)
+                SELECT v.column1, v.column2
+                FROM (VALUES
+                    ('jnorman67utfan@gmail.com', 'admin'),
+                    ('jnorman67utfan+koshuser@gmail.com', 'user'),
+                    ('drkosh@sbcglobal.net', 'user'),
+                    ('deidra.ryan.cpa@gmail.com', 'user')
+                ) v
+                WHERE NOT EXISTS (SELECT 1 FROM users u WHERE u.email = v.column1);
+            ALTER TABLE users ADD COLUMN disabled_at TEXT;
+        `,
+    },
 ];
 
 /**

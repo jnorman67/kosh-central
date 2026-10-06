@@ -11,6 +11,8 @@ import { seedFoldersIfEmpty } from './db/folders.store.js';
 import { ManifestSyncService } from './services/manifest-sync.service.js';
 import { createAuthRouter } from './routes/auth.router.js';
 import { createFavoritesRouter } from './routes/favorites.router.js';
+import { createFeaturedAdminRouter } from './routes/featured-admin.router.js';
+import { createFeaturedRouter } from './routes/featured.router.js';
 import { createFoldersAdminRouter } from './routes/folders-admin.router.js';
 import { createFoldersRouter } from './routes/folders.router.js';
 import { createPhotosAdminRouter } from './routes/photos-admin.router.js';
@@ -24,6 +26,7 @@ import { createSeriesRouter } from './routes/series.router.js';
 import { createOcrRouter } from './routes/ocr.router.js';
 import { createOcrAdminRouter } from './routes/ocr-admin.router.js';
 import { createSidecarsAdminRouter } from './routes/sidecars-admin.router.js';
+import { createUsersAdminRouter } from './routes/users-admin.router.js';
 import { OneDriveService } from './services/onedrive.service.js';
 import { SidecarImportService } from './services/sidecar-import.service.js';
 import { ThumbnailCacheService } from './services/thumbnail-cache.service.js';
@@ -103,6 +106,8 @@ app.use('/api/auth', createAuthRouter());
 app.use('/api/admin/folders', requireAuth, createFoldersAdminRouter(oneDriveService));
 app.use('/api/admin/photos', requireAuth, createPhotosAdminRouter(manifestSyncService));
 app.use('/api/favorites', requireAuth, createFavoritesRouter(oneDriveService));
+app.use('/api/featured', requireAuth, createFeaturedRouter(oneDriveService));
+app.use('/api/admin/featured', requireAuth, createFeaturedAdminRouter());
 app.use('/api/folders', requireAuth, createFoldersRouter(oneDriveService, thumbnailCache));
 app.use('/api/photos', requireAuth, createPhotosRouter());
 app.use('/api/ratings', requireAuth, createRatingsRouter());
@@ -114,6 +119,7 @@ app.use('/api/comments', requireAuth, createCommentsRouter());
 app.use('/api/ocr', requireAuth, createOcrRouter());
 app.use('/api/admin/ocr', requireAuth, createOcrAdminRouter(oneDriveService));
 app.use('/api/admin/sidecars', requireAuth, createSidecarsAdminRouter(sidecarImportService));
+app.use('/api/admin/users', requireAuth, createUsersAdminRouter());
 
 // Global error handler — catches synchronous throws from route handlers and
 // errors forwarded via next(err). Must have 4 parameters for Express to treat it as an error handler.
