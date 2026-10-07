@@ -24,19 +24,19 @@ export function FolderSelector({ folders, selectedId, onSelect, isLoading }: Fol
     }
 
     return (
-        <div className="flex min-w-0 flex-1 items-center gap-3 px-2 py-2 sm:flex-none sm:px-4">
+        <div className="flex min-w-0 flex-1 items-center gap-3 py-2 sm:flex-none sm:px-4">
             <span className="hidden text-sm font-medium sm:inline">Album</span>
             <Select value={selectedId ?? undefined} onValueChange={onSelect}>
-                <SelectTrigger className="min-w-0 flex-1 sm:w-[360px] sm:flex-none">
+                <SelectTrigger className="min-w-0 flex-1 gap-1 sm:w-[360px] sm:flex-none [&>span]:min-w-0">
                     <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                     {folders.map((folder) => (
                         <SelectItem key={folder.id} value={folder.id}>
-                            <span className="flex items-center gap-2">
-                                {folder.displayName}
+                            <span className="flex min-w-0 items-center gap-2">
+                                <span className="truncate">{folder.displayName}</span>
                                 {isNewAlbum(folder) && (
-                                    <span className="rounded bg-[hsl(var(--brand))] px-1.5 py-0.5 text-xs font-semibold text-[hsl(var(--brand-foreground))]">
+                                    <span className="shrink-0 rounded bg-[hsl(var(--brand))] px-1.5 py-0.5 text-xs font-semibold text-[hsl(var(--brand-foreground))]">
                                         New
                                     </span>
                                 )}

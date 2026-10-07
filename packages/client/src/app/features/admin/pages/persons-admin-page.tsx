@@ -229,8 +229,8 @@ export function PersonsAdminPage() {
     return (
         <ViewerLayout
             header={
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
+                <div className="flex items-center justify-between gap-2">
+                    <div className="flex min-w-0 items-center gap-2">
                         <Tooltip>
                             <TooltipTrigger asChild>
                                 <Button variant="ghost" size="sm" onClick={backToViewer} aria-label="Back to viewer">
@@ -239,9 +239,9 @@ export function PersonsAdminPage() {
                             </TooltipTrigger>
                             <TooltipContent>Back to viewer</TooltipContent>
                         </Tooltip>
-                        <span className="px-2 py-2 text-sm font-medium">Persons</span>
+                        <span className="truncate px-2 py-2 text-sm font-medium">Persons</span>
                     </div>
-                    <div className="flex items-center gap-3 px-4">
+                    <div className="flex shrink-0 items-center gap-3 pr-1 sm:px-4">
                         <UserMenu />
                     </div>
                 </div>

@@ -9,7 +9,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { ChevronDown, FolderCog, KeyRound, LogOut, Sparkles, UserCog, Users } from 'lucide-react';
+import { ChevronDown, CircleUser, FolderCog, KeyRound, LogOut, Sparkles, UserCog, Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export function UserMenu() {
@@ -36,9 +36,10 @@ export function UserMenu() {
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="text-muted-foreground">
-                    {me.displayName}
-                    <ChevronDown className="h-3 w-3 opacity-60" />
+                <Button variant="ghost" size="sm" className="text-muted-foreground" aria-label={me.displayName}>
+                    <CircleUser className="h-5 w-5 sm:hidden" />
+                    <span className="hidden sm:inline">{me.displayName}</span>
+                    <ChevronDown className="hidden h-3 w-3 opacity-60 sm:block" />
                 </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">

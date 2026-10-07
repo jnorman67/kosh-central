@@ -230,7 +230,7 @@ export function ViewerPage() {
 
             <ViewerLayout
                 header={
-                    <div className="flex items-center justify-between gap-2">
+                    <div className="flex min-h-[52px] items-center justify-between gap-2 pl-1 sm:pl-0">
                         {isAlbums ? (
                             <div className="flex min-w-0 items-center gap-2">
                                 <BrandMark title="Kosh Central" />
@@ -238,7 +238,10 @@ export function ViewerPage() {
                             </div>
                         ) : (
                             <div className="flex min-w-0 flex-1 items-center gap-2 sm:flex-none">
-                                <BrandMark onClick={goToAlbums} title="Browse albums" />
+                                {/* On phones the back button is the way out of a photo; the album list is a step further. */}
+                                <div className={isPhoto ? 'hidden sm:block' : undefined}>
+                                    <BrandMark onClick={goToAlbums} title="Browse albums" />
+                                </div>
                                 {isPhoto && (
                                     <BackToGalleryButton
                                         onClick={backToGallery}
@@ -268,11 +271,11 @@ export function ViewerPage() {
                                             variant="ghost"
                                             size="sm"
                                             disabled={setCover.isPending || clearCover.isPending}
-                                            className="hidden md:inline-flex"
+                                            aria-label="Cover"
                                         >
                                             <Star className="h-4 w-4" />
-                                            Cover
-                                            <ChevronDown className="h-4 w-4" />
+                                            <span className="hidden md:inline">Cover</span>
+                                            <ChevronDown className="hidden h-4 w-4 md:block" />
                                         </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end">
@@ -293,17 +296,17 @@ export function ViewerPage() {
                                     size="sm"
                                     onClick={() => handleToggleCover('', isAlbumCover)}
                                     disabled={setCover.isPending || clearCover.isPending}
-                                    className="hidden md:inline-flex"
+                                    aria-label={isAlbumCover ? 'Clear album cover' : 'Set as album cover'}
                                 >
                                     {isAlbumCover ? (
                                         <>
                                             <StarOff className="h-4 w-4" />
-                                            Clear album cover
+                                            <span className="hidden md:inline">Clear album cover</span>
                                         </>
                                     ) : (
                                         <>
                                             <Star className="h-4 w-4" />
-                                            Set as album cover
+                                            <span className="hidden md:inline">Set as album cover</span>
                                         </>
                                     )}
                                 </Button>

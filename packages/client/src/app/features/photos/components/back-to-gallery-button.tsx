@@ -20,10 +20,10 @@ export function BackToGalleryButton({ onClick, target = 'gallery' }: BackToGalle
                     size="sm"
                     onClick={onClick}
                     aria-label={`Back to ${target}`}
-                    className="shrink-0 border-amber-300 text-sm font-semibold text-amber-900 hover:bg-amber-50 hover:text-amber-950"
+                    className="min-w-0 max-w-[40vw] shrink-0 border-amber-300 text-sm font-semibold text-amber-900 hover:bg-amber-50 hover:text-amber-950"
                 >
                     <ArrowLeft className="h-4 w-4" />
-                    <span className="sm:hidden">{shortLabel}</span>
+                    <span className="truncate sm:hidden">{shortLabel}</span>
                     <span className="hidden sm:inline">Back to {target}</span>
                 </Button>
             </TooltipTrigger>
