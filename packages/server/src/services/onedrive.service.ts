@@ -1,4 +1,5 @@
 import type { MsalService } from '../auth/msal.service.js';
+import { fetchWithRetry } from './graph-fetch.js';
 
 /** Thrown when a OneDrive sharing URL fails to resolve to a valid shared folder. */
 export class ShareValidationError extends Error {
@@ -179,13 +180,16 @@ export class OneDriveService {
         subfolderPath: string,
         out: Photo[],
     ): Promise<void> {
-        const response = await fetch(childrenUrl, {
-            signal: AbortSignal.timeout(OneDriveService.FETCH_TIMEOUT_MS),
-            headers: {
-                Accept: 'application/json',
-                Authorization: `Bearer ${accessToken}`,
+        const response = await fetchWithRetry(
+            childrenUrl,
+            {
+                headers: {
+                    Accept: 'application/json',
+                    Authorization: `Bearer ${accessToken}`,
+                },
             },
-        });
+            OneDriveService.FETCH_TIMEOUT_MS,
+        );
         if (!response.ok) {
             throw new Error(`Graph API error: ${response.status} ${response.statusText}`);
         }
