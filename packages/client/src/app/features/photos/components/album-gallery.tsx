@@ -2,7 +2,7 @@ import { AlbumTile, formatAlbumContents } from '@/app/features/photos/components
 import { usePhotosQueries } from '@/app/features/photos/contexts/photos-query.context';
 import { usePlaceMemory } from '@/app/features/photos/hooks/use-place-memory';
 import type { PhotoFolder } from '@/app/features/photos/models/photos.models';
-import { useMemo } from 'react';
+import { useMemo, type ReactNode } from 'react';
 
 const NEW_THRESHOLD_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -15,9 +15,11 @@ interface AlbumGalleryProps {
     onSelect: (id: string) => void;
     /** Where the album list's scroll position and last-opened album are remembered. */
     placeKey: string;
+    /** Shown above the grid and scrolled with it, e.g. a link to the featured album. */
+    leading?: ReactNode;
 }
 
-export function AlbumGallery({ folders, onSelect, placeKey }: AlbumGalleryProps) {
+export function AlbumGallery({ folders, onSelect, placeKey, leading }: AlbumGalleryProps) {
     const { useGetFolderCovers } = usePhotosQueries();
     const { data: covers, isLoading } = useGetFolderCovers();
 
@@ -30,6 +32,7 @@ export function AlbumGallery({ folders, onSelect, placeKey }: AlbumGalleryProps)
 
     return (
         <div ref={ref} className="h-full overflow-auto bg-black p-4 sm:p-6">
+            {leading}
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-[repeat(auto-fill,minmax(240px,1fr))]">
                 {folders.map((folder) => {
                     const info = byId.get(folder.id);

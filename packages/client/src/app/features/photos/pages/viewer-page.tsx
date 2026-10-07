@@ -1,5 +1,7 @@
 import { useAuthQueries } from '@/app/features/auth/contexts/auth-query.context';
 import { CommentPanel } from '@/app/features/comments/components/comment-panel';
+import { FeaturedBanner } from '@/app/features/featured/components/featured-banner';
+import { FeaturedButton } from '@/app/features/featured/components/featured-button';
 import { OcrPanel } from '@/app/features/ocr/components/ocr-panel';
 import { OcrQueryProvider } from '@/app/features/ocr/contexts/ocr-query.context';
 import { AlbumGallery } from '@/app/features/photos/components/album-gallery';
@@ -311,13 +313,15 @@ export function ViewerPage() {
                                     )}
                                 </Button>
                             )}
+                            {/* The album list carries its own featured banner. */}
+                            {!isAlbums && <FeaturedButton />}
                             <UserMenu />
                         </div>
                     </div>
                 }
                 viewer={
                     isAlbums ? (
-                        <AlbumGallery folders={folders} onSelect={setFolder} placeKey={ALBUMS_PLACE} />
+                        <AlbumGallery folders={folders} onSelect={setFolder} placeKey={ALBUMS_PLACE} leading={<FeaturedBanner />} />
                     ) : isGallery ? (
                         pagesView ? (
                             <PhotoPagesReader
