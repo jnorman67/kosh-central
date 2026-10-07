@@ -1,4 +1,5 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { FeaturedQueryKeys } from '@/app/features/featured/queries/featured.queries';
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import type { SubjectsService } from '../services/subjects.service';
 
 export const SubjectsQueryKeys = {
@@ -6,6 +7,14 @@ export const SubjectsQueryKeys = {
     suggestionsForPhoto: (photoId: string) => ['Subjects', 'Suggestions', photoId] as const,
     personSearch: (q: string) => ['Subjects', 'PersonSearch', q] as const,
 } as const;
+
+/** The featured album (its page and its gallery) carries photos of its featured people, so a tag
+ *  change can add or drop a photo there. Marked stale rather than refetched, so the gallery being
+ *  tagged in doesn't reshuffle underfoot; the next visit picks up the change. */
+const invalidateFeaturedPhotos = (qc: QueryClient) => {
+    qc.invalidateQueries({ queryKey: FeaturedQueryKeys.featured, refetchType: 'none' });
+    qc.invalidateQueries({ queryKey: ['Photos', 'Photos'], refetchType: 'none' });
+};
 
 export const createSubjectsQueries = (service: SubjectsService) => {
     const usePhotoSubjects = (photoId: string | null) =>
@@ -39,6 +48,7 @@ export const createSubjectsQueries = (service: SubjectsService) => {
             onSuccess: (_, { photoId }) => {
                 qc.invalidateQueries({ queryKey: SubjectsQueryKeys.forPhoto(photoId) });
                 qc.invalidateQueries({ queryKey: SubjectsQueryKeys.suggestionsForPhoto(photoId) });
+                invalidateFeaturedPhotos(qc);
             },
         });
     };
@@ -49,6 +59,7 @@ export const createSubjectsQueries = (service: SubjectsService) => {
             mutationFn: ({ personId, photoId }: { personId: string; photoId: string }) => service.removeSubject(personId, photoId),
             onSuccess: (_, { photoId }) => {
                 qc.invalidateQueries({ queryKey: SubjectsQueryKeys.forPhoto(photoId) });
+                invalidateFeaturedPhotos(qc);
             },
         });
     };
