@@ -73,6 +73,17 @@ The server stores authentication credentials in `packages/server/.msal-cache.jso
 
 In any of these cases, re-authenticate locally and re-upload as above.
 
+## OneDrive Listing Cache
+
+Listing an album through Graph is slow: one request per subfolder (and per page of results), each taking 3–4 seconds because it asks for thumbnails too. The largest albums take about 15 seconds and all of them together about two minutes. So `OneDriveService` keeps every album's listing in memory and never makes a visitor wait for it if it can help it:
+
+- On startup, and every 5 minutes after that, the server re-lists each album in the background, one at a time (`startWarming`).
+- A listing older than 10 minutes is still served at once, and a fresh one is fetched behind the scenes.
+- A listing older than 45 minutes is never served, because the download and thumbnail URLs in it expire after about an hour. The caller waits for a fresh one.
+- Requests for the same album at the same moment share one fetch.
+
+API requests that take 2 seconds or more are logged as `Slow request: …`, and each warm round logs `OneDrive warm: N albums listed in Xs`. Check `npm run logs:live` for both when the site feels slow.
+
 ## Adding Photo Folders
 
 Folder configuration is stored in the `folders` table and managed through the admin screen at `/admin/folders` (visible to admin users only). On first boot of a fresh database the table is seeded from `packages/server/src/db/folders.seed.ts`; after that, all changes happen in the UI.

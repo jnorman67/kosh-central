@@ -45,14 +45,22 @@ export function isInPagesSubfolder(subfolderPath: string): boolean {
 
 interface CacheEntry {
     data: Photo[];
-    expiresAt: number;
+    fetchedAt: number;
 }
 
 export class OneDriveService {
     private cache = new Map<string, CacheEntry>();
+    /** Listings being fetched right now, so concurrent requests for an album share one walk. */
+    private inFlight = new Map<string, Promise<Photo[]>>();
     /** itemId → anonymous view URL. Graph's createLink is idempotent per-app, so these are stable. */
     private shareLinkCache = new Map<string, string>();
-    private readonly TTL_MS = 10 * 60 * 1000; // 10 minutes
+
+    /** A listing older than this is still served, but refreshed in the background. */
+    private static readonly REFRESH_AFTER_MS = 10 * 60 * 1000;
+    /** Graph's download and thumbnail URLs expire after about an hour, so never serve a listing older than this. */
+    private static readonly MAX_AGE_MS = 45 * 60 * 1000;
+    /** How often startWarming re-lists every album. */
+    private static readonly WARM_INTERVAL_MS = 5 * 60 * 1000;
 
     private static readonly FETCH_TIMEOUT_MS = 30_000;
 
@@ -90,20 +98,74 @@ export class OneDriveService {
         }
     }
 
+    /**
+     * An album's photos, from the cache when possible. Listing an album walks every subfolder
+     * through Graph at a few seconds per request, so a stale listing is served at once while a
+     * fresh one is fetched in the background; only a missing or expired listing makes the caller wait.
+     */
     async getPhotos(sharingUrl: string): Promise<Photo[]> {
         const cached = this.cache.get(sharingUrl);
-        if (cached && Date.now() < cached.expiresAt) {
+        const age = cached ? Date.now() - cached.fetchedAt : Infinity;
+        if (cached && age < OneDriveService.MAX_AGE_MS) {
+            if (age >= OneDriveService.REFRESH_AFTER_MS) {
+                this.refresh(sharingUrl).catch((err) => console.error('OneDrive background refresh failed:', err));
+            }
             return cached.data;
         }
+        return this.refresh(sharingUrl);
+    }
 
+    /**
+     * Keep every album's listing fresh so visitors never wait on Graph. Lists each album right
+     * away, then again every few minutes, one at a time to go easy on Graph and the server's CPU.
+     * `listFolders` is called each round so albums added or removed by admins are picked up.
+     */
+    startWarming(listFolders: () => { slug: string; sharingUrl: string }[]): void {
+        const warm = async () => {
+            const start = Date.now();
+            let refreshed = 0;
+            try {
+                for (const folder of listFolders()) {
+                    const cached = this.cache.get(folder.sharingUrl);
+                    if (cached && Date.now() - cached.fetchedAt < OneDriveService.WARM_INTERVAL_MS) continue;
+                    try {
+                        await this.refresh(folder.sharingUrl);
+                        refreshed++;
+                    } catch (err) {
+                        console.error(`OneDrive warm failed for ${folder.slug}:`, err);
+                    }
+                }
+                console.log(`OneDrive warm: ${refreshed} albums listed in ${((Date.now() - start) / 1000).toFixed(1)}s`);
+            } catch (err) {
+                console.error('OneDrive warm failed:', err);
+            } finally {
+                setTimeout(() => void warm(), OneDriveService.WARM_INTERVAL_MS).unref();
+            }
+        };
+        void warm();
+    }
+
+    /** Fetch a fresh listing into the cache, joining a fetch of the same album already under way. */
+    private refresh(sharingUrl: string): Promise<Photo[]> {
+        const pending = this.inFlight.get(sharingUrl);
+        if (pending) return pending;
+        const fetching = this.fetchPhotos(sharingUrl)
+            .then((photos) => {
+                this.cache.set(sharingUrl, { data: photos, fetchedAt: Date.now() });
+                return photos;
+            })
+            .finally(() => this.inFlight.delete(sharingUrl));
+        this.inFlight.set(sharingUrl, fetching);
+        return fetching;
+    }
+
+    private async fetchPhotos(sharingUrl: string): Promise<Photo[]> {
         const accessToken = await this.msalService.getAccessToken();
         const encoded = this.encodeSharingUrl(sharingUrl);
         const rootChildrenUrl = `https://graph.microsoft.com/v1.0/shares/${encoded}/driveItem/children?$expand=thumbnails`;
 
         const photos: Photo[] = [];
         await this.collectPhotos(rootChildrenUrl, accessToken, '', photos);
-
-        this.cache.set(sharingUrl, { data: photos, expiresAt: Date.now() + this.TTL_MS });
         return photos;
     }
 

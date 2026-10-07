@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { requireAuth } from './auth/auth.middleware.js';
 import { MsalService } from './auth/msal.service.js';
 import { initDb } from './db/database.js';
-import { seedFoldersIfEmpty } from './db/folders.store.js';
+import { listFolders, seedFoldersIfEmpty } from './db/folders.store.js';
 import { ManifestSyncService } from './services/manifest-sync.service.js';
 import { createAuthRouter } from './routes/auth.router.js';
 import { createFavoritesRouter } from './routes/favorites.router.js';
@@ -85,6 +85,9 @@ manifestSyncService.sync().then((r) => {
     );
 }).catch((err) => console.error('Manifest sync failed:', err));
 
+// Keep every album's OneDrive listing cached so pages don't wait on Graph (seconds per subfolder).
+oneDriveService.startWarming(listFolders);
+
 // Regenerable cache of proxied cover thumbnail bytes. Defaults vary by environment because
 // Container Apps' /home is SMB-backed (slow for cache traffic) while App Service's /home is
 // the expected persistent mount. Operators can override with KOSH_COVER_CACHE_DIR.
@@ -96,6 +99,19 @@ const coverCacheDir =
 boot(`thumbnailCache construct (${coverCacheDir})...`);
 const thumbnailCache = new ThumbnailCacheService(coverCacheDir);
 console.log(`Cover thumbnail cache: ${coverCacheDir}`);
+
+// Log slow API requests so latency problems show up in the container logs.
+const SLOW_REQUEST_MS = 2000;
+app.use('/api', (req, res, next) => {
+    const start = performance.now();
+    res.on('finish', () => {
+        const ms = performance.now() - start;
+        if (ms >= SLOW_REQUEST_MS) {
+            console.log(`Slow request: ${req.method} ${req.originalUrl} ${res.statusCode} ${Math.round(ms)}ms`);
+        }
+    });
+    next();
+});
 
 app.use(express.json({ limit: '10mb' }));
 app.use(cookieParser());
