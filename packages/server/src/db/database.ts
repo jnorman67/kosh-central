@@ -38,8 +38,32 @@ export function initDb(): Database.Database {
     db.pragma('busy_timeout = 60000');
 
     runMigrations(db);
+    compactIfMostlyFree(db);
 
     return db;
+}
+
+/**
+ * VACUUM when most of the file is free pages. Deleting rows leaves their pages on SQLite's
+ * freelist instead of shrinking the file, and in production every one of those pages is
+ * restored from, and re-uploaded to, the Litestream replica on each deploy (in October 2026
+ * the file was 918 MB holding 49 MB of data). VACUUM can't run inside a transaction, so
+ * this lives here rather than in a migration.
+ */
+function compactIfMostlyFree(db: Database.Database): void {
+    const pageSize = db.pragma('page_size', { simple: true }) as number;
+    const pageCount = db.pragma('page_count', { simple: true }) as number;
+    const freePages = db.pragma('freelist_count', { simple: true }) as number;
+    const freeMb = (freePages * pageSize) / 1024 / 1024;
+    if (freePages < pageCount / 2 || freeMb < 64) return;
+
+    const start = performance.now();
+    db.exec('VACUUM');
+    const sizeMb = ((db.pragma('page_count', { simple: true }) as number) * pageSize) / 1024 / 1024;
+    console.log(
+        `Compacted database: reclaimed ${Math.round(freeMb)} MB, now ${Math.round(sizeMb)} MB ` +
+            `(${((performance.now() - start) / 1000).toFixed(1)}s)`,
+    );
 }
 
 function runMigrations(db: Database.Database): void {

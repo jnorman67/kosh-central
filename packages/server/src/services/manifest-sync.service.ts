@@ -2,6 +2,7 @@ import type { MsalService } from "../auth/msal.service.js";
 import { getDb } from "../db/database.js";
 import { findFolderBySlug, listFolders } from "../db/folders.store.js";
 import { importManifest, type PhotoManifestEntry } from "../db/photos.store.js";
+import { fetchWithRetry } from "./graph-fetch.js";
 
 export interface ManifestSyncResult {
     foldersChecked: number;
@@ -107,13 +108,16 @@ export class ManifestSyncService {
         subfolderPath: string,
         out: ManifestFileRef[],
     ): Promise<void> {
-        const response = await fetch(childrenUrl, {
-            signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-            headers: {
-                Accept: "application/json",
-                Authorization: `Bearer ${accessToken}`,
+        const response = await fetchWithRetry(
+            childrenUrl,
+            {
+                headers: {
+                    Accept: "application/json",
+                    Authorization: `Bearer ${accessToken}`,
+                },
             },
-        });
+            FETCH_TIMEOUT_MS,
+        );
         if (!response.ok) {
             throw new Error(
                 `Graph API error listing ${subfolderPath || "root"}: ${response.status} ${response.statusText}`,
@@ -169,9 +173,7 @@ export class ManifestSyncService {
     ): Promise<void> {
         const db = getDb();
 
-        const response = await fetch(ref.downloadUrl, {
-            signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-        });
+        const response = await fetchWithRetry(ref.downloadUrl, {}, FETCH_TIMEOUT_MS);
         if (!response.ok) {
             throw new Error(
                 `Failed to download manifest for ${ref.folderName || "root"}: ${response.status}`,
