@@ -110,10 +110,17 @@ export function ViewerPage() {
     // photos have no bundle info and are always shown. Photos that are siblings
     // (non-preferred, or backs) only appear as thumbnails in the side panel.
     // Pages view skips this filter — every page should be visible.
+    // A second copy of the same image is dropped: the viewer finds photos by content hash, so
+    // stepping onto the copy would land back on the first and stall navigation.
     const viewablePhotos = useMemo(() => {
         if (uncatalogedOnly) return allPhotos.filter((p) => !p.catalogId);
-        if (pagesView) return allPhotos;
+        const seen = new Set<string>();
         return allPhotos.filter((p) => {
+            if (p.contentHash) {
+                if (seen.has(p.contentHash)) return false;
+                seen.add(p.contentHash);
+            }
+            if (pagesView) return true;
             if (!p.catalogId) return true;
             if (!p.bundleId) return true;
             return p.side === 'front' && !!p.isPreferred;

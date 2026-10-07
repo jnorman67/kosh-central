@@ -37,6 +37,8 @@ export async function getFeaturedTaggedPhotos(
     const listings = await Promise.allSettled(folders.map((f) => oneDriveService.getPhotos(f.sharingUrl)));
 
     const matches: FeaturedTaggedPhoto[] = [];
+    // The same image filed twice (say, in two subfolders) is listed once.
+    const seen = new Set<string>();
     folders.forEach((folder, i) => {
         const listing = listings[i];
         if (listing.status === 'rejected') {
@@ -48,7 +50,8 @@ export async function getFeaturedTaggedPhotos(
             const fullFolder = photo.subfolderPath ? `${folder.folderPath}/${photo.subfolderPath}` : folder.folderPath;
             const cataloged = findPhotoByFolderAndName(fullFolder, photo.name);
             const bundleId = cataloged?.bundleId;
-            if (!cataloged || !bundleId || !bundleIds.has(bundleId)) continue;
+            if (!cataloged || !bundleId || !bundleIds.has(bundleId) || seen.has(cataloged.id)) continue;
+            seen.add(cataloged.id);
             matches.push({ folder, photo, cataloged });
         }
     });
