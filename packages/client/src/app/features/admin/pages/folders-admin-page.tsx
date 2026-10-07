@@ -3,6 +3,7 @@ import { ImportDialog } from '@/app/features/admin/components/import-dialog';
 import { SortableFolderRow } from '@/app/features/admin/components/sortable-folder-row';
 import { useAdminFoldersQueries, useAdminFoldersService } from '@/app/features/admin/contexts/admin-query.context';
 import type { AdminFolder, FolderInput } from '@/app/features/admin/models/folder.models';
+import { useBackToViewer } from '@/app/features/photos/hooks/use-back-to-viewer';
 import { UserMenu } from '@/components/layout/user-menu';
 import { ViewerLayout } from '@/components/layout/viewer-layout';
 import {
@@ -23,10 +24,9 @@ import { DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, us
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { ArrowLeft, Download, Plus, RefreshCw, Upload } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 
 export function FoldersAdminPage() {
-    const navigate = useNavigate();
+    const backToViewer = useBackToViewer();
     const {
         useListFolders,
         useCreateFolder,
@@ -183,7 +183,7 @@ export function FoldersAdminPage() {
                     <div className="flex items-center gap-2">
                         <Tooltip>
                             <TooltipTrigger asChild>
-                                <Button variant="ghost" size="sm" onClick={() => navigate('/')} aria-label="Back to viewer">
+                                <Button variant="ghost" size="sm" onClick={backToViewer} aria-label="Back to viewer">
                                     <ArrowLeft className="h-4 w-4" />
                                 </Button>
                             </TooltipTrigger>
@@ -248,9 +248,7 @@ export function FoldersAdminPage() {
                                     ))}
                                 </ul>
                                 {importErrors.errors.length > 20 && (
-                                    <p className="mt-1 text-xs italic">
-                                        …and {importErrors.errors.length - 20} more (see server logs).
-                                    </p>
+                                    <p className="mt-1 text-xs italic">…and {importErrors.errors.length - 20} more (see server logs).</p>
                                 )}
                             </div>
                         )}

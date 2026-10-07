@@ -1,6 +1,7 @@
 import { useAdminUsersQueries } from '@/app/features/admin/contexts/admin-query.context';
 import type { AdminUser, Role } from '@/app/features/admin/models/user.models';
 import { useAuthQueries } from '@/app/features/auth/contexts/auth-query.context';
+import { useBackToViewer } from '@/app/features/photos/hooks/use-back-to-viewer';
 import { UserMenu } from '@/components/layout/user-menu';
 import { ViewerLayout } from '@/components/layout/viewer-layout';
 import {
@@ -23,7 +24,6 @@ import { hideSplash } from '@/lib/splash';
 import { cn } from '@/lib/utils';
 import { ArrowLeft, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 
 /** Server timestamps are either ISO strings or SQLite's "YYYY-MM-DD HH:MM:SS" (UTC). */
 function formatDate(value: string): string {
@@ -50,7 +50,7 @@ function RoleSelect({ value, onChange, disabled }: { value: Role; onChange: (rol
 }
 
 export function UsersAdminPage() {
-    const navigate = useNavigate();
+    const backToViewer = useBackToViewer();
     const { useGetMe } = useAuthQueries();
     const { data: me } = useGetMe();
     const { useListUsers, useUpdateUser, useCreateInvite, useUpdateInvite, useDeleteInvite } = useAdminUsersQueries();
@@ -119,7 +119,7 @@ export function UsersAdminPage() {
                     <div className="flex items-center gap-2">
                         <Tooltip>
                             <TooltipTrigger asChild>
-                                <Button variant="ghost" size="sm" onClick={() => navigate('/')} aria-label="Back to viewer">
+                                <Button variant="ghost" size="sm" onClick={backToViewer} aria-label="Back to viewer">
                                     <ArrowLeft className="h-4 w-4" />
                                 </Button>
                             </TooltipTrigger>

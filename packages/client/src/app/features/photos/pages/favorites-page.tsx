@@ -142,7 +142,7 @@ export function FavoritesPage() {
                 isPhoto ? (
                     <LetterboxViewer photo={current} isLoading={isLoading && !current} onSwipeNext={goNext} onSwipePrev={goPrev} />
                 ) : (
-                    <PhotoGallery photos={photos} isLoading={isLoading} onSelect={openFavorite} />
+                    <PhotoGallery photos={photos} isLoading={isLoading} onSelect={openFavorite} placeKey="favorites" />
                 )
             }
             toolbar={

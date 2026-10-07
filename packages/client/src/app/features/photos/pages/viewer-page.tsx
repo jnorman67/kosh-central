@@ -16,8 +16,9 @@ import { SubfolderBreadcrumb } from '@/app/features/photos/components/subfolder-
 import { SubjectsPanel } from '@/app/features/photos/components/subjects-panel';
 import { usePhotosQueries } from '@/app/features/photos/contexts/photos-query.context';
 import { SubjectsQueryProvider } from '@/app/features/photos/contexts/subjects-query.context';
-import { readSubfolderPath, useViewerState } from '@/app/features/photos/hooks/use-viewer-state';
+import { photoKey, readPagesView, readSubfolderPath, useViewerState } from '@/app/features/photos/hooks/use-viewer-state';
 import { coverName, isCoverPhoto } from '@/app/features/photos/lib/cover';
+import { ALBUMS_PLACE, galleryPlace, rememberViewerLocation, subfolderFocus, updatePlace } from '@/app/features/photos/lib/places';
 import type { Photo } from '@/app/features/photos/models/photos.models';
 import { BrandMark } from '@/components/layout/brand-mark';
 import { UserMenu } from '@/components/layout/user-menu';
@@ -28,7 +29,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { hideSplash } from '@/lib/splash';
 import { ArrowRight, BookOpen, ChevronDown, ExternalLink, Filter, LayoutGrid, ScanFace, Star, StarOff, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useLocation, useSearchParams } from 'react-router-dom';
 
 interface RelatedPhoto {
     photo: Photo;
@@ -60,6 +61,7 @@ const FACE_MODE_STORAGE_KEY = 'kosh.viewer.faceMode';
 
 export function ViewerPage() {
     const [searchParams] = useSearchParams();
+    const location = useLocation();
     const { useGetFolders, useGetPhotos, useSetFolderCover, useClearFolderCover, useGetShareLink, useGetFaces } = usePhotosQueries();
     const setCover = useSetFolderCover();
     const clearCover = useClearFolderCover();
@@ -67,7 +69,6 @@ export function ViewerPage() {
     const { data: me } = useGetMe();
     const [enlargedRelatedId, setEnlargedRelatedId] = useState<string | null>(null);
     const [uncatalogedOnly, setUncatalogedOnly] = useState(false);
-    const [pagesView, setPagesView] = useState(false);
     const [disputeTarget, setDisputeTarget] = useState<{ personId: string; personName: string } | null>(null);
     const [faceMode, setFaceMode] = useState<boolean>(() => {
         if (typeof window === 'undefined') return false;
@@ -89,6 +90,7 @@ export function ViewerPage() {
     );
     // In a browse album, both views are scoped to the subfolder being viewed.
     const pathForFetch = readSubfolderPath(searchParams, folderForFetch);
+    const pagesView = readPagesView(searchParams);
     // Always fetch gallery data — it tells us whether a pages subfolder exists.
     const { data: galleryData, isLoading: galleryLoading } = useGetPhotos(folderForFetch?.id ?? null, 'gallery', pathForFetch);
     // Fetch pages data only when the user has switched to that view; null folderId disables the query.
@@ -123,6 +125,7 @@ export function ViewerPage() {
         view: navView,
         setFolder,
         openSubfolder,
+        setPagesView,
         openPhoto,
         backToGallery,
         goToAlbums,
@@ -132,10 +135,9 @@ export function ViewerPage() {
 
     const uncatalogedCount = useMemo(() => allPhotos.filter((p) => !p.catalogId).length, [allPhotos]);
 
-    // Reset filters when switching folders or subfolders.
+    // Reset the filter when switching folders or subfolders.
     useEffect(() => {
         setUncatalogedOnly(false);
-        setPagesView(false);
     }, [currentFolder?.id, currentPath]);
 
     // Dismiss the initial splash once the first view's data is ready: folders always; also the
@@ -146,6 +148,24 @@ export function ViewerPage() {
     }, [initialDataReady]);
 
     const currentPhoto = viewablePhotos[currentPhotoIndex] ?? null;
+    const currentPhotoKey = navView === 'photo' && currentPhoto ? photoKey(currentPhoto) : null;
+
+    // Remember where the user is, so "back to viewer" from other pages returns here and each
+    // view highlights (and scrolls to) the album, subfolder or photo the user went into from it.
+    useEffect(() => {
+        rememberViewerLocation(location.search);
+    }, [location.search]);
+    useEffect(() => {
+        if (!currentFolder) return;
+        updatePlace(ALBUMS_PLACE, { focus: currentFolder.id });
+        const segments = currentPath ? currentPath.split('/') : [];
+        segments.forEach((_, i) => {
+            const parent = segments.slice(0, i).join('/');
+            updatePlace(galleryPlace(currentFolder.id, parent, false), { focus: subfolderFocus(segments.slice(0, i + 1).join('/')) });
+        });
+        if (currentPhotoKey) updatePlace(galleryPlace(currentFolder.id, currentPath, pagesView), { focus: currentPhotoKey });
+    }, [currentFolder, currentPath, pagesView, currentPhotoKey]);
+
     const relatedPhotos = useMemo(() => (currentPhoto ? findRelatedPhotos(currentPhoto, allPhotos) : []), [currentPhoto, allPhotos]);
     const enlargedRelated = relatedPhotos.find((r) => r.photo.id === enlargedRelatedId) ?? null;
 
@@ -294,15 +314,21 @@ export function ViewerPage() {
                 }
                 viewer={
                     isAlbums ? (
-                        <AlbumGallery folders={folders} onSelect={setFolder} />
+                        <AlbumGallery folders={folders} onSelect={setFolder} placeKey={ALBUMS_PLACE} />
                     ) : isGallery ? (
                         pagesView ? (
-                            <PhotoPagesReader photos={viewablePhotos} isLoading={photosLoading && !!currentFolder} onSelect={openPhoto} />
+                            <PhotoPagesReader
+                                photos={viewablePhotos}
+                                isLoading={photosLoading && !!currentFolder}
+                                onSelect={openPhoto}
+                                placeKey={galleryPlace(currentFolder?.id ?? '', currentPath, true)}
+                            />
                         ) : (
                             <PhotoGallery
                                 photos={viewablePhotos}
                                 isLoading={photosLoading && !!currentFolder}
                                 onSelect={openPhoto}
+                                placeKey={galleryPlace(currentFolder?.id ?? '', currentPath, false)}
                                 subfolders={subfolders}
                                 onSelectSubfolder={openSubfolder}
                                 section={
@@ -441,7 +467,7 @@ export function ViewerPage() {
                                 {uncatalogedOnly && ' (uncataloged only)'}
                             </span>
                             {hasPagesSubfolder && (
-                                <Button variant={pagesView ? 'secondary' : 'ghost'} size="sm" onClick={() => setPagesView((v) => !v)}>
+                                <Button variant={pagesView ? 'secondary' : 'ghost'} size="sm" onClick={() => setPagesView(!pagesView)}>
                                     {pagesView ? <LayoutGrid className="h-4 w-4" /> : <BookOpen className="h-4 w-4" />}
                                     {pagesView ? 'Gallery' : 'Pages'}
                                 </Button>

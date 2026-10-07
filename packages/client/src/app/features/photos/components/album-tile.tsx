@@ -1,3 +1,5 @@
+import { cn } from '@/lib/utils';
+
 function plural(n: number, word: string): string {
     return `${n} ${word}${n === 1 ? '' : 's'}`;
 }
@@ -17,15 +19,20 @@ interface AlbumTileProps {
     subtitle?: string;
     isNew?: boolean;
     isLoading?: boolean;
+    /** Identifies the tile to the scroll container's place memory. */
+    placeItem?: string;
+    /** Marks the album or subfolder the user last opened, so they can find their place again. */
+    highlighted?: boolean;
     onClick: () => void;
 }
 
 /** A cover photo drawn as the top of a small stack of prints, for albums and the subfolders within them. */
-export function AlbumTile({ title, coverUrl, subtitle, isNew, isLoading, onClick }: AlbumTileProps) {
+export function AlbumTile({ title, coverUrl, subtitle, isNew, isLoading, placeItem, highlighted, onClick }: AlbumTileProps) {
     return (
         <button
             type="button"
             onClick={onClick}
+            data-place-item={placeItem}
             className="group relative aspect-[4/3] outline-none transition-transform hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-white"
         >
             <div
@@ -36,7 +43,12 @@ export function AlbumTile({ title, coverUrl, subtitle, isNew, isLoading, onClick
                 aria-hidden="true"
                 className="absolute inset-0 -translate-x-[5px] translate-y-[3px] -rotate-[2deg] rounded-md bg-zinc-800 shadow-md ring-1 ring-black/40"
             />
-            <div className="relative h-full w-full overflow-hidden rounded-md bg-zinc-900 shadow-lg ring-1 ring-white/15">
+            <div
+                className={cn(
+                    'relative h-full w-full overflow-hidden rounded-md bg-zinc-900 shadow-lg ring-1 ring-white/15',
+                    highlighted && 'ring-[3px] ring-amber-400',
+                )}
+            >
                 {coverUrl ? (
                     <img
                         src={coverUrl}

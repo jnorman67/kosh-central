@@ -1,5 +1,6 @@
 import { useAuthQueries } from '@/app/features/auth/contexts/auth-query.context';
 import { useFeaturedQueries } from '@/app/features/featured/contexts/featured-query.context';
+import { forgetPlaces } from '@/app/features/photos/lib/places';
 import { Button } from '@/components/ui/button';
 import {
     DropdownMenu,
@@ -24,7 +25,12 @@ export function UserMenu() {
     const isAdmin = me.role === 'admin';
 
     function handleLogout() {
-        logout.mutate(undefined, { onSuccess: () => navigate('/login', { replace: true }) });
+        logout.mutate(undefined, {
+            onSuccess: () => {
+                forgetPlaces();
+                navigate('/login', { replace: true });
+            },
+        });
     }
 
     return (

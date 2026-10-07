@@ -4,6 +4,7 @@ import { useFeaturedQueries } from '@/app/features/featured/contexts/featured-qu
 import { DEFAULT_BUTTON_LABEL, FEATURED_THEME_ORDER, FEATURED_THEMES } from '@/app/features/featured/lib/featured-themes';
 import type { FeaturedAlbumConfig, FeaturedAlbumConfigInput } from '@/app/features/featured/models/featured.models';
 import { usePhotosQueries } from '@/app/features/photos/contexts/photos-query.context';
+import { useBackToViewer } from '@/app/features/photos/hooks/use-back-to-viewer';
 import { isCoverPhoto } from '@/app/features/photos/lib/cover';
 import { UserMenu } from '@/components/layout/user-menu';
 import { ViewerLayout } from '@/components/layout/viewer-layout';
@@ -28,6 +29,7 @@ const TEXTAREA_CLASSES =
 
 export function FeaturedAdminPage() {
     const navigate = useNavigate();
+    const backToViewer = useBackToViewer();
     const { useGetConfig, useUpdateConfig } = useFeaturedQueries();
     const { useGetFolders, useGetAllPhotos } = usePhotosQueries();
     const { data: config } = useGetConfig();
@@ -89,7 +91,7 @@ export function FeaturedAdminPage() {
                     <div className="flex items-center gap-2">
                         <Tooltip>
                             <TooltipTrigger asChild>
-                                <Button variant="ghost" size="sm" onClick={() => navigate('/')} aria-label="Back to viewer">
+                                <Button variant="ghost" size="sm" onClick={backToViewer} aria-label="Back to viewer">
                                     <ArrowLeft className="h-4 w-4" />
                                 </Button>
                             </TooltipTrigger>

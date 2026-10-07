@@ -1,5 +1,6 @@
 import { AlbumTile, formatAlbumContents } from '@/app/features/photos/components/album-tile';
 import { usePhotosQueries } from '@/app/features/photos/contexts/photos-query.context';
+import { usePlaceMemory } from '@/app/features/photos/hooks/use-place-memory';
 import type { PhotoFolder } from '@/app/features/photos/models/photos.models';
 import { useMemo } from 'react';
 
@@ -12,20 +13,23 @@ function isNewAlbum(folder: PhotoFolder): boolean {
 interface AlbumGalleryProps {
     folders: PhotoFolder[];
     onSelect: (id: string) => void;
+    /** Where the album list's scroll position and last-opened album are remembered. */
+    placeKey: string;
 }
 
-export function AlbumGallery({ folders, onSelect }: AlbumGalleryProps) {
+export function AlbumGallery({ folders, onSelect, placeKey }: AlbumGalleryProps) {
     const { useGetFolderCovers } = usePhotosQueries();
     const { data: covers, isLoading } = useGetFolderCovers();
 
     const byId = useMemo(() => new Map((covers ?? []).map((c) => [c.folderId, c])), [covers]);
+    const { ref, focus } = usePlaceMemory<HTMLDivElement>(placeKey, folders.length > 0);
 
     if (folders.length === 0) {
         return <div className="flex h-full items-center justify-center bg-black text-zinc-500">No albums</div>;
     }
 
     return (
-        <div className="h-full overflow-auto bg-black p-4 sm:p-6">
+        <div ref={ref} className="h-full overflow-auto bg-black p-4 sm:p-6">
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-[repeat(auto-fill,minmax(240px,1fr))]">
                 {folders.map((folder) => {
                     const info = byId.get(folder.id);
@@ -37,6 +41,8 @@ export function AlbumGallery({ folders, onSelect }: AlbumGalleryProps) {
                             subtitle={formatAlbumContents(info?.subfolderCount ?? 0, info?.photoCount ?? 0)}
                             isNew={isNewAlbum(folder)}
                             isLoading={isLoading}
+                            placeItem={folder.id}
+                            highlighted={focus === folder.id}
                             onClick={() => onSelect(folder.id)}
                         />
                     );

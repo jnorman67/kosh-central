@@ -1,5 +1,6 @@
 import { FeaturedDisplay } from '@/app/features/featured/components/featured-display';
 import { useFeaturedQueries } from '@/app/features/featured/contexts/featured-query.context';
+import { viewerLocation } from '@/app/features/photos/lib/places';
 import { hideSplash } from '@/lib/splash';
 import { useEffect } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
@@ -27,7 +28,7 @@ export function FeaturedPage() {
             images={photos.map((p) => ({ url: p.imageUrl, alt: featured.title || featured.folderDisplayName }))}
             onOpenPhoto={(i) => navigate(`${albumUrl}&photo=${encodeURIComponent(photos[i].photoKey)}`)}
             onViewAlbum={() => navigate(albumUrl)}
-            onContinue={() => navigate('/')}
+            onContinue={() => navigate(viewerLocation())}
         />
     );
 }

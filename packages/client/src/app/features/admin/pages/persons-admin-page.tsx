@@ -1,7 +1,8 @@
 import { PersonFormDialog } from '@/app/features/admin/components/person-form-dialog';
 import { useAdminPersonsQueries } from '@/app/features/admin/contexts/admin-query.context';
-import { useAuthQueries } from '@/app/features/auth/contexts/auth-query.context';
 import type { AdminPerson, PersonInput, PersonRelationship } from '@/app/features/admin/models/person.models';
+import { useAuthQueries } from '@/app/features/auth/contexts/auth-query.context';
+import { useBackToViewer } from '@/app/features/photos/hooks/use-back-to-viewer';
 import { UserMenu } from '@/components/layout/user-menu';
 import { ViewerLayout } from '@/components/layout/viewer-layout';
 import {
@@ -19,8 +20,8 @@ import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { hideSplash } from '@/lib/splash';
 import { ArrowLeft, Pencil, Plus, Search, Trash2 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 
 const SEX_LABEL: Record<string, string> = { M: 'Male', F: 'Female', U: 'Other' };
 
@@ -164,7 +165,7 @@ function PersonDetail({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export function PersonsAdminPage() {
-    const navigate = useNavigate();
+    const backToViewer = useBackToViewer();
     const { useGetMe } = useAuthQueries();
     const { data: me } = useGetMe();
     const isAdmin = me?.role === 'admin';
@@ -173,7 +174,10 @@ export function PersonsAdminPage() {
     const { data, isLoading, error } = useListPersons();
     const persons = useMemo(() => data ?? [], [data]);
 
-    const [selectedId, setSelectedId] = useState<string | null>(null);
+    // The selected person lives in the URL so the browser's back button and reloads keep it.
+    const [params, setParams] = useSearchParams();
+    const selectedId = params.get('person');
+    const setSelectedId = useCallback((id: string | null) => setParams(id ? { person: id } : {}, { replace: true }), [setParams]);
     const [search, setSearch] = useState('');
     const [formMode, setFormMode] = useState<'create' | 'edit' | null>(null);
     const [editing, setEditing] = useState<AdminPerson | null>(null);
@@ -229,7 +233,7 @@ export function PersonsAdminPage() {
                     <div className="flex items-center gap-2">
                         <Tooltip>
                             <TooltipTrigger asChild>
-                                <Button variant="ghost" size="sm" onClick={() => navigate('/')} aria-label="Back to viewer">
+                                <Button variant="ghost" size="sm" onClick={backToViewer} aria-label="Back to viewer">
                                     <ArrowLeft className="h-4 w-4" />
                                 </Button>
                             </TooltipTrigger>
