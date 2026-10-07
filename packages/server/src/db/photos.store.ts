@@ -21,6 +21,8 @@ export interface StoredPhotoLocation {
     photoId: string;
     folderUrl: string | null;
     folderName: string | null;
+    /** The file's name in this folder; identical content may be named differently in each folder. */
+    fileName: string | null;
     onedriveId: string | null;
     localPath: string | null;
 }
@@ -43,6 +45,7 @@ interface LocationRow {
     photo_id: string;
     folder_url: string | null;
     folder_name: string | null;
+    file_name: string | null;
     onedrive_id: string | null;
     local_path: string | null;
 }
@@ -68,6 +71,7 @@ function rowToLocation(row: LocationRow): StoredPhotoLocation {
         photoId: row.photo_id,
         folderUrl: row.folder_url,
         folderName: row.folder_name,
+        fileName: row.file_name,
         onedriveId: row.onedrive_id,
         localPath: row.local_path,
     };
@@ -135,7 +139,7 @@ export function findPhotoByFolderAndName(folderName: string, fileName: string): 
             `SELECT p.* FROM photos p
              JOIN photo_locations l ON l.photo_id = p.id
              WHERE l.folder_name = ? COLLATE NOCASE
-               AND p.file_name = ? COLLATE NOCASE
+               AND l.file_name = ? COLLATE NOCASE
              ORDER BY (p.bundle_id IS NOT NULL) DESC, p.is_preferred DESC
              LIMIT 1`,
         )
@@ -181,14 +185,29 @@ export function getBundleSiblingIds(bundleId: string, excludePhotoId: string): s
     return rows.map((r) => r.id);
 }
 
-export function addPhotoLocation(location: Omit<StoredPhotoLocation, 'id'>): StoredPhotoLocation {
-    const id = crypto.randomUUID();
+/**
+ * Record where a photo lives. Re-importing the same (photo, folder) refreshes the
+ * file name and path, so a file renamed on OneDrive still matches its listing.
+ */
+export function addPhotoLocation(location: Omit<StoredPhotoLocation, 'id'>): void {
     getDb()
         .prepare(
-            'INSERT OR IGNORE INTO photo_locations (id, photo_id, folder_url, folder_name, onedrive_id, local_path) VALUES (?, ?, ?, ?, ?, ?)',
+            `INSERT INTO photo_locations (id, photo_id, folder_url, folder_name, file_name, onedrive_id, local_path)
+             VALUES (?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT(photo_id, folder_name) DO UPDATE SET
+                 file_name = excluded.file_name,
+                 local_path = excluded.local_path,
+                 onedrive_id = COALESCE(excluded.onedrive_id, photo_locations.onedrive_id)`,
         )
-        .run(id, location.photoId, location.folderUrl, location.folderName, location.onedriveId, location.localPath);
-    return { id, ...location };
+        .run(
+            crypto.randomUUID(),
+            location.photoId,
+            location.folderUrl,
+            location.folderName,
+            location.fileName,
+            location.onedriveId,
+            location.localPath,
+        );
 }
 
 export interface PhotoManifestEntry {
@@ -257,12 +276,6 @@ export function importManifest(
             let photo = findPhotoByHash(entry.contentHash);
 
             if (photo) {
-                // A file may have been renamed on OneDrive while its content stays the same.
-                // Update the stored file_name so findPhotoByFolderAndName can match it.
-                if (photo.fileName !== entry.fileName) {
-                    db.prepare('UPDATE photos SET file_name = ? WHERE id = ?').run(entry.fileName, photo.id);
-                    photo = { ...photo, fileName: entry.fileName };
-                }
                 existing++;
             } else {
                 const thumbnail = entry.thumbnail ? Buffer.from(entry.thumbnail, 'base64') : null;
@@ -281,6 +294,7 @@ export function importManifest(
                 photoId: photo.id,
                 folderUrl: entry.folderUrl ?? null,
                 folderName: entry.folderName,
+                fileName: entry.fileName,
                 onedriveId: entry.onedriveId ?? null,
                 localPath: entry.localPath ?? null,
             });

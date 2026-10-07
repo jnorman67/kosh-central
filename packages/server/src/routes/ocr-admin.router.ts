@@ -10,19 +10,15 @@ import { AnthropicOcrService } from '../services/anthropic-ocr.service.js';
 const ocrService = new AnthropicOcrService();
 
 /**
- * Resolve the OneDrive download URL for a cataloged photo by matching its
- * stored (folder_name, file_name) against the live OneDrive listing.
+ * Resolve the OneDrive download URL for a cataloged photo by matching one of its
+ * stored locations (folder_name, file_name) against the live OneDrive listing.
  */
-async function resolveDownloadUrl(
-    photoId: string,
-    fileName: string,
-    oneDriveService: OneDriveService,
-): Promise<string | null> {
+async function resolveDownloadUrl(photoId: string, oneDriveService: OneDriveService): Promise<string | null> {
     const locations = getPhotoLocations(photoId);
     const folders = listFolders();
 
     for (const loc of locations) {
-        if (!loc.folderName) continue;
+        if (!loc.folderName || !loc.fileName) continue;
         const folder = folders.find((f) => loc.folderName!.toLowerCase().startsWith(f.folderPath.toLowerCase()));
         if (!folder) continue;
         try {
@@ -33,7 +29,7 @@ async function resolveDownloadUrl(
                     : folder.folderPath;
                 return (
                     fullFolder.toLowerCase() === loc.folderName!.toLowerCase() &&
-                    p.name.toLowerCase() === fileName.toLowerCase()
+                    p.name.toLowerCase() === loc.fileName!.toLowerCase()
                 );
             });
             if (match) return match.downloadUrl;
@@ -68,7 +64,7 @@ export function createOcrAdminRouter(oneDriveService: OneDriveService): Router {
 
         try {
             const urlResults = await Promise.all(
-                preferred.map((p) => resolveDownloadUrl(p.id, p.fileName, oneDriveService)),
+                preferred.map((p) => resolveDownloadUrl(p.id, oneDriveService)),
             );
             const downloadUrls = urlResults.filter((u): u is string => u !== null);
 

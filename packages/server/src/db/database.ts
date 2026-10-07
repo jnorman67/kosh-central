@@ -1785,6 +1785,30 @@ const migrations: Migration[] = [
                 CHECK (subfolder_mode IN ('flatten', 'browse'));
         `,
     },
+    {
+        version: 34,
+        description: 'photo_locations: add file_name so identical content can carry a different name in each folder',
+        fn: (db) => {
+            // photos.file_name holds one name per content hash, so when the same image sits in
+            // two folders under different names only one copy matched the OneDrive listing.
+            // Backfill: a photo with a single location keeps photos.file_name (the old import
+            // updated it on rename, while local_path kept the original name). With several
+            // locations, each location's own name comes from its local_path.
+            db.exec('ALTER TABLE photo_locations ADD COLUMN file_name TEXT');
+            const rows = db
+                .prepare(
+                    `SELECT l.id, l.local_path, p.file_name,
+                            (SELECT COUNT(*) FROM photo_locations l2 WHERE l2.photo_id = l.photo_id) AS location_count
+                     FROM photo_locations l JOIN photos p ON p.id = l.photo_id`,
+                )
+                .all() as { id: string; local_path: string | null; file_name: string; location_count: number }[];
+            const update = db.prepare('UPDATE photo_locations SET file_name = ? WHERE id = ?');
+            for (const row of rows) {
+                const fromPath = row.local_path?.split(/[\\/]/).pop();
+                update.run(row.location_count > 1 && fromPath ? fromPath : row.file_name, row.id);
+            }
+        },
+    },
 ];
 
 /**

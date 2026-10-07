@@ -31,11 +31,11 @@ export function createFavoritesRouter(oneDriveService: OneDriveService): Router 
             const assignments = rows.map((row) => {
                 const locations = getPhotoLocations(row.photoId);
                 for (const l of locations) {
-                    if (!l.folderName) continue;
+                    if (!l.folderName || !l.fileName) continue;
                     const folder = findFolderContainingPath(l.folderName);
-                    if (folder) return { row, folder, locationFolderName: l.folderName };
+                    if (folder) return { row, folder, locationPath: `${l.folderName}/${l.fileName}` };
                 }
-                return { row, folder: undefined, locationFolderName: undefined };
+                return { row, folder: undefined, locationPath: undefined };
             });
 
             // Fetch OneDrive data for each unique folder in parallel (OneDriveService caches per URL).
@@ -54,9 +54,9 @@ export function createFavoritesRouter(oneDriveService: OneDriveService): Router 
             });
 
             const photos = assignments
-                .map(({ row, folder, locationFolderName }) => {
-                    if (!folder || !locationFolderName) return null;
-                    const odPhoto = photoByFullPath.get(`${locationFolderName.toLowerCase()}/${row.fileName.toLowerCase()}`);
+                .map(({ row, folder, locationPath }) => {
+                    if (!folder || !locationPath) return null;
+                    const odPhoto = photoByFullPath.get(locationPath.toLowerCase());
                     if (!odPhoto) return null;
                     return {
                         id: odPhoto.id,
