@@ -93,6 +93,8 @@ An admin can highlight one album (for example a memorial, a birthday, or a newly
 
 While **Show after sign-in** is on, everyone lands on `/featured` after logging in. People already signed in via their cookie aren't redirected, but anyone can reach the page from their user menu. Clicking the photo opens it in the album viewer, and the button opens the album gallery. When the feature is off, or the album has been deleted, `/featured` forwards to the normal viewer. Settings live in the single-row `featured_album` table.
 
+The admin can also list **Featured people**. Photos tagged with any of them, from any album, follow the album's own photos, both in the `/featured` slideshow and in the album's gallery (under a "More photos of …" heading). The order stays the same from visit to visit: albums in their admin-defined order, then each album's own photo order, so a newly tagged photo slots into its natural place. Each physical photo appears once. Photos already in the featured album are skipped, and a photo filed in several albums is shown from the first. In the viewer these photos show which album they came from, and they can't be set as the featured album's cover. The list lives in `featured_album_persons`, and the photos are resolved per request by `services/featured-photos.service.ts`.
+
 ## Users & Invites
 
 Sign-up is invitation-only. An admin manages who can register, and what they can do, from **Users & invites** in the user menu (`/admin/users`):

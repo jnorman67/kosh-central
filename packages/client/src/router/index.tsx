@@ -11,6 +11,7 @@ import { RegisterPage } from '@/app/features/auth/pages/register-page';
 import { CommentsQueryProvider } from '@/app/features/comments/contexts/comments-query.context';
 import { FeaturedPage } from '@/app/features/featured/pages/featured-page';
 import { PhotosQueryProvider } from '@/app/features/photos/contexts/photos-query.context';
+import { SubjectsQueryProvider } from '@/app/features/photos/contexts/subjects-query.context';
 import { ViewerPage } from '@/app/features/photos/pages/viewer-page';
 import { createBrowserRouter } from 'react-router-dom';
 
@@ -69,7 +70,9 @@ export const router = createBrowserRouter([
             <AuthGuard>
                 <AdminGuard>
                     <PhotosQueryProvider>
-                        <FeaturedAdminPage />
+                        <SubjectsQueryProvider>
+                            <FeaturedAdminPage />
+                        </SubjectsQueryProvider>
                     </PhotosQueryProvider>
                 </AdminGuard>
             </AuthGuard>

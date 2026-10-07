@@ -26,6 +26,12 @@ export interface Photo {
     driveId: string;
 }
 
+/** Returns true when a photo's subfolderPath is (or descends into) a subfolder named "pages". */
+export function isInPagesSubfolder(subfolderPath: string): boolean {
+    const lower = subfolderPath.toLowerCase();
+    return lower === 'pages' || lower.startsWith('pages/');
+}
+
 interface CacheEntry {
     data: Photo[];
     expiresAt: number;

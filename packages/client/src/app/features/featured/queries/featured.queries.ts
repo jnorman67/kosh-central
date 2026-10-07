@@ -31,6 +31,8 @@ export const createFeaturedQueries = (service: FeaturedService) => {
             onSuccess: (config) => {
                 qc.setQueryData(FeaturedQueryKeys.config, config);
                 qc.invalidateQueries({ queryKey: FeaturedQueryKeys.featured });
+                // The featured album's gallery carries photos of its featured people.
+                qc.invalidateQueries({ queryKey: ['Photos', 'Photos'] });
             },
         });
     };

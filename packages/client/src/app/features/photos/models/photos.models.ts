@@ -46,11 +46,17 @@ export interface Photo {
     relations: PhotoRelation[];
     /** Current user's rating (0–5), or null if unrated. Absent for uncataloged photos. */
     rating?: number | null;
+    /** Set on photos of the featured people that follow the featured album's own photos: the
+     *  album the photo actually lives in. Absent for the album's own photos. */
+    sourceFolderId?: string;
+    sourceFolderDisplayName?: string;
 }
 
 export interface PhotosResponse {
     photos: Photo[];
     hasPagesSubfolder: boolean;
+    /** Present when this is the live featured album: the people whose photos follow the album's own. */
+    featuredPersonNames?: string[];
 }
 
 export interface FavoritePhoto extends Photo {

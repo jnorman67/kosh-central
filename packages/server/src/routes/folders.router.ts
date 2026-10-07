@@ -1,18 +1,14 @@
 import { Router } from 'express';
 import { requireAdmin } from '../auth/auth.middleware.js';
+import { getFeaturedAlbum } from '../db/featured.store.js';
 import { clearFolderCover, getAllFolderCovers, setFolderCover } from '../db/folder-covers.store.js';
 import { findFolderBySlug as storeFindFolderBySlug, listFolders, type StoredFolder } from '../db/folders.store.js';
-import { findPhotoByFolderAndName } from '../db/photos.store.js';
+import { findPhotoByFolderAndName, type StoredPhoto } from '../db/photos.store.js';
 import { getRatingsByUserForPhotos } from '../db/ratings.store.js';
 import { getRelationsForPhoto } from '../db/relations.store.js';
-import { OneDriveService, type Photo as OneDrivePhoto } from '../services/onedrive.service.js';
+import { getFeaturedTaggedPhotos } from '../services/featured-photos.service.js';
+import { isInPagesSubfolder, OneDriveService, type Photo as OneDrivePhoto } from '../services/onedrive.service.js';
 import { ThumbnailCacheService } from '../services/thumbnail-cache.service.js';
-
-/** Returns true when a photo's subfolderPath is (or descends into) a subfolder named "pages". */
-export function isInPagesSubfolder(subfolderPath: string): boolean {
-    const lower = subfolderPath.toLowerCase();
-    return lower === 'pages' || lower.startsWith('pages/');
-}
 
 function findFolderBySlug(slug: string | string[] | undefined): StoredFolder | null {
     if (typeof slug !== 'string') return null;
@@ -156,10 +152,16 @@ export function createFoldersRouter(oneDriveService: OneDriveService, thumbnailC
                 return { photo: p, cataloged };
             });
 
-            const catalogedIds = withCatalog.map((x) => x.cataloged?.id).filter((id): id is string => !!id);
+            // The live featured album is followed by photos of its featured people from other albums.
+            const featured = getFeaturedAlbum();
+            const isFeatured = !pagesView && featured.enabled && featured.folderSlug === folder.slug;
+            const albumBundles = new Set(withCatalog.flatMap(({ cataloged }) => (cataloged?.bundleId ? [cataloged.bundleId] : [])));
+            const tagged = isFeatured ? await getFeaturedTaggedPhotos(oneDriveService, albumBundles) : [];
+
+            const catalogedIds = [...withCatalog, ...tagged].map((x) => x.cataloged?.id).filter((id): id is string => !!id);
             const myRatings = getRatingsByUserForPhotos(req.user!.userId, catalogedIds);
 
-            const enriched = withCatalog.map(({ photo, cataloged }) => {
+            const enrich = (photo: OneDrivePhoto, cataloged: StoredPhoto | undefined) => {
                 const { driveId: _driveId, ...rest } = photo;
                 if (!cataloged) return { ...rest, relations: [] };
                 return {
@@ -172,9 +174,18 @@ export function createFoldersRouter(oneDriveService: OneDriveService, thumbnailC
                     relations: getRelationsForPhoto(cataloged.id),
                     rating: myRatings.get(cataloged.id) ?? null,
                 };
-            });
+            };
+            const enriched = [
+                ...withCatalog.map(({ photo, cataloged }) => enrich(photo, cataloged)),
+                ...tagged.map(({ folder: source, photo, cataloged }) => ({
+                    ...enrich(photo, cataloged),
+                    sourceFolderId: source.slug,
+                    sourceFolderDisplayName: source.displayName,
+                })),
+            ];
+            const featuredPersonNames = isFeatured ? featured.persons.map((p) => p.fullName) : undefined;
 
-            res.json({ photos: enriched, hasPagesSubfolder });
+            res.json({ photos: enriched, hasPagesSubfolder, featuredPersonNames });
         } catch (err) {
             console.error('OneDrive error:', err);
             res.status(502).json({ error: 'Failed to fetch photos from OneDrive' });

@@ -161,7 +161,8 @@ export function ViewerPage() {
 
     const displayPhoto = enlargedRelated ? enlargedRelated.photo : currentPhoto;
     // Anonymous view link for the displayed photo — fetched lazily and cached forever.
-    const { data: shareLink } = useGetShareLink(currentFolder?.id ?? null, displayPhoto?.id ?? null);
+    // Photos of featured people live in other albums, so their link comes from there.
+    const { data: shareLink } = useGetShareLink(displayPhoto?.sourceFolderId ?? currentFolder?.id ?? null, displayPhoto?.id ?? null);
     // Face boxes for the displayed photo. Only fetched when face mode is on AND the
     // photo is cataloged (uncataloged photos have no bundle and no sidecar rows).
     const { data: faces } = useGetFaces(displayPhoto?.catalogId, faceMode && !!displayPhoto?.catalogId);
@@ -170,6 +171,9 @@ export function ViewerPage() {
     const isPhoto = navView === 'photo';
     const isAdmin = me?.role === 'admin';
     const isCurrentCover = !!currentPhoto && !!currentFolder && currentFolder.coverFileName === currentPhoto.name;
+    // Where the featured album's own photos end and photos of its featured people begin.
+    const featuredPeopleStart = viewablePhotos.findIndex((p) => !!p.sourceFolderId);
+    const featuredPersonNames = photosData?.featuredPersonNames ?? [];
 
     const handleToggleCover = () => {
         if (!currentFolder || !currentPhoto) return;
@@ -209,7 +213,7 @@ export function ViewerPage() {
                             </div>
                         )}
                         <div className="flex shrink-0 items-center gap-1 pr-1 sm:gap-3 sm:px-4">
-                            {isAdmin && isPhoto && currentPhoto && (
+                            {isAdmin && isPhoto && currentPhoto && !currentPhoto.sourceFolderId && (
                                 <Button
                                     variant="ghost"
                                     size="sm"
@@ -241,7 +245,19 @@ export function ViewerPage() {
                         pagesView ? (
                             <PhotoPagesReader photos={viewablePhotos} isLoading={photosLoading && !!currentFolder} onSelect={openPhoto} />
                         ) : (
-                            <PhotoGallery photos={viewablePhotos} isLoading={photosLoading && !!currentFolder} onSelect={openPhoto} />
+                            <PhotoGallery
+                                photos={viewablePhotos}
+                                isLoading={photosLoading && !!currentFolder}
+                                onSelect={openPhoto}
+                                section={
+                                    featuredPeopleStart >= 0 && featuredPersonNames.length > 0
+                                        ? {
+                                              start: featuredPeopleStart,
+                                              label: `More photos of ${new Intl.ListFormat('en', { type: 'conjunction' }).format(featuredPersonNames)}`,
+                                          }
+                                        : undefined
+                                }
+                            />
                         )
                     ) : (
                         <div className="relative h-full w-full">
@@ -407,6 +423,7 @@ export function ViewerPage() {
                                 {displayPhoto && (
                                     <span className="truncate text-sm text-muted-foreground" title={displayPhoto.name}>
                                         {displayPhoto.name}
+                                        {displayPhoto.sourceFolderDisplayName && ` · from ${displayPhoto.sourceFolderDisplayName}`}
                                     </span>
                                 )}
                             </div>

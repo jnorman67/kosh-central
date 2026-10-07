@@ -22,10 +22,18 @@ export interface FeaturedAlbumConfig {
     message: string;
     /** Label for the "see more photos" button. Empty means the client default. */
     buttonLabel: string;
+    /** People whose tagged photos follow the album's own photos, in the order the admin listed them. */
+    persons: FeaturedPerson[];
     updatedAt: string;
 }
 
-export type FeaturedAlbumInput = Omit<FeaturedAlbumConfig, 'updatedAt'>;
+export interface FeaturedPerson {
+    id: string;
+    fullName: string;
+    nickname: string | null;
+}
+
+export type FeaturedAlbumInput = Omit<FeaturedAlbumConfig, 'updatedAt' | 'persons'> & { personIds: string[] };
 
 interface FeaturedAlbumRow {
     enabled: number;
@@ -52,19 +60,36 @@ export function getFeaturedAlbum(): FeaturedAlbumConfig {
         subtitle: row.subtitle,
         message: row.message,
         buttonLabel: row.button_label,
+        persons: getFeaturedPersons(),
         updatedAt: row.updated_at,
     };
 }
 
-export function updateFeaturedAlbum(input: FeaturedAlbumInput, userId: string): FeaturedAlbumConfig {
-    getDb()
+function getFeaturedPersons(): FeaturedPerson[] {
+    return getDb()
         .prepare(
+            `SELECT p.id, p.full_name AS fullName, p.nickname
+             FROM featured_album_persons f
+             JOIN persons p ON p.id = f.person_id
+             ORDER BY f.position`,
+        )
+        .all() as FeaturedPerson[];
+}
+
+/** Ids of the people whose tagged photos follow the featured album. */
+export function getFeaturedPersonIds(): string[] {
+    return getFeaturedPersons().map((p) => p.id);
+}
+
+export function updateFeaturedAlbum(input: FeaturedAlbumInput, userId: string): FeaturedAlbumConfig {
+    const db = getDb();
+    db.transaction(() => {
+        db.prepare(
             `UPDATE featured_album
              SET enabled = ?, folder_slug = ?, photo_file_name = ?, theme = ?, eyebrow = ?, title = ?,
                  subtitle = ?, message = ?, button_label = ?, updated_at = datetime('now'), updated_by = ?
              WHERE id = 1`,
-        )
-        .run(
+        ).run(
             input.enabled ? 1 : 0,
             input.folderSlug,
             input.photoFileName,
@@ -76,5 +101,9 @@ export function updateFeaturedAlbum(input: FeaturedAlbumInput, userId: string): 
             input.buttonLabel,
             userId,
         );
+        db.prepare('DELETE FROM featured_album_persons').run();
+        const insert = db.prepare('INSERT INTO featured_album_persons (person_id, position) VALUES (?, ?)');
+        input.personIds.forEach((id, i) => insert.run(id, i));
+    })();
     return getFeaturedAlbum();
 }

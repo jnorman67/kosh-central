@@ -605,6 +605,18 @@ export function getPhotosForPerson(personId: string): StoredPhotoSubject[] {
     return rows.map((row) => rowToPhotoSubject(row, row.photo_id));
 }
 
+/** Bundles tagged with any of the given people. */
+export function getBundleIdsForPersons(personIds: string[]): string[] {
+    if (personIds.length === 0) return [];
+    const rows = getDb()
+        .prepare(
+            `SELECT DISTINCT bundle_id FROM photo_subjects
+             WHERE person_id IN (${personIds.map(() => '?').join(',')})`,
+        )
+        .all(...personIds) as { bundle_id: string }[];
+    return rows.map((r) => r.bundle_id);
+}
+
 export function verifyPhotoSubject(photoId: string, personId: string): boolean {
     const bundleId = getBundleIdForPhoto(photoId);
     if (!bundleId) return false;

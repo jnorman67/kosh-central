@@ -10,11 +10,11 @@ export class FeaturedService {
         return apiFetch<FeaturedAlbumConfig>('/api/admin/featured');
     }
 
-    async updateConfig(input: FeaturedAlbumConfigInput): Promise<FeaturedAlbumConfig> {
+    async updateConfig({ persons, ...rest }: FeaturedAlbumConfigInput): Promise<FeaturedAlbumConfig> {
         return apiFetch<FeaturedAlbumConfig>('/api/admin/featured', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(input),
+            body: JSON.stringify({ ...rest, personIds: persons.map((p) => p.id) }),
         });
     }
 }

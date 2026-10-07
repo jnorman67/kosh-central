@@ -80,7 +80,7 @@ Server env lives in `packages/server/.env` (gitignored):
 
 SQLite with sequential migrations defined in `packages/server/src/db/database.ts`. Add new migrations to the `migrations` array — they run automatically on server startup. `make db-status` lists applied/pending migrations without applying them (`make db-prod-status` for the prod snapshot). The database file is gitignored.
 
-Tables: `users` (`disabled_at` set when access is revoked), `invites` (pending registrations), `photos` (content-addressed by SHA-256 hash, carry `bundle_id` / `side` / `is_preferred`), `photo_locations` (multiple locations per photo), `bundles` (one per physical photograph; scanner-keyed for idempotent re-import), `photo_relations` (cross-bundle `duplicate-of` only; front/back/original grouping lives on bundles), `photo_series` + `photo_series_members` (ordered groups), `folders` (admin-editable folder config, seeded once from `folders.seed.ts`), `featured_album` (single row: the album highlighted after sign-in).
+Tables: `users` (`disabled_at` set when access is revoked), `invites` (pending registrations), `photos` (content-addressed by SHA-256 hash, carry `bundle_id` / `side` / `is_preferred`), `photo_locations` (multiple locations per photo), `bundles` (one per physical photograph; scanner-keyed for idempotent re-import), `photo_relations` (cross-bundle `duplicate-of` only; front/back/original grouping lives on bundles), `photo_series` + `photo_series_members` (ordered groups), `folders` (admin-editable folder config, seeded once from `folders.seed.ts`), `featured_album` (single row: the album highlighted after sign-in) + `featured_album_persons` (people whose tagged photos follow it).
 
 ## Auth Flow
 

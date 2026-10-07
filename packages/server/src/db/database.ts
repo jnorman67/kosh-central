@@ -1743,6 +1743,16 @@ const migrations: Migration[] = [
             ALTER TABLE users ADD COLUMN disabled_at TEXT;
         `,
     },
+    {
+        version: 32,
+        description: 'Add featured_album_persons: people whose tagged photos follow the featured album',
+        sql: `
+            CREATE TABLE featured_album_persons (
+                person_id TEXT PRIMARY KEY REFERENCES persons(id) ON DELETE CASCADE,
+                position INTEGER NOT NULL
+            );
+        `,
+    },
 ];
 
 /**

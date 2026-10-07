@@ -28,9 +28,16 @@ export type FeaturedAlbum =
           enabled: true;
           folderId: string;
           folderDisplayName: string;
-          /** Album photos to cycle through, featured photo first. Empty if OneDrive was unreachable. */
+          /** Album photos to cycle through, featured photo first, then photos of the featured people
+           *  from other albums. Empty if OneDrive was unreachable. */
           photos: FeaturedPhoto[];
       });
+
+export interface FeaturedPerson {
+    id: string;
+    fullName: string;
+    nickname: string | null;
+}
 
 /** Admin view of the stored settings (GET/PUT /api/admin/featured). */
 export interface FeaturedAlbumConfig extends FeaturedContent {
@@ -38,6 +45,8 @@ export interface FeaturedAlbumConfig extends FeaturedContent {
     folderSlug: string | null;
     /** Null means "use the album cover". */
     photoFileName: string | null;
+    /** People whose tagged photos from other albums follow the album's own photos. */
+    persons: FeaturedPerson[];
     updatedAt: string;
 }
 

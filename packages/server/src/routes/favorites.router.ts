@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { listFolders, type StoredFolder } from '../db/folders.store.js';
+import { findFolderContainingPath, type StoredFolder } from '../db/folders.store.js';
 import { getPhotoLocations } from '../db/photos.store.js';
 import { getFavoritePhotosForUser } from '../db/ratings.store.js';
 import { getRelationsForPhoto } from '../db/relations.store.js';
@@ -26,24 +26,13 @@ export function createFavoritesRouter(oneDriveService: OneDriveService): Router 
 
             const { rows, total } = getFavoritePhotosForUser(req.user!.userId, offset, limit);
 
-            // Map each favorite to the configured folder it lives under (longest folderPath
-            // prefix of the photo's location.folderName). This handles photos that live in
+            // Map each favorite to the configured folder it lives under, which handles photos in
             // subfolders of a configured album, not just at the album root.
-            // Lowercased because photo_locations.folder_name casing doesn't always match
-            // the configured folder path (the existing folder lookup uses SQL COLLATE NOCASE for the same reason).
-            const sortedFolders = [...listFolders()].sort((a, b) => b.folderPath.length - a.folderPath.length);
-            const findFolderForLocation = (folderName: string) => {
-                const lower = folderName.toLowerCase();
-                return sortedFolders.find((f) => {
-                    const p = f.folderPath.toLowerCase();
-                    return lower === p || lower.startsWith(p + '/');
-                });
-            };
             const assignments = rows.map((row) => {
                 const locations = getPhotoLocations(row.photoId);
                 for (const l of locations) {
                     if (!l.folderName) continue;
-                    const folder = findFolderForLocation(l.folderName);
+                    const folder = findFolderContainingPath(l.folderName);
                     if (folder) return { row, folder, locationFolderName: l.folderName };
                 }
                 return { row, folder: undefined, locationFolderName: undefined };

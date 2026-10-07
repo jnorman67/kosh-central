@@ -3,8 +3,9 @@ import { getFolderCover } from '../db/folder-covers.store.js';
 import { getFeaturedAlbum } from '../db/featured.store.js';
 import { findFolderBySlug } from '../db/folders.store.js';
 import { findPhotoByFolderAndName } from '../db/photos.store.js';
-import { OneDriveService } from '../services/onedrive.service.js';
-import { isInPagesSubfolder, pickCoverPhoto } from './folders.router.js';
+import { getFeaturedTaggedPhotos, isGalleryFile } from '../services/featured-photos.service.js';
+import { isInPagesSubfolder, OneDriveService } from '../services/onedrive.service.js';
+import { pickCoverPhoto } from './folders.router.js';
 
 export function createFeaturedRouter(oneDriveService: OneDriveService): Router {
     const router = Router();
@@ -29,17 +30,23 @@ export function createFeaturedRouter(oneDriveService: OneDriveService): Router {
                 folder.folderPath,
                 config.photoFileName ?? getFolderCover(folder.folderPath),
             );
+            const withCatalog = galleryPhotos.map((p) => {
+                const fullFolder = p.subfolderPath ? `${folder.folderPath}/${p.subfolderPath}` : folder.folderPath;
+                return { source: p, cataloged: findPhotoByFolderAndName(fullFolder, p.name) };
+            });
             // Same "one photo per bundle" rule the viewer's gallery uses, so the page doesn't
             // show photo backs or alternate scans.
-            const viewable = galleryPhotos.flatMap((p) => {
-                const fullFolder = p.subfolderPath ? `${folder.folderPath}/${p.subfolderPath}` : folder.folderPath;
-                const cataloged = findPhotoByFolderAndName(fullFolder, p.name);
-                if (p !== chosen && cataloged?.bundleId && !(cataloged.side === 'front' && cataloged.isPreferred)) return [];
-                return [{ source: p, cataloged }];
-            });
-            // The featured photo leads, then the rest of the album in order, wrapping around.
+            const viewable = withCatalog.filter(
+                ({ source, cataloged }) => source === chosen || !cataloged?.bundleId || isGalleryFile(cataloged),
+            );
+            // The featured photo leads, then the rest of the album in order, wrapping around,
+            // then photos of the featured people from other albums.
             const start = Math.max(0, viewable.findIndex((v) => v.source === chosen));
-            photos = [...viewable.slice(start), ...viewable.slice(0, start)].map(({ source, cataloged }) => ({
+            const albumBundles = new Set(withCatalog.flatMap(({ cataloged }) => (cataloged?.bundleId ? [cataloged.bundleId] : [])));
+            const tagged = (await getFeaturedTaggedPhotos(oneDriveService, albumBundles))
+                .filter(({ cataloged }) => isGalleryFile(cataloged))
+                .map(({ photo, cataloged }) => ({ source: photo, cataloged }));
+            photos = [...viewable.slice(start), ...viewable.slice(0, start), ...tagged].map(({ source, cataloged }) => ({
                 name: source.name,
                 imageUrl: source.downloadUrl,
                 thumbnailUrl: source.thumbnailUrl,

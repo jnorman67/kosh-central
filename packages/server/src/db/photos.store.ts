@@ -160,6 +160,20 @@ export function listPreferredPhotosForBundle(bundleId: string): StoredPhoto[] {
     return rows.map(rowToPhoto);
 }
 
+/** Distinct folders (photo_locations.folder_name) holding any file of the given bundles. */
+export function listFolderNamesForBundles(bundleIds: string[]): string[] {
+    if (bundleIds.length === 0) return [];
+    const rows = getDb()
+        .prepare(
+            `SELECT DISTINCT l.folder_name FROM photo_locations l
+             JOIN photos p ON p.id = l.photo_id
+             WHERE p.bundle_id IN (${bundleIds.map(() => '?').join(',')})
+               AND l.folder_name IS NOT NULL`,
+        )
+        .all(...bundleIds) as { folder_name: string }[];
+    return rows.map((r) => r.folder_name);
+}
+
 export function getBundleSiblingIds(bundleId: string, excludePhotoId: string): string[] {
     const rows = getDb()
         .prepare('SELECT id FROM photos WHERE bundle_id = ? AND id != ?')

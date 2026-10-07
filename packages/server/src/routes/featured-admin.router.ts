@@ -8,9 +8,11 @@ import {
     type FeaturedAlbumInput,
 } from '../db/featured.store.js';
 import { findFolderBySlug } from '../db/folders.store.js';
+import { findPersonById } from '../db/persons.store.js';
 
 const SHORT_TEXT_MAX = 200;
 const MESSAGE_MAX = 5000;
+const PERSONS_MAX = 50;
 
 interface FieldError {
     error: string;
@@ -34,7 +36,21 @@ function validate(body: unknown): FeaturedAlbumInput | FieldError {
         subtitle: text('subtitle'),
         message: text('message'),
         buttonLabel: text('buttonLabel'),
+        personIds: [],
     };
+
+    if (b.personIds !== undefined) {
+        if (!Array.isArray(b.personIds) || !b.personIds.every((id) => typeof id === 'string')) {
+            return { error: 'personIds must be an array of person ids', field: 'personIds' };
+        }
+        input.personIds = [...new Set(b.personIds as string[])];
+        if (input.personIds.length > PERSONS_MAX) {
+            return { error: `At most ${PERSONS_MAX} people can be featured`, field: 'personIds' };
+        }
+        if (input.personIds.some((id) => !findPersonById(id))) {
+            return { error: 'Person not found', field: 'personIds' };
+        }
+    }
 
     if (b.theme !== undefined && !isFeaturedTheme(b.theme)) {
         return { error: `theme must be one of: ${FEATURED_THEMES.join(', ')}`, field: 'theme' };

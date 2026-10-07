@@ -85,6 +85,19 @@ export function findFolderBySlug(slug: string): StoredFolder | undefined {
     return listFolders().find((f) => f.slug === slug);
 }
 
+/** The configured folder a catalog location (photo_locations.folder_name) lives under: the one
+ *  with the longest matching folderPath, so photos in subfolders of an album still resolve.
+ *  Case-insensitive because the scanned path's casing doesn't always match the configured one. */
+export function findFolderContainingPath(folderName: string): StoredFolder | undefined {
+    const lower = folderName.toLowerCase();
+    let best: StoredFolder | undefined;
+    for (const f of listFolders()) {
+        const p = f.folderPath.toLowerCase();
+        if ((lower === p || lower.startsWith(p + '/')) && (!best || p.length > best.folderPath.length)) best = f;
+    }
+    return best;
+}
+
 export function createFolder(input: FolderInput): StoredFolder {
     // Place new folders at the end unless the caller specifies a position.
     // Drag-and-drop reorders at 10-unit intervals, so +10 from the current max

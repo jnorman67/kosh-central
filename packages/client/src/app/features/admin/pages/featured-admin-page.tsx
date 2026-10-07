@@ -1,3 +1,4 @@
+import { FeaturedPersonsPicker } from '@/app/features/admin/components/featured-persons-picker';
 import { FeaturedDisplay } from '@/app/features/featured/components/featured-display';
 import { useFeaturedQueries } from '@/app/features/featured/contexts/featured-query.context';
 import { DEFAULT_BUTTON_LABEL, FEATURED_THEME_ORDER, FEATURED_THEMES } from '@/app/features/featured/lib/featured-themes';
@@ -41,9 +42,13 @@ export function FeaturedAdminPage() {
     useEffect(() => hideSplash(), []);
 
     const { data: photosData, isLoading: photosLoading } = useGetPhotos(form?.folderSlug ?? null);
-    // Same "one photo per bundle" rule the viewer's gallery uses.
+    // Same "one photo per bundle" rule the viewer's gallery uses. Photos of the featured people
+    // live in other albums, so they can't be the featured photo.
     const viewablePhotos = useMemo(
-        () => (photosData?.photos ?? []).filter((p) => !p.catalogId || !p.bundleId || (p.side === 'front' && !!p.isPreferred)),
+        () =>
+            (photosData?.photos ?? []).filter(
+                (p) => !p.sourceFolderId && (!p.catalogId || !p.bundleId || (p.side === 'front' && !!p.isPreferred)),
+            ),
         [photosData],
     );
     const folder = folders.find((f) => f.id === form?.folderSlug) ?? null;
@@ -187,6 +192,15 @@ export function FeaturedAdminPage() {
                                     )}
                                 </div>
                             )}
+
+                            <div className="space-y-2">
+                                <Label>Featured people</Label>
+                                <FeaturedPersonsPicker persons={form.persons} onChange={(persons) => update({ persons })} />
+                                <p className="text-xs text-muted-foreground">
+                                    Photos tagged with any of these people, from any album, follow the album’s own photos — grouped by album
+                                    in the usual album order, so they appear in the same order every visit.
+                                </p>
+                            </div>
 
                             <div className="space-y-2">
                                 <Label>Theme</Label>
