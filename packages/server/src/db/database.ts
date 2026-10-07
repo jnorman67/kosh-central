@@ -1809,6 +1809,16 @@ const migrations: Migration[] = [
             }
         },
     },
+    {
+        version: 35,
+        description: 'photo_locations: index (folder_name, file_name) for the per-photo catalog lookup',
+        // findPhotoByFolderAndName runs once per listed photo on every gallery and featured
+        // request; without this it scanned the whole table each time and blocked the event loop.
+        sql: `
+            CREATE INDEX idx_photo_locations_folder_file
+                ON photo_locations(folder_name COLLATE NOCASE, file_name COLLATE NOCASE);
+        `,
+    },
 ];
 
 /**
