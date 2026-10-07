@@ -1,6 +1,10 @@
 import type { FaceBox, FavoritesPage, FolderCover, PhotoFolder, PhotosResponse } from '@/app/features/photos/models/photos.models';
 import { apiFetch } from '@/lib/api-client';
 
+function pathQuery(path: string): string {
+    return path ? `?${new URLSearchParams({ path })}` : '';
+}
+
 export class PhotosService {
     async getFolders(): Promise<PhotoFolder[]> {
         return apiFetch<PhotoFolder[]>('/api/folders');
@@ -10,20 +14,28 @@ export class PhotosService {
         return apiFetch<FolderCover[]>('/api/folders/covers');
     }
 
-    async getPhotos(folderId: string, view: 'gallery' | 'pages' = 'gallery'): Promise<PhotosResponse> {
-        return apiFetch<PhotosResponse>(`/api/folders/${folderId}/photos?view=${view}`);
+    async getPhotos(folderId: string, view: 'gallery' | 'pages' = 'gallery', path = ''): Promise<PhotosResponse> {
+        const params = new URLSearchParams({ view });
+        if (path) params.set('path', path);
+        return apiFetch<PhotosResponse>(`/api/folders/${folderId}/photos?${params}`);
     }
 
-    async setFolderCover(folderId: string, fileName: string): Promise<void> {
-        await apiFetch<void>(`/api/folders/${folderId}/cover`, {
+    /** Every photo in the album, subfolders included, whatever its subfolder mode — for pickers. */
+    async getAllPhotos(folderId: string): Promise<PhotosResponse> {
+        return apiFetch<PhotosResponse>(`/api/folders/${folderId}/photos?view=gallery&flat=1`);
+    }
+
+    /** `path` targets a subfolder of a browse album; empty sets the album's own cover. */
+    async setFolderCover(folderId: string, fileName: string, path = ''): Promise<void> {
+        await apiFetch<void>(`/api/folders/${folderId}/cover${pathQuery(path)}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ fileName }),
         });
     }
 
-    async clearFolderCover(folderId: string): Promise<void> {
-        await apiFetch<void>(`/api/folders/${folderId}/cover`, { method: 'DELETE' });
+    async clearFolderCover(folderId: string, path = ''): Promise<void> {
+        await apiFetch<void>(`/api/folders/${folderId}/cover${pathQuery(path)}`, { method: 'DELETE' });
     }
 
     async ratePhoto(catalogId: string, rating: number): Promise<void> {

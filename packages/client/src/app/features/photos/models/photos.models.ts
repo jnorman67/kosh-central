@@ -1,8 +1,12 @@
+/** How an album presents its OneDrive subfolders: merged into one gallery, or as folders to drill into. */
+export type SubfolderMode = 'flatten' | 'browse';
+
 export interface PhotoFolder {
     id: string;
     displayName: string;
     /** Admin-chosen cover photo's filename within the folder. Falls back to first viewable. */
     coverFileName?: string;
+    subfolderMode: SubfolderMode;
     /** Controlled vocabulary — see packages/server/src/config/folder-tags.ts. */
     tags: string[];
     createdAt: string;
@@ -14,6 +18,19 @@ export interface FolderCover {
      *  OneDrive listing failed. Suitable for long-lived browser HTTP caching. */
     coverUrl: string | null;
     photoCount: number;
+    /** Subfolders shown at the album root; always 0 for flatten albums. */
+    subfolderCount: number;
+}
+
+/** A subfolder tile in a browse album's gallery. */
+export interface Subfolder {
+    name: string;
+    /** Path from the album root; the viewer's `path` URL parameter. */
+    path: string;
+    /** Gallery photos anywhere in the subfolder's tree. */
+    photoCount: number;
+    subfolderCount: number;
+    coverUrl: string | null;
 }
 
 export type RelationType = 'duplicate-of';
@@ -30,6 +47,8 @@ export type BundleSide = 'front' | 'back';
 export interface Photo {
     id: string;
     name: string;
+    /** Path from the album root to the photo's folder; empty when it sits at the root. */
+    subfolderPath: string;
     downloadUrl: string;
     thumbnailUrl?: string;
     mimeType: string;
@@ -57,6 +76,10 @@ export interface PhotosResponse {
     hasPagesSubfolder: boolean;
     /** Present when this is the live featured album: the people whose photos follow the album's own. */
     featuredPersonNames?: string[];
+    /** Subfolders of the requested path. Empty for flatten albums and for the pages view. */
+    subfolders: Subfolder[];
+    /** Admin-chosen cover for the requested path (the album itself at the root). */
+    coverFileName?: string;
 }
 
 export interface FavoritePhoto extends Photo {

@@ -12,18 +12,21 @@ import { PhotoGallery } from '@/app/features/photos/components/photo-gallery';
 import { PhotoPagesReader } from '@/app/features/photos/components/photo-pages-reader';
 import { RelatedStrip } from '@/app/features/photos/components/related-strip';
 import { RelatedThumbnail } from '@/app/features/photos/components/related-thumbnail';
+import { SubfolderBreadcrumb } from '@/app/features/photos/components/subfolder-breadcrumb';
 import { SubjectsPanel } from '@/app/features/photos/components/subjects-panel';
 import { usePhotosQueries } from '@/app/features/photos/contexts/photos-query.context';
 import { SubjectsQueryProvider } from '@/app/features/photos/contexts/subjects-query.context';
-import { useViewerState } from '@/app/features/photos/hooks/use-viewer-state';
+import { readSubfolderPath, useViewerState } from '@/app/features/photos/hooks/use-viewer-state';
+import { coverName, isCoverPhoto } from '@/app/features/photos/lib/cover';
 import type { Photo } from '@/app/features/photos/models/photos.models';
 import { BrandMark } from '@/components/layout/brand-mark';
 import { UserMenu } from '@/components/layout/user-menu';
 import { ViewerLayout } from '@/components/layout/viewer-layout';
 import { Button } from '@/components/ui/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { hideSplash } from '@/lib/splash';
-import { ArrowRight, BookOpen, ExternalLink, Filter, LayoutGrid, ScanFace, Star, StarOff, X } from 'lucide-react';
+import { ArrowRight, BookOpen, ChevronDown, ExternalLink, Filter, LayoutGrid, ScanFace, Star, StarOff, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
@@ -84,10 +87,16 @@ export function ViewerPage() {
         () => (folderParam ? (folders.find((f) => f.id === folderParam) ?? null) : null),
         [folders, folderParam],
     );
+    // In a browse album, both views are scoped to the subfolder being viewed.
+    const pathForFetch = readSubfolderPath(searchParams, folderForFetch);
     // Always fetch gallery data — it tells us whether a pages subfolder exists.
-    const { data: galleryData, isLoading: galleryLoading } = useGetPhotos(folderForFetch?.id ?? null, 'gallery');
+    const { data: galleryData, isLoading: galleryLoading } = useGetPhotos(folderForFetch?.id ?? null, 'gallery', pathForFetch);
     // Fetch pages data only when the user has switched to that view; null folderId disables the query.
-    const { data: pagesData, isLoading: pagesLoading } = useGetPhotos(pagesView ? (folderForFetch?.id ?? null) : null, 'pages');
+    const { data: pagesData, isLoading: pagesLoading } = useGetPhotos(
+        pagesView ? (folderForFetch?.id ?? null) : null,
+        'pages',
+        pathForFetch,
+    );
     const hasPagesSubfolder = galleryData?.hasPagesSubfolder ?? false;
     const photosData = pagesView ? pagesData : galleryData;
     const allPhotos = photosData?.photos ?? [];
@@ -109,9 +118,11 @@ export function ViewerPage() {
 
     const {
         currentFolder,
+        currentPath,
         currentPhotoIndex,
         view: navView,
         setFolder,
+        openSubfolder,
         openPhoto,
         backToGallery,
         goToAlbums,
@@ -121,11 +132,11 @@ export function ViewerPage() {
 
     const uncatalogedCount = useMemo(() => allPhotos.filter((p) => !p.catalogId).length, [allPhotos]);
 
-    // Reset filters when switching folders.
+    // Reset filters when switching folders or subfolders.
     useEffect(() => {
         setUncatalogedOnly(false);
         setPagesView(false);
-    }, [currentFolder?.id]);
+    }, [currentFolder?.id, currentPath]);
 
     // Dismiss the initial splash once the first view's data is ready: folders always; also the
     // folder's photos if the URL selected one on first load.
@@ -151,10 +162,11 @@ export function ViewerPage() {
             if (t.isContentEditable || t.tagName === 'INPUT' || t.tagName === 'TEXTAREA') return;
             if (enlargedRelated) setEnlargedRelatedId(null);
             else if (navView === 'photo') backToGallery();
+            else if (navView === 'gallery' && currentPath) openSubfolder(currentPath.split('/').slice(0, -1).join('/'));
         }
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
-    }, [enlargedRelated, navView, backToGallery]);
+    }, [enlargedRelated, navView, backToGallery, currentPath, openSubfolder]);
 
     const handleNext = useCallback(() => nextPhoto(), [nextPhoto]);
     const handlePrev = useCallback(() => prevPhoto(), [prevPhoto]);
@@ -170,17 +182,21 @@ export function ViewerPage() {
     const isGallery = navView === 'gallery';
     const isPhoto = navView === 'photo';
     const isAdmin = me?.role === 'admin';
-    const isCurrentCover = !!currentPhoto && !!currentFolder && currentFolder.coverFileName === currentPhoto.name;
+    const subfolders = galleryData?.subfolders ?? [];
+    const subfolderName = currentPath.split('/').pop() ?? '';
+    // A cover belongs to a folder: the album itself or, in a browse album, the subfolder being viewed.
+    const isAlbumCover = !!currentPhoto && isCoverPhoto(currentPhoto, currentFolder?.coverFileName);
+    const isSubfolderCover = !!currentPhoto && !!currentPath && isCoverPhoto(currentPhoto, galleryData?.coverFileName, currentPath);
     // Where the featured album's own photos end and photos of its featured people begin.
     const featuredPeopleStart = viewablePhotos.findIndex((p) => !!p.sourceFolderId);
     const featuredPersonNames = photosData?.featuredPersonNames ?? [];
 
-    const handleToggleCover = () => {
+    const handleToggleCover = (path: string, isCover: boolean) => {
         if (!currentFolder || !currentPhoto) return;
-        if (isCurrentCover) {
-            clearCover.mutate({ folderId: currentFolder.id });
+        if (isCover) {
+            clearCover.mutate({ folderId: currentFolder.id, path });
         } else {
-            setCover.mutate({ folderId: currentFolder.id, fileName: currentPhoto.name });
+            setCover.mutate({ folderId: currentFolder.id, fileName: coverName(currentPhoto, path), path });
         }
     };
 
@@ -203,25 +219,63 @@ export function ViewerPage() {
                         ) : (
                             <div className="flex min-w-0 flex-1 items-center gap-2 sm:flex-none">
                                 <BrandMark onClick={goToAlbums} title="Browse albums" />
-                                {isPhoto && <BackToGalleryButton onClick={backToGallery} target={pagesView ? 'pages' : 'gallery'} />}
+                                {isPhoto && (
+                                    <BackToGalleryButton
+                                        onClick={backToGallery}
+                                        target={pagesView ? 'pages' : subfolderName || 'gallery'}
+                                    />
+                                )}
                                 <FolderSelector
                                     folders={folders}
                                     selectedId={currentFolder?.id ?? null}
                                     onSelect={setFolder}
                                     isLoading={foldersLoading}
                                 />
+                                {isGallery && currentFolder && currentPath && (
+                                    <SubfolderBreadcrumb
+                                        path={currentPath}
+                                        albumName={currentFolder.displayName}
+                                        onNavigate={openSubfolder}
+                                    />
+                                )}
                             </div>
                         )}
                         <div className="flex shrink-0 items-center gap-1 pr-1 sm:gap-3 sm:px-4">
-                            {isAdmin && isPhoto && currentPhoto && !currentPhoto.sourceFolderId && (
+                            {isAdmin && isPhoto && currentPhoto && !currentPhoto.sourceFolderId && currentPath && (
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            disabled={setCover.isPending || clearCover.isPending}
+                                            className="hidden md:inline-flex"
+                                        >
+                                            <Star className="h-4 w-4" />
+                                            Cover
+                                            <ChevronDown className="h-4 w-4" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                        <DropdownMenuItem onSelect={() => handleToggleCover(currentPath, isSubfolderCover)}>
+                                            {isSubfolderCover ? <StarOff /> : <Star />}
+                                            {isSubfolderCover ? 'Clear' : 'Set as'} cover of {subfolderName}
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onSelect={() => handleToggleCover('', isAlbumCover)}>
+                                            {isAlbumCover ? <StarOff /> : <Star />}
+                                            {isAlbumCover ? 'Clear album cover' : 'Set as album cover'}
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            )}
+                            {isAdmin && isPhoto && currentPhoto && !currentPhoto.sourceFolderId && !currentPath && (
                                 <Button
                                     variant="ghost"
                                     size="sm"
-                                    onClick={handleToggleCover}
+                                    onClick={() => handleToggleCover('', isAlbumCover)}
                                     disabled={setCover.isPending || clearCover.isPending}
                                     className="hidden md:inline-flex"
                                 >
-                                    {isCurrentCover ? (
+                                    {isAlbumCover ? (
                                         <>
                                             <StarOff className="h-4 w-4" />
                                             Clear album cover
@@ -249,6 +303,8 @@ export function ViewerPage() {
                                 photos={viewablePhotos}
                                 isLoading={photosLoading && !!currentFolder}
                                 onSelect={openPhoto}
+                                subfolders={subfolders}
+                                onSelectSubfolder={openSubfolder}
                                 section={
                                     featuredPeopleStart >= 0 && featuredPersonNames.length > 0
                                         ? {
@@ -371,6 +427,9 @@ export function ViewerPage() {
                     ) : isGallery ? (
                         <div className="flex items-center justify-center gap-4 px-4 py-2 text-sm text-muted-foreground">
                             <span>
+                                {!pagesView &&
+                                    subfolders.length > 0 &&
+                                    `${subfolders.length} ${subfolders.length === 1 ? 'folder' : 'folders'} · `}
                                 {viewablePhotos.length}{' '}
                                 {pagesView
                                     ? viewablePhotos.length === 1

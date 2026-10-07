@@ -4,7 +4,9 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tansta
 export const PhotosQueryKeys = {
     folders: ['Photos', 'Folders'] as const,
     folderCovers: ['Photos', 'FolderCovers'] as const,
-    photos: (folderId: string, view: 'gallery' | 'pages') => ['Photos', 'Photos', folderId, view] as const,
+    photos: (folderId: string, view: 'gallery' | 'pages', path: string) => ['Photos', 'Photos', folderId, view, path] as const,
+    allPhotos: (folderId: string) => ['Photos', 'Photos', folderId, 'all'] as const,
+    folderPhotos: (folderId: string) => ['Photos', 'Photos', folderId] as const,
     favoritesInfinite: (limit: number) => ['Photos', 'Favorites', 'infinite', limit] as const,
     favoritesAll: ['Photos', 'Favorites'] as const,
     shareLink: (folderId: string, itemId: string) => ['Photos', 'ShareLink', folderId, itemId] as const,
@@ -28,10 +30,19 @@ export const createPhotosQueries = (service: PhotosService) => {
         });
     };
 
-    const useGetPhotos = (folderId: string | null, view: 'gallery' | 'pages' = 'gallery') => {
+    const useGetPhotos = (folderId: string | null, view: 'gallery' | 'pages' = 'gallery', path = '') => {
         return useQuery({
-            queryKey: PhotosQueryKeys.photos(folderId!, view),
-            queryFn: () => service.getPhotos(folderId!, view),
+            queryKey: PhotosQueryKeys.photos(folderId!, view, path),
+            queryFn: () => service.getPhotos(folderId!, view, path),
+            enabled: !!folderId,
+            staleTime: 10 * 60 * 1000,
+        });
+    };
+
+    const useGetAllPhotos = (folderId: string | null) => {
+        return useQuery({
+            queryKey: PhotosQueryKeys.allPhotos(folderId!),
+            queryFn: () => service.getAllPhotos(folderId!),
             enabled: !!folderId,
             staleTime: 10 * 60 * 1000,
         });
@@ -40,10 +51,13 @@ export const createPhotosQueries = (service: PhotosService) => {
     const useSetFolderCover = () => {
         const qc = useQueryClient();
         return useMutation({
-            mutationFn: ({ folderId, fileName }: { folderId: string; fileName: string }) => service.setFolderCover(folderId, fileName),
-            onSuccess: () => {
+            mutationFn: ({ folderId, fileName, path }: { folderId: string; fileName: string; path?: string }) =>
+                service.setFolderCover(folderId, fileName, path),
+            onSuccess: (_, { folderId }) => {
                 qc.invalidateQueries({ queryKey: PhotosQueryKeys.folders });
                 qc.invalidateQueries({ queryKey: PhotosQueryKeys.folderCovers });
+                // Photos responses carry the current path's cover and the subfolder tiles' covers.
+                qc.invalidateQueries({ queryKey: PhotosQueryKeys.folderPhotos(folderId) });
             },
         });
     };
@@ -51,10 +65,11 @@ export const createPhotosQueries = (service: PhotosService) => {
     const useClearFolderCover = () => {
         const qc = useQueryClient();
         return useMutation({
-            mutationFn: ({ folderId }: { folderId: string }) => service.clearFolderCover(folderId),
-            onSuccess: () => {
+            mutationFn: ({ folderId, path }: { folderId: string; path?: string }) => service.clearFolderCover(folderId, path),
+            onSuccess: (_, { folderId }) => {
                 qc.invalidateQueries({ queryKey: PhotosQueryKeys.folders });
                 qc.invalidateQueries({ queryKey: PhotosQueryKeys.folderCovers });
+                qc.invalidateQueries({ queryKey: PhotosQueryKeys.folderPhotos(folderId) });
             },
         });
     };
@@ -65,7 +80,7 @@ export const createPhotosQueries = (service: PhotosService) => {
             mutationFn: ({ catalogId, rating }: { catalogId: string; folderId?: string; rating: number }) =>
                 rating === 0 ? service.clearRating(catalogId) : service.ratePhoto(catalogId, rating),
             onSuccess: (_, { folderId }) => {
-                if (folderId) qc.invalidateQueries({ queryKey: ['Photos', 'Photos', folderId] });
+                if (folderId) qc.invalidateQueries({ queryKey: PhotosQueryKeys.folderPhotos(folderId) });
                 qc.invalidateQueries({ queryKey: PhotosQueryKeys.favoritesAll });
             },
         });
@@ -106,6 +121,7 @@ export const createPhotosQueries = (service: PhotosService) => {
         useGetFolders,
         useGetFolderCovers,
         useGetPhotos,
+        useGetAllPhotos,
         useSetFolderCover,
         useClearFolderCover,
         useRatePhoto,

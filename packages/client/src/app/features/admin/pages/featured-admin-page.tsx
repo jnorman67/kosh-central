@@ -4,6 +4,7 @@ import { useFeaturedQueries } from '@/app/features/featured/contexts/featured-qu
 import { DEFAULT_BUTTON_LABEL, FEATURED_THEME_ORDER, FEATURED_THEMES } from '@/app/features/featured/lib/featured-themes';
 import type { FeaturedAlbumConfig, FeaturedAlbumConfigInput } from '@/app/features/featured/models/featured.models';
 import { usePhotosQueries } from '@/app/features/photos/contexts/photos-query.context';
+import { isCoverPhoto } from '@/app/features/photos/lib/cover';
 import { UserMenu } from '@/components/layout/user-menu';
 import { ViewerLayout } from '@/components/layout/viewer-layout';
 import { Button } from '@/components/ui/button';
@@ -28,7 +29,7 @@ const TEXTAREA_CLASSES =
 export function FeaturedAdminPage() {
     const navigate = useNavigate();
     const { useGetConfig, useUpdateConfig } = useFeaturedQueries();
-    const { useGetFolders, useGetPhotos } = usePhotosQueries();
+    const { useGetFolders, useGetAllPhotos } = usePhotosQueries();
     const { data: config } = useGetConfig();
     const updateConfig = useUpdateConfig();
     const { data: folders = [] } = useGetFolders();
@@ -41,7 +42,7 @@ export function FeaturedAdminPage() {
 
     useEffect(() => hideSplash(), []);
 
-    const { data: photosData, isLoading: photosLoading } = useGetPhotos(form?.folderSlug ?? null);
+    const { data: photosData, isLoading: photosLoading } = useGetAllPhotos(form?.folderSlug ?? null);
     // Same "one photo per bundle" rule the viewer's gallery uses. Photos of the featured people
     // live in other albums, so they can't be the featured photo.
     const viewablePhotos = useMemo(
@@ -55,7 +56,7 @@ export function FeaturedAdminPage() {
 
     // Mirrors the server's choice: explicit pick, else the album cover, else the first photo.
     const chosenPhoto = viewablePhotos.find((p) => p.name === form?.photoFileName);
-    const previewPhoto = chosenPhoto ?? viewablePhotos.find((p) => p.name === folder?.coverFileName) ?? viewablePhotos[0] ?? null;
+    const previewPhoto = chosenPhoto ?? viewablePhotos.find((p) => isCoverPhoto(p, folder?.coverFileName)) ?? viewablePhotos[0] ?? null;
     const pickMissing = !!form?.photoFileName && !photosLoading && !!photosData && !chosenPhoto;
 
     if (!form) return null;

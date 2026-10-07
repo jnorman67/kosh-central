@@ -87,6 +87,17 @@ To get a sharing URL: right-click a folder in OneDrive > **Share** > **Anyone wi
 
 `folderPath` is the directory path relative to the local scan root, using forward slashes. It must match the `folderName` recorded by `scan-local.ts` so that local catalog data (content hash, bundle membership, etc.) can be joined to the OneDrive listing at request time. The `slug` is used in bookmarkable URLs and must be stable once published.
 
+### Subfolders
+
+Each album has a **Subfolders** setting:
+
+- **Flatten into one gallery** (the default) — photos from every subfolder appear together in a single gallery.
+- **Browse as folders** — the gallery shows the photos sitting directly in the current folder, with a tile for each subfolder (cover, folder count, photo count). Viewers drill down one level at a time; the URL carries the position as `?folder=<slug>&path=1940s/Spring`, and next/previous stays within the current subfolder.
+
+Either way, some folder names are special at any depth: `archive`, `archived`, and `ignore` are skipped entirely, and a folder named `pages` holds scanned album pages, shown through the **Pages** button rather than in the gallery. In a browse album each folder has its own Pages view; in a flattened album all pages are combined into one.
+
+Covers can be set per subfolder in browse albums (admins: **Cover** menu on a photo inside a subfolder). A cover is stored as the photo's path relative to the folder it covers (`folder_covers.folder_path` is the album's `folderPath`, plus the subfolder path for subfolder covers), so an album cover can come from a subfolder.
+
 ## Featured Album
 
 An admin can highlight one album (for example a memorial, a birthday, or a newly scanned collection) from **Featured album** in the user menu (`/admin/featured`). The admin chooses the album, a featured photo (defaults to the album cover), a theme (Classic, Memorial, Celebration, or Vintage), and the text: a small heading, a title, a subtitle, a message, and the button label. A live preview updates as they edit.

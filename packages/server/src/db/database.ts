@@ -1753,6 +1753,14 @@ const migrations: Migration[] = [
             );
         `,
     },
+    {
+        version: 33,
+        description: "folders: add subfolder_mode ('flatten' merges subfolders into one gallery, 'browse' lets users drill down)",
+        sql: `
+            ALTER TABLE folders ADD COLUMN subfolder_mode TEXT NOT NULL DEFAULT 'flatten'
+                CHECK (subfolder_mode IN ('flatten', 'browse'));
+        `,
+    },
 ];
 
 /**

@@ -81,6 +81,8 @@ export class AdminFoldersService {
                 sharingUrl: String(e.sharingUrl ?? ''),
                 folderPath: String(e.folderPath ?? ''),
                 sortOrder: typeof e.sortOrder === 'number' ? e.sortOrder : 0,
+                // Exports from before the setting existed have no subfolderMode.
+                subfolderMode: e.subfolderMode === 'browse' ? 'browse' : 'flatten',
                 tags,
             };
         });

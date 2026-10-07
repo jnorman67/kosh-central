@@ -26,10 +26,21 @@ export interface Photo {
     driveId: string;
 }
 
-/** Returns true when a photo's subfolderPath is (or descends into) a subfolder named "pages". */
+/**
+ * Path of the folder whose "pages" subfolder a photo sits in, relative to the album root, or null
+ * when the photo isn't in a pages folder. Pages folders can sit at any depth:
+ * "pages" → "", "1940s/pages" → "1940s", "1940s/pages/extra" → "1940s".
+ */
+export function pagesOwnerPath(subfolderPath: string): string | null {
+    if (!subfolderPath) return null;
+    const segments = subfolderPath.split('/');
+    const i = segments.findIndex((s) => s.toLowerCase() === 'pages');
+    return i === -1 ? null : segments.slice(0, i).join('/');
+}
+
+/** Returns true when a photo's subfolderPath is (or descends into) a subfolder named "pages", at any depth. */
 export function isInPagesSubfolder(subfolderPath: string): boolean {
-    const lower = subfolderPath.toLowerCase();
-    return lower === 'pages' || lower.startsWith('pages/');
+    return pagesOwnerPath(subfolderPath) !== null;
 }
 
 interface CacheEntry {

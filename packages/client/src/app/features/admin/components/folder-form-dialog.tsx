@@ -1,9 +1,10 @@
 import { slugify } from '@/app/features/admin/lib/slug';
-import { type AdminFolder, type FolderInput } from '@/app/features/admin/models/folder.models';
+import { type AdminFolder, type FolderInput, type SubfolderMode } from '@/app/features/admin/models/folder.models';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ApiError } from '@/lib/api-client';
 import { useEffect, useState } from 'react';
 
@@ -15,7 +16,7 @@ interface Props {
     onSubmit: (input: FolderInput) => Promise<void>;
 }
 
-const EMPTY: FolderInput = { slug: '', displayName: '', sharingUrl: '', folderPath: '', sortOrder: 0, tags: [] };
+const EMPTY: FolderInput = { slug: '', displayName: '', sharingUrl: '', folderPath: '', sortOrder: 0, subfolderMode: 'flatten', tags: [] };
 
 export function FolderFormDialog({ open, onOpenChange, mode, initial, onSubmit }: Props) {
     const [form, setForm] = useState<FolderInput>(EMPTY);
@@ -36,6 +37,7 @@ export function FolderFormDialog({ open, onOpenChange, mode, initial, onSubmit }
                 sharingUrl: initial.sharingUrl,
                 folderPath: initial.folderPath,
                 sortOrder: initial.sortOrder,
+                subfolderMode: initial.subfolderMode,
                 tags: [...initial.tags],
             });
             setSlugTouched(true); // never auto-overwrite an existing slug
@@ -95,6 +97,7 @@ export function FolderFormDialog({ open, onOpenChange, mode, initial, onSubmit }
                 sharingUrl: form.sharingUrl.trim(),
                 folderPath: form.folderPath.trim(),
                 sortOrder: form.sortOrder,
+                subfolderMode: form.subfolderMode,
                 tags: form.tags,
             });
             onOpenChange(false);
@@ -169,6 +172,27 @@ export function FolderFormDialog({ open, onOpenChange, mode, initial, onSubmit }
                                 re-imported.
                             </p>
                         )}
+                    </div>
+
+                    <div className="space-y-1.5">
+                        <Label htmlFor="subfolderMode">Subfolders</Label>
+                        <Select
+                            value={form.subfolderMode}
+                            onValueChange={(value) => setForm((f) => ({ ...f, subfolderMode: value as SubfolderMode }))}
+                        >
+                            <SelectTrigger id="subfolderMode">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="flatten">Flatten into one gallery</SelectItem>
+                                <SelectItem value="browse">Browse as folders</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                            {form.subfolderMode === 'browse'
+                                ? 'Subfolders appear as folders that viewers open one level at a time.'
+                                : 'Photos from every subfolder appear together in one gallery.'}
+                        </p>
                     </div>
 
                     {formError && <p className="text-sm text-destructive">{formError}</p>}

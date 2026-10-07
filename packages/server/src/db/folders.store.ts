@@ -1,12 +1,16 @@
 import { getDb } from './database.js';
 import { FOLDER_SEED } from './folders.seed.js';
 
+/** How an album presents its OneDrive subfolders: merged into one gallery, or as folders to drill into. */
+export type SubfolderMode = 'flatten' | 'browse';
+
 export interface StoredFolder {
     slug: string;
     displayName: string;
     sharingUrl: string;
     folderPath: string;
     sortOrder: number;
+    subfolderMode: SubfolderMode;
     tags: string[];
     createdAt: string;
     updatedAt: string;
@@ -18,6 +22,7 @@ export interface FolderInput {
     sharingUrl: string;
     folderPath: string;
     sortOrder?: number;
+    subfolderMode?: SubfolderMode;
     tags?: string[];
     createdAt?: string;
 }
@@ -28,6 +33,7 @@ interface FolderRow {
     sharing_url: string;
     folder_path: string;
     sort_order: number;
+    subfolder_mode: SubfolderMode;
     created_at: string;
     updated_at: string;
 }
@@ -39,6 +45,7 @@ function rowToFolder(row: FolderRow, tags: string[]): StoredFolder {
         sharingUrl: row.sharing_url,
         folderPath: row.folder_path,
         sortOrder: row.sort_order,
+        subfolderMode: row.subfolder_mode,
         tags,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
@@ -109,9 +116,9 @@ export function createFolder(input: FolderInput): StoredFolder {
             : ((db.prepare('SELECT COALESCE(MAX(sort_order), 0) as m FROM folders').get() as { m: number }).m + 10);
     const txn = db.transaction(() => {
         db.prepare(
-            `INSERT INTO folders (slug, display_name, sharing_url, folder_path, sort_order)
-             VALUES (?, ?, ?, ?, ?)`,
-        ).run(input.slug, input.displayName, input.sharingUrl, input.folderPath, sortOrder);
+            `INSERT INTO folders (slug, display_name, sharing_url, folder_path, sort_order, subfolder_mode)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+        ).run(input.slug, input.displayName, input.sharingUrl, input.folderPath, sortOrder, input.subfolderMode ?? 'flatten');
         writeTags(input.slug, input.tags ?? []);
     });
     txn();
@@ -126,11 +133,19 @@ export function updateFolder(slug: string, input: FolderInput): StoredFolder | u
         const result = db
             .prepare(
                 `UPDATE folders
-                 SET slug = ?, display_name = ?, sharing_url = ?, folder_path = ?, sort_order = ?,
+                 SET slug = ?, display_name = ?, sharing_url = ?, folder_path = ?, sort_order = ?, subfolder_mode = ?,
                      updated_at = datetime('now')
                  WHERE slug = ?`,
             )
-            .run(input.slug, input.displayName, input.sharingUrl, input.folderPath, input.sortOrder ?? 0, slug);
+            .run(
+                input.slug,
+                input.displayName,
+                input.sharingUrl,
+                input.folderPath,
+                input.sortOrder ?? 0,
+                input.subfolderMode ?? 'flatten',
+                slug,
+            );
         changed = result.changes;
         // ON UPDATE CASCADE has already moved any existing tag rows from `slug`
         // to `input.slug`, so overwrite under the new slug.
@@ -162,12 +177,12 @@ export function upsertFolders(folders: FolderInput[]): ImportResult {
     );
 
     const insert = db.prepare(
-        `INSERT INTO folders (slug, display_name, sharing_url, folder_path, sort_order, created_at)
-         VALUES (?, ?, ?, ?, ?, COALESCE(?, datetime('now')))`,
+        `INSERT INTO folders (slug, display_name, sharing_url, folder_path, sort_order, subfolder_mode, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')))`,
     );
     const update = db.prepare(
         `UPDATE folders
-         SET display_name = ?, sharing_url = ?, folder_path = ?, sort_order = ?,
+         SET display_name = ?, sharing_url = ?, folder_path = ?, sort_order = ?, subfolder_mode = ?,
              updated_at = datetime('now')
          WHERE slug = ?`,
     );
@@ -177,10 +192,18 @@ export function upsertFolders(folders: FolderInput[]): ImportResult {
     const txn = db.transaction(() => {
         for (const f of folders) {
             if (existingSlugs.has(f.slug)) {
-                update.run(f.displayName, f.sharingUrl, f.folderPath, f.sortOrder ?? 0, f.slug);
+                update.run(f.displayName, f.sharingUrl, f.folderPath, f.sortOrder ?? 0, f.subfolderMode ?? 'flatten', f.slug);
                 updated++;
             } else {
-                insert.run(f.slug, f.displayName, f.sharingUrl, f.folderPath, f.sortOrder ?? 0, f.createdAt ?? null);
+                insert.run(
+                    f.slug,
+                    f.displayName,
+                    f.sharingUrl,
+                    f.folderPath,
+                    f.sortOrder ?? 0,
+                    f.subfolderMode ?? 'flatten',
+                    f.createdAt ?? null,
+                );
                 created++;
             }
             writeTags(f.slug, f.tags ?? []);
@@ -215,14 +238,22 @@ export function reorderFolders(slugs: string[]): void {
 export function replaceAllFolders(folders: FolderInput[]): ImportResult {
     const db = getDb();
     const insert = db.prepare(
-        `INSERT INTO folders (slug, display_name, sharing_url, folder_path, sort_order, created_at)
-         VALUES (?, ?, ?, ?, ?, COALESCE(?, datetime('now')))`,
+        `INSERT INTO folders (slug, display_name, sharing_url, folder_path, sort_order, subfolder_mode, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, COALESCE(?, datetime('now')))`,
     );
     const txn = db.transaction(() => {
         // ON DELETE CASCADE wipes folder_tags alongside folders.
         db.prepare('DELETE FROM folders').run();
         for (const f of folders) {
-            insert.run(f.slug, f.displayName, f.sharingUrl, f.folderPath, f.sortOrder ?? 0, f.createdAt ?? null);
+            insert.run(
+                f.slug,
+                f.displayName,
+                f.sharingUrl,
+                f.folderPath,
+                f.sortOrder ?? 0,
+                f.subfolderMode ?? 'flatten',
+                f.createdAt ?? null,
+            );
             writeTags(f.slug, f.tags ?? []);
         }
     });

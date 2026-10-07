@@ -5,7 +5,22 @@ import { useSearchParams } from 'react-router-dom';
 type ViewMode = 'albums' | 'gallery' | 'photo';
 
 const FOLDER_PARAM = 'folder';
+const PATH_PARAM = 'path';
 const PHOTO_PARAM = 'photo';
+
+/** The subfolder of a browse album the URL points at ('' for its root). Flatten albums have no subfolders to open. */
+export function readSubfolderPath(params: URLSearchParams, folder: PhotoFolder | null): string {
+    if (folder?.subfolderMode !== 'browse') return '';
+    return (params.get(PATH_PARAM) ?? '').split('/').filter(Boolean).join('/');
+}
+
+function buildParams(folderId: string, path: string, photo?: Photo): URLSearchParams {
+    const next = new URLSearchParams();
+    next.set(FOLDER_PARAM, folderId);
+    if (path) next.set(PATH_PARAM, path);
+    if (photo) next.set(PHOTO_PARAM, photoKey(photo));
+    return next;
+}
 
 /** Stable identifier for a photo within a folder — content hash if cataloged, else file name. */
 function photoKey(photo: Photo): string {
@@ -30,6 +45,7 @@ export function useViewerState({ folders, viewablePhotos }: UseViewerStateArgs) 
     const photoParam = params.get(PHOTO_PARAM);
 
     const currentFolder = useMemo(() => (folderParam ? (folders.find((f) => f.id === folderParam) ?? null) : null), [folders, folderParam]);
+    const currentPath = readSubfolderPath(params, currentFolder);
 
     const currentPhotoIndex = useMemo(() => {
         if (!photoParam || viewablePhotos.length === 0) return 0;
@@ -53,31 +69,33 @@ export function useViewerState({ folders, viewablePhotos }: UseViewerStateArgs) 
 
     const setFolder = useCallback(
         (folderId: string) => {
-            const next = new URLSearchParams();
-            next.set(FOLDER_PARAM, folderId);
-            updateParams(next);
+            updateParams(buildParams(folderId, ''));
         },
         [updateParams],
+    );
+
+    /** Open a subfolder of the current browse album; '' returns to the album root. */
+    const openSubfolder = useCallback(
+        (path: string) => {
+            if (!folderParam) return;
+            updateParams(buildParams(folderParam, path));
+        },
+        [folderParam, updateParams],
     );
 
     const openPhoto = useCallback(
         (index: number) => {
             const photo = viewablePhotos[index];
             if (!photo || !folderParam) return;
-            const next = new URLSearchParams();
-            next.set(FOLDER_PARAM, folderParam);
-            next.set(PHOTO_PARAM, photoKey(photo));
-            updateParams(next);
+            updateParams(buildParams(folderParam, currentPath, photo));
         },
-        [viewablePhotos, folderParam, updateParams],
+        [viewablePhotos, folderParam, currentPath, updateParams],
     );
 
     const backToGallery = useCallback(() => {
         if (!folderParam) return;
-        const next = new URLSearchParams();
-        next.set(FOLDER_PARAM, folderParam);
-        updateParams(next, { replace: true });
-    }, [folderParam, updateParams]);
+        updateParams(buildParams(folderParam, currentPath), { replace: true });
+    }, [folderParam, currentPath, updateParams]);
 
     const goToAlbums = useCallback(() => {
         updateParams(new URLSearchParams());
@@ -89,12 +107,9 @@ export function useViewerState({ folders, viewablePhotos }: UseViewerStateArgs) 
             const nextIndex = (currentPhotoIndex + delta + viewablePhotos.length) % viewablePhotos.length;
             const photo = viewablePhotos[nextIndex];
             if (!photo) return;
-            const next = new URLSearchParams();
-            next.set(FOLDER_PARAM, folderParam);
-            next.set(PHOTO_PARAM, photoKey(photo));
-            updateParams(next, { replace: true });
+            updateParams(buildParams(folderParam, currentPath, photo), { replace: true });
         },
-        [viewablePhotos, currentPhotoIndex, folderParam, updateParams],
+        [viewablePhotos, currentPhotoIndex, folderParam, currentPath, updateParams],
     );
 
     const nextPhoto = useCallback(() => stepPhoto(1), [stepPhoto]);
@@ -102,9 +117,11 @@ export function useViewerState({ folders, viewablePhotos }: UseViewerStateArgs) 
 
     return {
         currentFolder,
+        currentPath,
         currentPhotoIndex,
         view,
         setFolder,
+        openSubfolder,
         openPhoto,
         backToGallery,
         goToAlbums,

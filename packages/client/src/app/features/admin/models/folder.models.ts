@@ -6,12 +6,16 @@ export type FolderTag = (typeof FOLDER_TAGS)[number];
 
 export const FOLDER_TAG_LABELS: Record<FolderTag, string> = {};
 
+/** How an album presents its OneDrive subfolders: merged into one gallery, or as folders to drill into. */
+export type SubfolderMode = 'flatten' | 'browse';
+
 export interface AdminFolder {
     slug: string;
     displayName: string;
     sharingUrl: string;
     folderPath: string;
     sortOrder: number;
+    subfolderMode: SubfolderMode;
     tags: string[];
     createdAt: string;
     updatedAt: string;
@@ -23,6 +27,7 @@ export interface FolderInput {
     sharingUrl: string;
     folderPath: string;
     sortOrder: number;
+    subfolderMode: SubfolderMode;
     tags: string[];
 }
 

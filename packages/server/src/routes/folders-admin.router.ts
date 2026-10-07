@@ -12,6 +12,7 @@ import {
     upsertFolders,
     type FolderInput,
     type StoredFolder,
+    type SubfolderMode,
 } from '../db/folders.store.js';
 import { OneDriveService, ShareValidationError } from '../services/onedrive.service.js';
 
@@ -40,6 +41,15 @@ function validateShape(body: unknown): FolderInput | FieldError {
     if (!sharingUrl) return { error: 'sharingUrl is required', field: 'sharingUrl' };
     if (!folderPath) return { error: 'folderPath is required', field: 'folderPath' };
 
+    // Optional so exports from before the setting existed still import (as 'flatten').
+    let subfolderMode: SubfolderMode = 'flatten';
+    if (b.subfolderMode !== undefined) {
+        if (b.subfolderMode !== 'flatten' && b.subfolderMode !== 'browse') {
+            return { error: "subfolderMode must be 'flatten' or 'browse'", field: 'subfolderMode' };
+        }
+        subfolderMode = b.subfolderMode;
+    }
+
     let tags: string[] | undefined;
     if (b.tags !== undefined) {
         if (!Array.isArray(b.tags) || !b.tags.every((t) => typeof t === 'string')) {
@@ -61,7 +71,7 @@ function validateShape(body: unknown): FolderInput | FieldError {
 
     const createdAt = typeof b.createdAt === 'string' && b.createdAt ? b.createdAt : undefined;
 
-    return { slug, displayName, sharingUrl, folderPath, sortOrder, tags, createdAt };
+    return { slug, displayName, sharingUrl, folderPath, sortOrder, subfolderMode, tags, createdAt };
 }
 
 export function createFoldersAdminRouter(oneDriveService: OneDriveService): Router {

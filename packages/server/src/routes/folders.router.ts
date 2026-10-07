@@ -1,13 +1,13 @@
 import { Router } from 'express';
 import { requireAdmin } from '../auth/auth.middleware.js';
 import { getFeaturedAlbum } from '../db/featured.store.js';
-import { clearFolderCover, getAllFolderCovers, setFolderCover } from '../db/folder-covers.store.js';
+import { clearFolderCover, getAllFolderCovers, getFolderCover, setFolderCover } from '../db/folder-covers.store.js';
 import { findFolderBySlug as storeFindFolderBySlug, listFolders, type StoredFolder } from '../db/folders.store.js';
 import { findPhotoByFolderAndName, type StoredPhoto } from '../db/photos.store.js';
 import { getRatingsByUserForPhotos } from '../db/ratings.store.js';
 import { getRelationsForPhoto } from '../db/relations.store.js';
 import { getFeaturedTaggedPhotos } from '../services/featured-photos.service.js';
-import { isInPagesSubfolder, OneDriveService, type Photo as OneDrivePhoto } from '../services/onedrive.service.js';
+import { isInPagesSubfolder, OneDriveService, pagesOwnerPath, type Photo as OneDrivePhoto } from '../services/onedrive.service.js';
 import { ThumbnailCacheService } from '../services/thumbnail-cache.service.js';
 
 function findFolderBySlug(slug: string | string[] | undefined): StoredFolder | null {
@@ -15,15 +15,28 @@ function findFolderBySlug(slug: string | string[] | undefined): StoredFolder | n
     return storeFindFolderBySlug(slug) ?? null;
 }
 
+/**
+ * How a cover is recorded: the photo's path relative to the folder it is the cover of, so the
+ * album cover can come from a subfolder without colliding with a same-named file elsewhere.
+ * Covers saved before subfolders could be browsed are plain file names; those still match.
+ */
+function coverName(photo: OneDrivePhoto, scopePath: string): string {
+    const rel = scopePath ? photo.subfolderPath.slice(scopePath.length + 1) : photo.subfolderPath;
+    return rel ? `${rel}/${photo.name}` : photo.name;
+}
+
 /** Mirror of the client's pickCover: prefer the admin-configured cover, else the first
- *  photo that is uncataloged, or cataloged-without-bundle, or a preferred front. */
+ *  photo that is uncataloged, or cataloged-without-bundle, or a preferred front.
+ *  `scopePath` is the subfolder the cover belongs to ('' for the album itself). */
 export function pickCoverPhoto(
     photos: OneDrivePhoto[],
     folderPath: string,
     coverFileName: string | undefined,
+    scopePath = '',
 ): OneDrivePhoto | null {
     if (coverFileName) {
-        const chosen = photos.find((p) => p.name === coverFileName);
+        const chosen =
+            photos.find((p) => coverName(p, scopePath) === coverFileName) ?? photos.find((p) => p.name === coverFileName);
         if (chosen) return chosen;
     }
     for (const p of photos) {
@@ -36,6 +49,75 @@ export function pickCoverPhoto(
     return photos[0] ?? null;
 }
 
+/** A client-supplied subfolder path, relative to the album root, with stray slashes removed. */
+function normalizeSubfolderPath(raw: unknown): string {
+    if (typeof raw !== 'string') return '';
+    return raw.split('/').filter(Boolean).join('/');
+}
+
+/** Paths come from OneDrive (case-insensitive) and from URLs, so compare without case. */
+function samePath(a: string, b: string): boolean {
+    return a.toLowerCase() === b.toLowerCase();
+}
+
+/** The folder_covers key for a subfolder of an album ('' is the album itself). */
+function coverKey(folder: StoredFolder, subfolderPath: string): string {
+    return subfolderPath ? `${folder.folderPath}/${subfolderPath}` : folder.folderPath;
+}
+
+/**
+ * Group an album's photos by the immediate subfolder of `parent` they live under, in name order.
+ * Each group holds every photo in that subfolder's tree, pages included. Pages folders are not
+ * groups of their own: they open from their parent's Pages button instead.
+ */
+function childFolders(photos: OneDrivePhoto[], parent: string): { name: string; path: string; photos: OneDrivePhoto[] }[] {
+    const prefix = parent ? `${parent.toLowerCase()}/` : '';
+    const byName = new Map<string, { name: string; path: string; photos: OneDrivePhoto[] }>();
+    for (const p of photos) {
+        if (!p.subfolderPath.toLowerCase().startsWith(prefix)) continue;
+        const name = p.subfolderPath.slice(prefix.length).split('/')[0];
+        if (!name || name.toLowerCase() === 'pages') continue;
+        const key = name.toLowerCase();
+        let group = byName.get(key);
+        if (!group) {
+            group = { name, path: parent ? `${parent}/${name}` : name, photos: [] };
+            byName.set(key, group);
+        }
+        group.photos.push(p);
+    }
+    return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+}
+
+export interface SubfolderSummary {
+    name: string;
+    /** Path from the album root, used as the `path` query parameter to open it. */
+    path: string;
+    /** Gallery photos anywhere in the subfolder's tree. */
+    photoCount: number;
+    subfolderCount: number;
+    coverUrl: string | null;
+}
+
+/** Tiles for the immediate subfolders of `parent` in a browse-mode album. */
+function summarizeSubfolders(
+    folder: StoredFolder,
+    photos: OneDrivePhoto[],
+    parent: string,
+    covers: Map<string, string>,
+): SubfolderSummary[] {
+    return childFolders(photos, parent).map((child) => {
+        const galleryPhotos = child.photos.filter((p) => !isInPagesSubfolder(p.subfolderPath));
+        const cover = pickCoverPhoto(galleryPhotos, folder.folderPath, covers.get(coverKey(folder, child.path)), child.path);
+        return {
+            name: child.name,
+            path: child.path,
+            photoCount: galleryPhotos.length,
+            subfolderCount: childFolders(child.photos, child.path).length,
+            coverUrl: cover ? `/api/folders/${folder.slug}/cover/${encodeURIComponent(cover.id)}` : null,
+        };
+    });
+}
+
 export function createFoldersRouter(oneDriveService: OneDriveService, thumbnailCache: ThumbnailCacheService): Router {
     const router = Router();
 
@@ -46,6 +128,7 @@ export function createFoldersRouter(oneDriveService: OneDriveService, thumbnailC
                 id: f.slug,
                 displayName: f.displayName,
                 coverFileName: covers.get(f.folderPath),
+                subfolderMode: f.subfolderMode,
                 tags: f.tags,
                 createdAt: f.createdAt,
             }));
@@ -69,11 +152,12 @@ export function createFoldersRouter(oneDriveService: OneDriveService, thumbnailC
                         folderId: f.slug,
                         coverUrl: cover ? `/api/folders/${f.slug}/cover/${encodeURIComponent(cover.id)}` : null,
                         photoCount: galleryPhotos.length,
+                        subfolderCount: f.subfolderMode === 'browse' ? childFolders(rawPhotos, '').length : 0,
                         hasPagesSubfolder,
                     };
                 } catch (err) {
                     console.error(`Cover resolve failed for folder ${f.slug}:`, err);
-                    return { folderId: f.slug, coverUrl: null, photoCount: 0, hasPagesSubfolder: false };
+                    return { folderId: f.slug, coverUrl: null, photoCount: 0, subfolderCount: 0, hasPagesSubfolder: false };
                 }
             }),
         );
@@ -132,30 +216,43 @@ export function createFoldersRouter(oneDriveService: OneDriveService, thumbnailC
 
         const viewParam = req.query.view;
         const pagesView = viewParam === 'pages';
+        // A flatten album is one gallery (plus one merged Pages view), so it ignores `path`. A
+        // browse album shows only what sits directly in `path`, plus tiles for its subfolders.
+        // `flat=1` asks for a browse album flattened, for pickers that need every photo.
+        const browse = folder.subfolderMode === 'browse' && req.query.flat !== '1';
+        const path = browse ? normalizeSubfolderPath(req.query.path) : '';
 
         try {
             const rawPhotos = await oneDriveService.getPhotos(folder.sharingUrl);
 
-            const hasPagesSubfolder = rawPhotos.some((p) => isInPagesSubfolder(p.subfolderPath));
+            const ownsPages = (owner: string | null) => owner !== null && (!browse || samePath(owner, path));
+            const hasPagesSubfolder = rawPhotos.some((p) => ownsPages(pagesOwnerPath(p.subfolderPath)));
 
-            // Select the relevant slice: pages subfolder only, or everything else.
-            const photos = rawPhotos.filter((p) =>
-                pagesView ? isInPagesSubfolder(p.subfolderPath) : !isInPagesSubfolder(p.subfolderPath),
-            );
+            // Select the relevant slice: pages only, or everything else.
+            const photos = rawPhotos.filter((p) => {
+                const owner = pagesOwnerPath(p.subfolderPath);
+                if (pagesView) return ownsPages(owner);
+                return owner === null && (!browse || samePath(p.subfolderPath, path));
+            });
+            const subfolders = browse && !pagesView ? summarizeSubfolders(folder, rawPhotos, path, getAllFolderCovers()) : [];
 
             // Enrich each OneDrive photo with local catalog data by matching
             // on (folderPath, fileName). Photos in subfolders contribute their
             // `subfolderPath` so the join key is the full directory each photo lives in.
-            const withCatalog = photos.map((p) => {
+            const lookUp = (p: OneDrivePhoto) => {
                 const fullFolder = p.subfolderPath ? `${folder.folderPath}/${p.subfolderPath}` : folder.folderPath;
-                const cataloged = findPhotoByFolderAndName(fullFolder, p.name);
-                return { photo: p, cataloged };
-            });
+                return { photo: p, cataloged: findPhotoByFolderAndName(fullFolder, p.name) };
+            };
+            const withCatalog = photos.map(lookUp);
 
-            // The live featured album is followed by photos of its featured people from other albums.
+            // The live featured album is followed by photos of its featured people from other albums,
+            // shown once at the album root.
             const featured = getFeaturedAlbum();
-            const isFeatured = !pagesView && featured.enabled && featured.folderSlug === folder.slug;
-            const albumBundles = new Set(withCatalog.flatMap(({ cataloged }) => (cataloged?.bundleId ? [cataloged.bundleId] : [])));
+            const isFeatured = !pagesView && !path && featured.enabled && featured.folderSlug === folder.slug;
+            // In a browse album the album's own photos span every subfolder, not just the root.
+            const albumPhotos =
+                isFeatured && browse ? rawPhotos.filter((p) => !isInPagesSubfolder(p.subfolderPath)).map(lookUp) : withCatalog;
+            const albumBundles = new Set(albumPhotos.flatMap(({ cataloged }) => (cataloged?.bundleId ? [cataloged.bundleId] : [])));
             const tagged = isFeatured ? await getFeaturedTaggedPhotos(oneDriveService, albumBundles) : [];
 
             const catalogedIds = [...withCatalog, ...tagged].map((x) => x.cataloged?.id).filter((id): id is string => !!id);
@@ -185,7 +282,9 @@ export function createFoldersRouter(oneDriveService: OneDriveService, thumbnailC
             ];
             const featuredPersonNames = isFeatured ? featured.persons.map((p) => p.fullName) : undefined;
 
-            res.json({ photos: enriched, hasPagesSubfolder, featuredPersonNames });
+            const coverFileName = getFolderCover(coverKey(folder, path));
+
+            res.json({ photos: enriched, hasPagesSubfolder, featuredPersonNames, subfolders, coverFileName });
         } catch (err) {
             console.error('OneDrive error:', err);
             res.status(502).json({ error: 'Failed to fetch photos from OneDrive' });
@@ -213,6 +312,7 @@ export function createFoldersRouter(oneDriveService: OneDriveService, thumbnailC
         }
     });
 
+    /** `?path=` targets a subfolder of a browse album; without it the cover is the album's own. */
     router.put('/:folderId/cover', requireAdmin, (req, res) => {
         const folder = findFolderBySlug(req.params.folderId);
         if (!folder) {
@@ -224,7 +324,7 @@ export function createFoldersRouter(oneDriveService: OneDriveService, thumbnailC
             res.status(400).json({ error: 'fileName is required' });
             return;
         }
-        setFolderCover(folder.folderPath, fileName, req.user!.userId);
+        setFolderCover(coverKey(folder, normalizeSubfolderPath(req.query.path)), fileName, req.user!.userId);
         res.json({ folderId: folder.slug, coverFileName: fileName });
     });
 
@@ -234,7 +334,7 @@ export function createFoldersRouter(oneDriveService: OneDriveService, thumbnailC
             res.status(404).json({ error: 'Folder not found' });
             return;
         }
-        clearFolderCover(folder.folderPath);
+        clearFolderCover(coverKey(folder, normalizeSubfolderPath(req.query.path)));
         res.json({ folderId: folder.slug, coverFileName: null });
     });
 

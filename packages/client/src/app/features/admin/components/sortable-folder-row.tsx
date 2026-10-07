@@ -45,7 +45,17 @@ export function SortableFolderRow({ folder, onEdit, onDelete, onSync, isSyncing,
                 </button>
             </TableCell>
             <TableCell className="font-mono text-xs">{folder.slug}</TableCell>
-            <TableCell>{folder.displayName}</TableCell>
+            <TableCell>
+                {folder.displayName}
+                {folder.subfolderMode === 'browse' && (
+                    <span
+                        className="ml-2 rounded-full border px-2 py-0.5 text-xs text-muted-foreground"
+                        title="Subfolders are browsed as folders"
+                    >
+                        Folders
+                    </span>
+                )}
+            </TableCell>
             <TableCell className="text-xs text-muted-foreground">{folder.folderPath}</TableCell>
             <TableCell>
                 {folder.tags.length === 0 ? (
