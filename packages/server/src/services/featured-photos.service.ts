@@ -18,7 +18,10 @@ export interface FeaturedTaggedPhoto {
  *
  * The order is stable from visit to visit: albums in their admin-defined order, then each
  * album's own photo order — so a newly tagged photo slots into its natural place rather than
- * reshuffling the rest. A bundle filed in several albums appears once, from the first of them.
+ * reshuffling the rest. A bundle filed in several albums appears once.
+ *
+ * `excludeBundleIds` should hold only bundles the album itself shows (its gallery file is there);
+ * a bundle with just its back in the album would otherwise be shown nowhere.
  */
 export async function getFeaturedTaggedPhotos(
     oneDriveService: OneDriveService,
@@ -33,8 +36,7 @@ export async function getFeaturedTaggedPhotos(
     const folders = listFolders().filter((f) => slugs.has(f.slug));
     const listings = await Promise.allSettled(folders.map((f) => oneDriveService.getPhotos(f.sharingUrl)));
 
-    const ownerByBundle = new Map<string, string>();
-    const result: FeaturedTaggedPhoto[] = [];
+    const matches: FeaturedTaggedPhoto[] = [];
     folders.forEach((folder, i) => {
         const listing = listings[i];
         if (listing.status === 'rejected') {
@@ -47,13 +49,21 @@ export async function getFeaturedTaggedPhotos(
             const cataloged = findPhotoByFolderAndName(fullFolder, photo.name);
             const bundleId = cataloged?.bundleId;
             if (!cataloged || !bundleId || !bundleIds.has(bundleId)) continue;
-            const owner = ownerByBundle.get(bundleId);
-            if (owner && owner !== folder.slug) continue;
-            ownerByBundle.set(bundleId, folder.slug);
-            result.push({ folder, photo, cataloged });
+            matches.push({ folder, photo, cataloged });
         }
     });
-    return result;
+
+    // A bundle filed in several albums is shown from the first one holding its gallery file, else
+    // the first holding any of its files. Going by the first file alone could pick an album that has
+    // only the back, and galleries would then drop the bundle altogether.
+    const ownerByBundle = new Map<string, string>();
+    for (const { folder, cataloged } of matches) {
+        if (isGalleryFile(cataloged) && !ownerByBundle.has(cataloged.bundleId!)) ownerByBundle.set(cataloged.bundleId!, folder.slug);
+    }
+    for (const { folder, cataloged } of matches) {
+        if (!ownerByBundle.has(cataloged.bundleId!)) ownerByBundle.set(cataloged.bundleId!, folder.slug);
+    }
+    return matches.filter(({ folder, cataloged }) => ownerByBundle.get(cataloged.bundleId!) === folder.slug);
 }
 
 /** The one file per bundle that galleries show: its preferred front. */

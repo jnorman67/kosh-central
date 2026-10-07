@@ -6,7 +6,7 @@ import { findFolderBySlug as storeFindFolderBySlug, listFolders, type StoredFold
 import { findPhotoByFolderAndName, type StoredPhoto } from '../db/photos.store.js';
 import { getRatingsByUserForPhotos } from '../db/ratings.store.js';
 import { getRelationsForPhoto } from '../db/relations.store.js';
-import { getFeaturedTaggedPhotos } from '../services/featured-photos.service.js';
+import { getFeaturedTaggedPhotos, isGalleryFile } from '../services/featured-photos.service.js';
 import { isInPagesSubfolder, OneDriveService, pagesOwnerPath, type Photo as OneDrivePhoto } from '../services/onedrive.service.js';
 import { ThumbnailCacheService } from '../services/thumbnail-cache.service.js';
 
@@ -252,7 +252,10 @@ export function createFoldersRouter(oneDriveService: OneDriveService, thumbnailC
             // In a browse album the album's own photos span every subfolder, not just the root.
             const albumPhotos =
                 isFeatured && browse ? rawPhotos.filter((p) => !isInPagesSubfolder(p.subfolderPath)).map(lookUp) : withCatalog;
-            const albumBundles = new Set(albumPhotos.flatMap(({ cataloged }) => (cataloged?.bundleId ? [cataloged.bundleId] : [])));
+            // Only bundles the album itself shows; one with just its back here still follows as tagged.
+            const albumBundles = new Set(
+                albumPhotos.flatMap(({ cataloged }) => (cataloged?.bundleId && isGalleryFile(cataloged) ? [cataloged.bundleId] : [])),
+            );
             const tagged = isFeatured ? await getFeaturedTaggedPhotos(oneDriveService, albumBundles) : [];
 
             const catalogedIds = [...withCatalog, ...tagged].map((x) => x.cataloged?.id).filter((id): id is string => !!id);

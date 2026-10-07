@@ -42,7 +42,10 @@ export function createFeaturedRouter(oneDriveService: OneDriveService): Router {
             // The featured photo leads, then the rest of the album in order, wrapping around,
             // then photos of the featured people from other albums.
             const start = Math.max(0, viewable.findIndex((v) => v.source === chosen));
-            const albumBundles = new Set(withCatalog.flatMap(({ cataloged }) => (cataloged?.bundleId ? [cataloged.bundleId] : [])));
+            // Only bundles the album itself shows; one with just its back here still follows as tagged.
+            const albumBundles = new Set(
+                withCatalog.flatMap(({ cataloged }) => (cataloged?.bundleId && isGalleryFile(cataloged) ? [cataloged.bundleId] : [])),
+            );
             const tagged = (await getFeaturedTaggedPhotos(oneDriveService, albumBundles))
                 .filter(({ cataloged }) => isGalleryFile(cataloged))
                 .map(({ photo, cataloged }) => ({ source: photo, cataloged }));
