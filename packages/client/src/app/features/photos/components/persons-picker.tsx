@@ -1,17 +1,23 @@
-import type { FeaturedPerson } from '@/app/features/featured/models/featured.models';
 import { useSubjectsQueries } from '@/app/features/photos/contexts/subjects-query.context';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { X } from 'lucide-react';
 import { useState } from 'react';
 
-interface FeaturedPersonsPickerProps {
-    persons: FeaturedPerson[];
-    onChange: (persons: FeaturedPerson[]) => void;
+export interface PickedPerson {
+    id: string;
+    fullName: string;
+    nickname: string | null;
 }
 
-/** Search-and-add list of the people whose tagged photos follow the featured album. */
-export function FeaturedPersonsPicker({ persons, onChange }: FeaturedPersonsPickerProps) {
+interface PersonsPickerProps {
+    persons: PickedPerson[];
+    onChange: (persons: PickedPerson[]) => void;
+}
+
+/** Search-and-add list of people, e.g. those whose tagged photos follow the featured album or fill a gallery.
+ *  Must be rendered inside a SubjectsQueryProvider. */
+export function PersonsPicker({ persons, onChange }: PersonsPickerProps) {
     const { useSearchPersons } = useSubjectsQueries();
     const [query, setQuery] = useState('');
     const { data: results = [] } = useSearchPersons(query);
@@ -19,7 +25,7 @@ export function FeaturedPersonsPicker({ persons, onChange }: FeaturedPersonsPick
     const selectedIds = new Set(persons.map((p) => p.id));
     const matches = results.filter((p) => !selectedIds.has(p.id));
 
-    function add(person: FeaturedPerson) {
+    function add(person: PickedPerson) {
         onChange([...persons, { id: person.id, fullName: person.fullName, nickname: person.nickname }]);
         setQuery('');
     }

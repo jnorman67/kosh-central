@@ -121,6 +121,12 @@ While **Show after sign-in** is on, everyone lands on `/featured` after logging 
 
 The admin can also list **Featured people**. Photos tagged with any of them, from any album, follow the album's own photos, both in the `/featured` slideshow and in the album's gallery (under a "More photos of …" heading). The order stays the same from visit to visit: albums in their admin-defined order, then each album's own photo order, so a newly tagged photo slots into its natural place. Each physical photo appears once. Photos already in the featured album are skipped, and a photo filed in several albums is shown from the first. In the viewer these photos show which album they came from, and they can't be set as the featured album's cover. The list lives in `featured_album_persons`, and the photos are resolved per request by `services/featured-photos.service.ts`.
 
+## People Galleries
+
+Any user can make their own galleries of the photos tagged with one or more people. The **My galleries** section at the top of the album list has a **New gallery** button. The user picks the people, chooses whether to show photos of **any of them** or only photos with **all of them together** (offered once two or more people are picked), and optionally names the gallery. Left blank, the name comes from the people's names. Galleries are private: only the user who made one sees it, and every `/api/galleries` route checks ownership, answering 404 for someone else's gallery.
+
+A gallery opens in the normal viewer at `/?gallery=<id>` (with `&photo=` while viewing a photo), so comments, tagged people, OCR, backs, and face boxes all work as they do in an album. Each photo shows which album it came from. Photos are gathered per request, the same way as the featured album's people: albums in their admin-defined order, then each album's own photo order, one entry per physical photo. Tagging someone on a photo marks gallery data stale, so the change shows up on the next visit. Galleries live in `person_galleries` and `person_gallery_persons`. Deleting a person removes them from any gallery. The cross-album lookup shared with the featured album is in `services/tagged-photos.service.ts`.
+
 ## Users & Invites
 
 Sign-up is invitation-only. An admin manages who can register, and what they can do, from **Users & invites** in the user menu (`/admin/users`):

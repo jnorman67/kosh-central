@@ -1819,6 +1819,27 @@ const migrations: Migration[] = [
                 ON photo_locations(folder_name COLLATE NOCASE, file_name COLLATE NOCASE);
         `,
     },
+    {
+        version: 36,
+        description: 'Add person_galleries: user-made galleries of the photos tagged with chosen people',
+        sql: `
+            CREATE TABLE person_galleries (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                name TEXT NOT NULL,
+                match_mode TEXT NOT NULL DEFAULT 'any' CHECK (match_mode IN ('any', 'all')),
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE INDEX idx_person_galleries_user ON person_galleries(user_id);
+            CREATE TABLE person_gallery_persons (
+                gallery_id TEXT NOT NULL REFERENCES person_galleries(id) ON DELETE CASCADE,
+                person_id TEXT NOT NULL REFERENCES persons(id) ON DELETE CASCADE,
+                position INTEGER NOT NULL,
+                PRIMARY KEY (gallery_id, person_id)
+            );
+        `,
+    },
 ];
 
 /**

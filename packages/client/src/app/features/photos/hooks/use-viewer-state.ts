@@ -5,6 +5,7 @@ import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 type ViewMode = 'albums' | 'gallery' | 'photo';
 
 const FOLDER_PARAM = 'folder';
+const GALLERY_PARAM = 'gallery';
 const PATH_PARAM = 'path';
 const PHOTO_PARAM = 'photo';
 const VIEW_PARAM = 'view';
@@ -22,14 +23,27 @@ export function readSubfolderPath(params: URLSearchParams, folder: PhotoFolder |
 
 /** Whether the URL asks for the album's pages (scanned document) view rather than its gallery. */
 export function readPagesView(params: URLSearchParams): boolean {
-    return params.get(VIEW_PARAM) === 'pages';
+    return !readGalleryId(params) && params.get(VIEW_PARAM) === 'pages';
 }
 
-function buildParams(folderId: string, path: string, pagesView = false, photo?: Photo): URLSearchParams {
+/** The people gallery the URL points at, if it isn't pointing at an album. */
+export function readGalleryId(params: URLSearchParams): string | null {
+    return params.get(FOLDER_PARAM) ? null : params.get(GALLERY_PARAM);
+}
+
+/** What the viewer has open: an album or one of the user's people galleries. */
+type Scope = { folderId: string } | { galleryId: string };
+
+/** People galleries have no subfolders or pages view, so `path` and `pagesView` apply to albums only. */
+function buildParams(scope: Scope, path = '', pagesView = false, photo?: Photo): URLSearchParams {
     const next = new URLSearchParams();
-    next.set(FOLDER_PARAM, folderId);
-    if (path) next.set(PATH_PARAM, path);
-    if (pagesView) next.set(VIEW_PARAM, 'pages');
+    if ('galleryId' in scope) {
+        next.set(GALLERY_PARAM, scope.galleryId);
+    } else {
+        next.set(FOLDER_PARAM, scope.folderId);
+        if (path) next.set(PATH_PARAM, path);
+        if (pagesView) next.set(VIEW_PARAM, 'pages');
+    }
     if (photo) next.set(PHOTO_PARAM, photoKey(photo));
     return next;
 }
@@ -57,7 +71,12 @@ export function useViewerState({ folders, viewablePhotos }: UseViewerStateArgs) 
     const entryState = location.state as PhotoEntryState | null;
 
     const folderParam = params.get(FOLDER_PARAM);
+    const galleryParam = readGalleryId(params);
     const photoParam = params.get(PHOTO_PARAM);
+    const scope = useMemo<Scope | null>(
+        () => (folderParam ? { folderId: folderParam } : galleryParam ? { galleryId: galleryParam } : null),
+        [folderParam, galleryParam],
+    );
 
     const currentFolder = useMemo(() => (folderParam ? (folders.find((f) => f.id === folderParam) ?? null) : null), [folders, folderParam]);
     const currentPath = readSubfolderPath(params, currentFolder);
@@ -74,7 +93,7 @@ export function useViewerState({ folders, viewablePhotos }: UseViewerStateArgs) 
         return findPhotoIndex(viewablePhotos, photoParam) !== -1;
     }, [viewablePhotos, photoParam]);
 
-    const view: ViewMode = !currentFolder ? 'albums' : photoParamResolvesToPhoto ? 'photo' : 'gallery';
+    const view: ViewMode = !currentFolder && !galleryParam ? 'albums' : photoParamResolvesToPhoto ? 'photo' : 'gallery';
 
     const updateParams = useCallback(
         (next: URLSearchParams, opts?: { replace?: boolean; state?: PhotoEntryState | null }) => {
@@ -85,7 +104,14 @@ export function useViewerState({ folders, viewablePhotos }: UseViewerStateArgs) 
 
     const setFolder = useCallback(
         (folderId: string) => {
-            updateParams(buildParams(folderId, ''));
+            updateParams(buildParams({ folderId }));
+        },
+        [updateParams],
+    );
+
+    const openGallery = useCallback(
+        (galleryId: string) => {
+            updateParams(buildParams({ galleryId }));
         },
         [updateParams],
     );
@@ -94,7 +120,7 @@ export function useViewerState({ folders, viewablePhotos }: UseViewerStateArgs) 
     const openSubfolder = useCallback(
         (path: string) => {
             if (!folderParam) return;
-            updateParams(buildParams(folderParam, path));
+            updateParams(buildParams({ folderId: folderParam }, path));
         },
         [folderParam, updateParams],
     );
@@ -103,7 +129,7 @@ export function useViewerState({ folders, viewablePhotos }: UseViewerStateArgs) 
     const setPagesView = useCallback(
         (pages: boolean) => {
             if (!folderParam) return;
-            updateParams(buildParams(folderParam, currentPath, pages));
+            updateParams(buildParams({ folderId: folderParam }, currentPath, pages));
         },
         [folderParam, currentPath, updateParams],
     );
@@ -111,19 +137,19 @@ export function useViewerState({ folders, viewablePhotos }: UseViewerStateArgs) 
     const openPhoto = useCallback(
         (index: number) => {
             const photo = viewablePhotos[index];
-            if (!photo || !folderParam) return;
-            updateParams(buildParams(folderParam, currentPath, pagesView, photo), { state: { openedFromGallery: true } });
+            if (!photo || !scope) return;
+            updateParams(buildParams(scope, currentPath, pagesView, photo), { state: { openedFromGallery: true } });
         },
-        [viewablePhotos, folderParam, currentPath, pagesView, updateParams],
+        [viewablePhotos, scope, currentPath, pagesView, updateParams],
     );
 
     const backToGallery = useCallback(() => {
-        if (!folderParam) return;
+        if (!scope) return;
         // Pop back to the gallery entry the photo was opened from rather than stacking a duplicate,
         // so the browser's back button then leaves the gallery as expected.
         if (entryState?.openedFromGallery) navigate(-1);
-        else updateParams(buildParams(folderParam, currentPath, pagesView), { replace: true });
-    }, [folderParam, currentPath, pagesView, entryState, navigate, updateParams]);
+        else updateParams(buildParams(scope, currentPath, pagesView), { replace: true });
+    }, [scope, currentPath, pagesView, entryState, navigate, updateParams]);
 
     const goToAlbums = useCallback(() => {
         updateParams(new URLSearchParams());
@@ -131,13 +157,13 @@ export function useViewerState({ folders, viewablePhotos }: UseViewerStateArgs) 
 
     const stepPhoto = useCallback(
         (delta: number) => {
-            if (viewablePhotos.length === 0 || !folderParam) return;
+            if (viewablePhotos.length === 0 || !scope) return;
             const nextIndex = (currentPhotoIndex + delta + viewablePhotos.length) % viewablePhotos.length;
             const photo = viewablePhotos[nextIndex];
             if (!photo) return;
-            updateParams(buildParams(folderParam, currentPath, pagesView, photo), { replace: true, state: entryState });
+            updateParams(buildParams(scope, currentPath, pagesView, photo), { replace: true, state: entryState });
         },
-        [viewablePhotos, currentPhotoIndex, folderParam, currentPath, pagesView, entryState, updateParams],
+        [viewablePhotos, currentPhotoIndex, scope, currentPath, pagesView, entryState, updateParams],
     );
 
     const nextPhoto = useCallback(() => stepPhoto(1), [stepPhoto]);
@@ -145,11 +171,13 @@ export function useViewerState({ folders, viewablePhotos }: UseViewerStateArgs) 
 
     return {
         currentFolder,
+        currentGalleryId: galleryParam,
         currentPath,
         currentPhotoIndex,
         pagesView,
         view,
         setFolder,
+        openGallery,
         openSubfolder,
         setPagesView,
         openPhoto,

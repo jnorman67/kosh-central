@@ -6,8 +6,9 @@ import { findFolderBySlug as storeFindFolderBySlug, listFolders, type StoredFold
 import { findPhotoByFolderAndName, type StoredPhoto } from '../db/photos.store.js';
 import { getRatingsByUserForPhotos } from '../db/ratings.store.js';
 import { getRelationsForPhoto } from '../db/relations.store.js';
-import { getFeaturedTaggedPhotos, isGalleryFile } from '../services/featured-photos.service.js';
+import { getFeaturedTaggedPhotos } from '../services/featured-photos.service.js';
 import { isInPagesSubfolder, OneDriveService, pagesOwnerPath, type Photo as OneDrivePhoto } from '../services/onedrive.service.js';
+import { isGalleryFile } from '../services/tagged-photos.service.js';
 import { ThumbnailCacheService } from '../services/thumbnail-cache.service.js';
 
 function findFolderBySlug(slug: string | string[] | undefined): StoredFolder | null {
@@ -47,6 +48,23 @@ export function pickCoverPhoto(
         if (cat.side === 'front' && cat.isPreferred) return p;
     }
     return photos[0] ?? null;
+}
+
+/** A OneDrive photo as galleries receive it, joined with its catalog row when it has one.
+ *  `ratings` holds the requesting user's ratings by catalog id. */
+export function toClientPhoto(photo: OneDrivePhoto, cataloged: StoredPhoto | undefined, ratings: Map<string, number>) {
+    const { driveId: _driveId, ...rest } = photo;
+    if (!cataloged) return { ...rest, relations: [] };
+    return {
+        ...rest,
+        catalogId: cataloged.id,
+        contentHash: cataloged.contentHash,
+        bundleId: cataloged.bundleId,
+        side: cataloged.side,
+        isPreferred: cataloged.isPreferred,
+        relations: getRelationsForPhoto(cataloged.id),
+        rating: ratings.get(cataloged.id) ?? null,
+    };
 }
 
 /** A client-supplied subfolder path, relative to the album root, with stray slashes removed. */
@@ -261,20 +279,7 @@ export function createFoldersRouter(oneDriveService: OneDriveService, thumbnailC
             const catalogedIds = [...withCatalog, ...tagged].map((x) => x.cataloged?.id).filter((id): id is string => !!id);
             const myRatings = getRatingsByUserForPhotos(req.user!.userId, catalogedIds);
 
-            const enrich = (photo: OneDrivePhoto, cataloged: StoredPhoto | undefined) => {
-                const { driveId: _driveId, ...rest } = photo;
-                if (!cataloged) return { ...rest, relations: [] };
-                return {
-                    ...rest,
-                    catalogId: cataloged.id,
-                    contentHash: cataloged.contentHash,
-                    bundleId: cataloged.bundleId,
-                    side: cataloged.side,
-                    isPreferred: cataloged.isPreferred,
-                    relations: getRelationsForPhoto(cataloged.id),
-                    rating: myRatings.get(cataloged.id) ?? null,
-                };
-            };
+            const enrich = (photo: OneDrivePhoto, cataloged: StoredPhoto | undefined) => toClientPhoto(photo, cataloged, myRatings);
             const enriched = [
                 ...withCatalog.map(({ photo, cataloged }) => enrich(photo, cataloged)),
                 ...tagged.map(({ folder: source, photo, cataloged }) => ({

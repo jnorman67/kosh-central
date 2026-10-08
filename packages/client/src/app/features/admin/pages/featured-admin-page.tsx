@@ -1,8 +1,8 @@
-import { FeaturedPersonsPicker } from '@/app/features/admin/components/featured-persons-picker';
 import { FeaturedDisplay } from '@/app/features/featured/components/featured-display';
 import { useFeaturedQueries } from '@/app/features/featured/contexts/featured-query.context';
 import { DEFAULT_BUTTON_LABEL, FEATURED_THEME_ORDER, FEATURED_THEMES } from '@/app/features/featured/lib/featured-themes';
 import type { FeaturedAlbumConfig, FeaturedAlbumConfigInput } from '@/app/features/featured/models/featured.models';
+import { PersonsPicker } from '@/app/features/photos/components/persons-picker';
 import { usePhotosQueries } from '@/app/features/photos/contexts/photos-query.context';
 import { useBackToViewer } from '@/app/features/photos/hooks/use-back-to-viewer';
 import { isCoverPhoto } from '@/app/features/photos/lib/cover';
@@ -198,7 +198,7 @@ export function FeaturedAdminPage() {
 
                             <div className="space-y-2">
                                 <Label>Featured people</Label>
-                                <FeaturedPersonsPicker persons={form.persons} onChange={(persons) => update({ persons })} />
+                                <PersonsPicker persons={form.persons} onChange={(persons) => update({ persons })} />
                                 <p className="text-xs text-muted-foreground">
                                     Photos tagged with any of these people, from any album, follow the album’s own photos — grouped by album
                                     in the usual album order, so they appear in the same order every visit.

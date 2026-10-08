@@ -3,8 +3,9 @@ import { getFolderCover } from '../db/folder-covers.store.js';
 import { getFeaturedAlbum } from '../db/featured.store.js';
 import { findFolderBySlug } from '../db/folders.store.js';
 import { findPhotoByFolderAndName } from '../db/photos.store.js';
-import { getFeaturedTaggedPhotos, isGalleryFile } from '../services/featured-photos.service.js';
+import { getFeaturedTaggedPhotos } from '../services/featured-photos.service.js';
 import { isInPagesSubfolder, OneDriveService } from '../services/onedrive.service.js';
+import { isGalleryFile } from '../services/tagged-photos.service.js';
 import { pickCoverPhoto } from './folders.router.js';
 
 export function createFeaturedRouter(oneDriveService: OneDriveService): Router {

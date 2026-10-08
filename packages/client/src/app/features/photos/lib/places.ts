@@ -26,6 +26,11 @@ export function subfolderFocus(path: string): string {
     return `dir:${path}`;
 }
 
+/** A people gallery's own scroll place, and its tile's focus key on the album list (kept apart from album ids). */
+export function peopleGalleryPlace(galleryId: string): string {
+    return `people:${galleryId}`;
+}
+
 function readPlaces(): Record<string, Place> {
     try {
         return JSON.parse(sessionStorage.getItem(PLACES_KEY) ?? '{}') as Record<string, Place>;

@@ -10,6 +10,7 @@ import { LoginPage } from '@/app/features/auth/pages/login-page';
 import { RegisterPage } from '@/app/features/auth/pages/register-page';
 import { CommentsQueryProvider } from '@/app/features/comments/contexts/comments-query.context';
 import { FeaturedPage } from '@/app/features/featured/pages/featured-page';
+import { GalleriesQueryProvider } from '@/app/features/galleries/contexts/galleries-query.context';
 import { PhotosQueryProvider } from '@/app/features/photos/contexts/photos-query.context';
 import { SubjectsQueryProvider } from '@/app/features/photos/contexts/subjects-query.context';
 import { ViewerPage } from '@/app/features/photos/pages/viewer-page';
@@ -29,9 +30,11 @@ export const router = createBrowserRouter([
         element: (
             <AuthGuard>
                 <PhotosQueryProvider>
-                    <CommentsQueryProvider>
-                        <ViewerPage />
-                    </CommentsQueryProvider>
+                    <GalleriesQueryProvider>
+                        <CommentsQueryProvider>
+                            <ViewerPage />
+                        </CommentsQueryProvider>
+                    </GalleriesQueryProvider>
                 </PhotosQueryProvider>
             </AuthGuard>
         ),

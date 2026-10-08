@@ -605,15 +605,18 @@ export function getPhotosForPerson(personId: string): StoredPhotoSubject[] {
     return rows.map((row) => rowToPhotoSubject(row, row.photo_id));
 }
 
-/** Bundles tagged with any of the given people. */
-export function getBundleIdsForPersons(personIds: string[]): string[] {
+/** Bundles tagged with any of the given people, or with all of them when `requireAll` is set. */
+export function getBundleIdsForPersons(personIds: string[], { requireAll = false } = {}): string[] {
     if (personIds.length === 0) return [];
+    const ids = [...new Set(personIds)];
     const rows = getDb()
         .prepare(
-            `SELECT DISTINCT bundle_id FROM photo_subjects
-             WHERE person_id IN (${personIds.map(() => '?').join(',')})`,
+            `SELECT bundle_id FROM photo_subjects
+             WHERE person_id IN (${ids.map(() => '?').join(',')})
+             GROUP BY bundle_id
+             ${requireAll ? 'HAVING COUNT(DISTINCT person_id) = ?' : ''}`,
         )
-        .all(...personIds) as { bundle_id: string }[];
+        .all(...ids, ...(requireAll ? [ids.length] : [])) as { bundle_id: string }[];
     return rows.map((r) => r.bundle_id);
 }
 

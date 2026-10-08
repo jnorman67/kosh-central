@@ -39,6 +39,7 @@ packages/server/src/
   db/folders.store.ts               # Folder config CRUD + cache + import/export helpers
   db/folders.seed.ts                # One-time seed data for a fresh `folders` table
   db/featured.store.ts              # Single-row featured album settings (theme + text)
+  db/galleries.store.ts             # Per-user people galleries (photos tagged with chosen persons)
   auth/msal.service.ts              # OneDrive token acquisition (device code flow)
   auth/auth.middleware.ts            # JWT verification middleware
   auth/users.store.ts                # User CRUD (SQLite) + Role type
@@ -48,12 +49,14 @@ packages/server/src/
   routes/folders-admin.router.ts     # /api/admin/folders (admin-only CRUD + export/import)
   routes/featured.router.ts          # /api/featured (resolved featured album for the post-login page)
   routes/featured-admin.router.ts    # /api/admin/featured (admin-only featured album settings)
+  routes/galleries.router.ts         # /api/galleries (the signed-in user's own people galleries)
   routes/users-admin.router.ts       # /api/admin/users (admin-only invites, roles, revoke/restore access)
   routes/photos.router.ts            # /api/photos (catalog + import)
   routes/photos-admin.router.ts      # /api/admin/photos (admin-only preferred-version toggle)
   routes/relations.router.ts         # /api/relations (duplicate-of only)
   routes/series.router.ts            # /api/series (CRUD + members)
   services/onedrive.service.ts       # Microsoft Graph API client
+  services/tagged-photos.service.ts  # Photos of given bundles across all albums (featured people, galleries)
 packages/server/scripts/
   scan-local.ts                      # SHA-256 scanner → JSON manifest
   migrate.ts                         # Migration status (read-only) / apply
@@ -65,6 +68,7 @@ packages/client/src/
   app/features/photos/               # Viewer page, folder selector, controls
   app/features/admin/                # Admin pages (folder configuration, featured album, users & invites)
   app/features/featured/             # Post-login featured album page + themes
+  app/features/galleries/            # People galleries: album-list section, create/edit dialog (open in the viewer via ?gallery=)
   components/ui/                     # shadcn components (button, card, input, label, select, dialog, alert-dialog, table)
   components/layout/viewer-layout.tsx # CSS Grid shell (header/viewer/toolbar/panel)
 ```
@@ -80,7 +84,7 @@ Server env lives in `packages/server/.env` (gitignored):
 
 SQLite with sequential migrations defined in `packages/server/src/db/database.ts`. Add new migrations to the `migrations` array — they run automatically on server startup. `make db-status` lists applied/pending migrations without applying them (`make db-prod-status` for the prod snapshot). The database file is gitignored.
 
-Tables: `users` (`disabled_at` set when access is revoked), `invites` (pending registrations), `photos` (content-addressed by SHA-256 hash, carry `bundle_id` / `side` / `is_preferred`), `photo_locations` (multiple locations per photo), `bundles` (one per physical photograph; scanner-keyed for idempotent re-import), `photo_relations` (cross-bundle `duplicate-of` only; front/back/original grouping lives on bundles), `photo_series` + `photo_series_members` (ordered groups), `folders` (admin-editable folder config, seeded once from `folders.seed.ts`; `subfolder_mode` is `flatten` or `browse`), `featured_album` (single row: the album highlighted after sign-in) + `featured_album_persons` (people whose tagged photos follow it).
+Tables: `users` (`disabled_at` set when access is revoked), `invites` (pending registrations), `photos` (content-addressed by SHA-256 hash, carry `bundle_id` / `side` / `is_preferred`), `photo_locations` (multiple locations per photo), `bundles` (one per physical photograph; scanner-keyed for idempotent re-import), `photo_relations` (cross-bundle `duplicate-of` only; front/back/original grouping lives on bundles), `photo_series` + `photo_series_members` (ordered groups), `folders` (admin-editable folder config, seeded once from `folders.seed.ts`; `subfolder_mode` is `flatten` or `browse`), `featured_album` (single row: the album highlighted after sign-in) + `featured_album_persons` (people whose tagged photos follow it), `person_galleries` + `person_gallery_persons` (each user's private galleries of photos tagged with chosen people; `match_mode` is `any` or `all`).
 
 ## Auth Flow
 
