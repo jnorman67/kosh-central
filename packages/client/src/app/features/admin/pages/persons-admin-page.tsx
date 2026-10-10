@@ -1,5 +1,6 @@
+import { MergePersonDialog } from '@/app/features/admin/components/merge-person-dialog';
 import { PersonFormDialog } from '@/app/features/admin/components/person-form-dialog';
-import { useAdminPersonsQueries } from '@/app/features/admin/contexts/admin-query.context';
+import { useAdminPersonsQueries, useAdminUsersQueries } from '@/app/features/admin/contexts/admin-query.context';
 import type { AdminPerson, PersonInput, PersonRelationship } from '@/app/features/admin/models/person.models';
 import { useAuthQueries } from '@/app/features/auth/contexts/auth-query.context';
 import { useBackToViewer } from '@/app/features/photos/hooks/use-back-to-viewer';
@@ -19,7 +20,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { hideSplash } from '@/lib/splash';
-import { ArrowLeft, Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import { ArrowLeft, Check, Merge, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
@@ -47,16 +48,24 @@ function PersonDetail({
     relationships,
     personIndex,
     isAdmin,
+    suggestedBy,
     onEdit,
     onDelete,
+    onApprove,
+    onMerge,
+    onReject,
     onSelectPerson,
 }: {
     person: AdminPerson;
     relationships: PersonRelationship[];
     personIndex: Map<string, AdminPerson>;
     isAdmin: boolean;
+    suggestedBy: string | null;
     onEdit: (p: AdminPerson) => void;
     onDelete: (p: AdminPerson) => void;
+    onApprove: (p: AdminPerson) => void;
+    onMerge: (p: AdminPerson) => void;
+    onReject: (p: AdminPerson) => void;
     onSelectPerson: (id: string) => void;
 }) {
     const grouped = useMemo(() => {
@@ -103,17 +112,50 @@ function PersonDetail({
                             </TooltipTrigger>
                             <TooltipContent>Edit</TooltipContent>
                         </Tooltip>
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <Button variant="outline" size="icon" onClick={() => onDelete(person)}>
-                                    <Trash2 className="h-4 w-4" />
-                                </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Delete</TooltipContent>
-                        </Tooltip>
+                        {!person.proposed && (
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button variant="outline" size="icon" onClick={() => onDelete(person)}>
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Delete</TooltipContent>
+                            </Tooltip>
+                        )}
                     </div>
                 )}
             </div>
+
+            {person.proposed && (
+                <div className="space-y-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-4 py-3">
+                    <p className="text-sm">
+                        Suggested
+                        {suggestedBy && (
+                            <>
+                                {' '}
+                                by <span className="font-medium">{suggestedBy}</span>
+                            </>
+                        )}{' '}
+                        on {new Date(person.createdAt.replace(' ', 'T') + 'Z').toLocaleDateString()}. Not yet in the index.
+                    </p>
+                    {isAdmin && (
+                        <div className="flex flex-wrap gap-2">
+                            <Button size="sm" onClick={() => onApprove(person)}>
+                                <Check className="h-4 w-4" />
+                                Approve
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => onMerge(person)}>
+                                <Merge className="h-4 w-4" />
+                                Merge into…
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => onReject(person)}>
+                                <X className="h-4 w-4" />
+                                Reject
+                            </Button>
+                        </div>
+                    )}
+                </div>
+            )}
 
             <section className="space-y-2">
                 <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Biography</h3>
@@ -169,7 +211,19 @@ export function PersonsAdminPage() {
     const { useGetMe } = useAuthQueries();
     const { data: me } = useGetMe();
     const isAdmin = me?.role === 'admin';
-    const { useListPersons, useGetRelationships, useCreatePerson, useUpdatePerson, useDeletePerson } = useAdminPersonsQueries();
+    const {
+        useListPersons,
+        useGetRelationships,
+        useCreatePerson,
+        useUpdatePerson,
+        useDeletePerson,
+        useApprovePerson,
+        useMergePerson,
+        useRejectPerson,
+    } = useAdminPersonsQueries();
+    const { useListUsers } = useAdminUsersQueries();
+    const { data: usersData } = useListUsers({ enabled: isAdmin });
+    const userNames = useMemo(() => new Map((usersData?.users ?? []).map((u) => [u.id, u.displayName])), [usersData]);
 
     const { data, isLoading, error } = useListPersons();
     const persons = useMemo(() => data ?? [], [data]);
@@ -182,11 +236,16 @@ export function PersonsAdminPage() {
     const [formMode, setFormMode] = useState<'create' | 'edit' | null>(null);
     const [editing, setEditing] = useState<AdminPerson | null>(null);
     const [deleting, setDeleting] = useState<AdminPerson | null>(null);
+    const [merging, setMerging] = useState<AdminPerson | null>(null);
+    const [rejecting, setRejecting] = useState<AdminPerson | null>(null);
     const [toast, setToast] = useState<string | null>(null);
 
     const createPerson = useCreatePerson();
     const updatePerson = useUpdatePerson();
     const deletePerson = useDeletePerson();
+    const approvePerson = useApprovePerson();
+    const mergePerson = useMergePerson();
+    const rejectPerson = useRejectPerson();
     const { data: relationships } = useGetRelationships(selectedId);
 
     useEffect(() => {
@@ -200,6 +259,11 @@ export function PersonsAdminPage() {
         if (!q) return persons;
         return persons.filter((p) => p.fullName.toLowerCase().includes(q) || (p.nickname?.toLowerCase().includes(q) ?? false));
     }, [persons, search]);
+
+    // Suggestions awaiting review are listed apart from the formal index.
+    const pending = useMemo(() => filtered.filter((p) => p.proposed), [filtered]);
+    const indexed = useMemo(() => filtered.filter((p) => !p.proposed), [filtered]);
+    const indexedTotal = useMemo(() => persons.filter((p) => !p.proposed).length, [persons]);
 
     const selected = selectedId ? (personIndex.get(selectedId) ?? null) : null;
 
@@ -224,6 +288,48 @@ export function PersonsAdminPage() {
         } finally {
             setDeleting(null);
         }
+    }
+
+    function handleApprove(person: AdminPerson) {
+        approvePerson.mutate(person.id, { onSuccess: () => setToast(`Added "${person.fullName}" to the index`) });
+    }
+
+    async function handleMerge(intoPersonId: string) {
+        if (!merging) return;
+        const name = merging.fullName;
+        const target = await mergePerson.mutateAsync({ id: merging.id, intoPersonId });
+        setSelectedId(target.id);
+        setToast(`Merged "${name}" into "${target.fullName}"`);
+    }
+
+    async function confirmReject() {
+        if (!rejecting) return;
+        const name = rejecting.fullName;
+        try {
+            await rejectPerson.mutateAsync(rejecting.id);
+            if (selectedId === rejecting.id) setSelectedId(null);
+            setToast(`Rejected "${name}"`);
+        } finally {
+            setRejecting(null);
+        }
+    }
+
+    function renderPersonRow(person: AdminPerson) {
+        const span = lifespan(person);
+        return (
+            <button
+                key={person.id}
+                onClick={() => setSelectedId(person.id)}
+                className={`flex w-full flex-col gap-0.5 px-4 py-2.5 text-left hover:bg-muted ${selectedId === person.id ? 'bg-muted' : ''}`}
+            >
+                <span className="text-sm font-medium leading-tight">{person.fullName}</span>
+                {(span || person.nickname) && (
+                    <span className="text-xs text-muted-foreground">
+                        {[person.nickname ? `"${person.nickname}"` : null, span].filter(Boolean).join(' · ')}
+                    </span>
+                )}
+            </button>
+        );
     }
 
     return (
@@ -302,33 +408,23 @@ export function PersonsAdminPage() {
                                     {search ? 'No matches.' : 'No persons yet.'}
                                 </p>
                             ) : (
-                                filtered.map((person) => {
-                                    const span = lifespan(person);
-                                    return (
-                                        <button
-                                            key={person.id}
-                                            onClick={() => setSelectedId(person.id)}
-                                            className={`flex w-full flex-col gap-0.5 px-4 py-2.5 text-left hover:bg-muted ${
-                                                selectedId === person.id ? 'bg-muted' : ''
-                                            }`}
-                                        >
-                                            <span className="text-sm font-medium leading-tight">{person.fullName}</span>
-                                            {(span || person.nickname) && (
-                                                <span className="text-xs text-muted-foreground">
-                                                    {[person.nickname ? `"${person.nickname}"` : null, span].filter(Boolean).join(' · ')}
-                                                </span>
-                                            )}
-                                        </button>
-                                    );
-                                })
+                                <>
+                                    {pending.length > 0 && (
+                                        <div className="border-b bg-amber-500/5">
+                                            <p className="px-4 pb-1 pt-2.5 text-xs font-medium uppercase tracking-wide text-amber-700 dark:text-amber-400">
+                                                Awaiting review ({pending.length})
+                                            </p>
+                                            {pending.map(renderPersonRow)}
+                                        </div>
+                                    )}
+                                    {indexed.map(renderPersonRow)}
+                                </>
                             )}
                         </div>
 
                         {!isLoading && (
                             <p className="border-t px-4 py-2 text-xs text-muted-foreground">
-                                {search
-                                    ? `${filtered.length} of ${persons.length}`
-                                    : `${persons.length} person${persons.length !== 1 ? 's' : ''}`}
+                                {search ? `${indexed.length} of ${indexedTotal}` : `${indexedTotal} person${indexedTotal !== 1 ? 's' : ''}`}
                             </p>
                         )}
                     </div>
@@ -341,11 +437,15 @@ export function PersonsAdminPage() {
                                 relationships={relationships ?? []}
                                 personIndex={personIndex}
                                 isAdmin={isAdmin}
+                                suggestedBy={selected.createdBy ? (userNames.get(selected.createdBy) ?? null) : null}
                                 onEdit={(p) => {
                                     setEditing(p);
                                     setFormMode('edit');
                                 }}
                                 onDelete={setDeleting}
+                                onApprove={handleApprove}
+                                onMerge={setMerging}
+                                onReject={setRejecting}
                                 onSelectPerson={setSelectedId}
                             />
                         ) : (
@@ -363,6 +463,31 @@ export function PersonsAdminPage() {
                         initial={editing}
                         onSubmit={handleSubmit}
                     />
+                    <MergePersonDialog
+                        source={merging}
+                        persons={persons}
+                        onOpenChange={(open) => !open && setMerging(null)}
+                        onMerge={handleMerge}
+                    />
+                    <AlertDialog open={rejecting !== null} onOpenChange={(open) => !open && setRejecting(null)}>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Reject suggestion?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    {rejecting && (
+                                        <>
+                                            Remove <span className="font-medium">{rejecting.fullName}</span> along with any photo tags using
+                                            this name. To keep the tags under someone already in the index, use Merge instead.
+                                        </>
+                                    )}
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={confirmReject}>Reject</AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
                     <AlertDialog open={deleting !== null} onOpenChange={(open) => !open && setDeleting(null)}>
                         <AlertDialogContent>
                             <AlertDialogHeader>

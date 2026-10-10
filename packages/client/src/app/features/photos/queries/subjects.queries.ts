@@ -1,3 +1,4 @@
+import { AdminPersonsQueryKeys } from '@/app/features/admin/queries/admin-persons.queries';
 import { FeaturedQueryKeys } from '@/app/features/featured/queries/featured.queries';
 import { GalleriesQueryKeys } from '@/app/features/galleries/queries/galleries.queries';
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
@@ -66,11 +67,28 @@ export const createSubjectsQueries = (service: SubjectsService) => {
         });
     };
 
+    /** Suggest a new person and tag them in the photo in one step. */
+    const useProposeAndTag = () => {
+        const qc = useQueryClient();
+        return useMutation({
+            mutationFn: async ({ fullName, photoId }: { fullName: string; photoId: string }) => {
+                const person = await service.proposePerson(fullName);
+                return service.addSubject(person.id, photoId);
+            },
+            onSettled: (_, __, { photoId }) => {
+                qc.invalidateQueries({ queryKey: ['Subjects', 'PersonSearch'] });
+                qc.invalidateQueries({ queryKey: ['Persons', 'All'] });
+                qc.invalidateQueries({ queryKey: AdminPersonsQueryKeys.list });
+                qc.invalidateQueries({ queryKey: SubjectsQueryKeys.forPhoto(photoId) });
+                invalidateFeaturedPhotos(qc);
+            },
+        });
+    };
+
     const useSetPortrait = () => {
         const qc = useQueryClient();
         return useMutation({
-            mutationFn: ({ personId, photoId }: { personId: string; photoId: string | null }) =>
-                service.setPortrait(personId, photoId),
+            mutationFn: ({ personId, photoId }: { personId: string; photoId: string | null }) => service.setPortrait(personId, photoId),
             onSuccess: () => {
                 // Invalidate the persons list so mention candidates pick up the new portrait
                 qc.invalidateQueries({ queryKey: ['Persons', 'All'] });
@@ -78,7 +96,15 @@ export const createSubjectsQueries = (service: SubjectsService) => {
         });
     };
 
-    return { usePhotoSubjects, useSubjectSuggestions, useSearchPersons, useAddSubject, useRemoveSubject, useSetPortrait };
+    return {
+        usePhotoSubjects,
+        useSubjectSuggestions,
+        useSearchPersons,
+        useAddSubject,
+        useRemoveSubject,
+        useProposeAndTag,
+        useSetPortrait,
+    };
 };
 
 export type SubjectsQueries = ReturnType<typeof createSubjectsQueries>;

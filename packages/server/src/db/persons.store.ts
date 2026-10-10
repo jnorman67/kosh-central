@@ -21,6 +21,8 @@ export interface StoredPerson {
     gedcomUid: string | null;
     importStatus: ImportStatus | null;
     portraitPhotoId: string | null;
+    /** Suggested by a user and not yet approved into the index by an admin. */
+    proposed: boolean;
     createdAt: string;
     createdBy: string | null;
 }
@@ -55,6 +57,7 @@ export interface StoredPhotoSubjectEnriched extends Omit<StoredPhotoSubject, 'pe
     personId: string;
     fullName: string;
     nickname: string | null;
+    proposed: boolean;
 }
 
 export interface FaceBox {
@@ -100,6 +103,7 @@ interface PersonRow {
     gedcom_uid: string | null;
     import_status: string | null;
     portrait_photo_id: string | null;
+    proposed: number;
     created_at: string;
     created_by: string | null;
 }
@@ -128,6 +132,7 @@ interface PhotoSubjectRow {
 interface PhotoSubjectEnrichedRow extends PhotoSubjectRow {
     full_name: string;
     nickname: string | null;
+    proposed: number;
 }
 
 interface PersonMentionSuggestionRow {
@@ -160,6 +165,7 @@ function rowToPerson(row: PersonRow): StoredPerson {
         gedcomUid: row.gedcom_uid,
         importStatus: (row.import_status as ImportStatus) ?? null,
         portraitPhotoId: row.portrait_photo_id,
+        proposed: row.proposed === 1,
         createdAt: row.created_at,
         createdBy: row.created_by,
     };
@@ -215,6 +221,7 @@ export function createPerson(
         gedcomId?: string;
         gedcomUid?: string;
         importStatus?: ImportStatus;
+        proposed?: boolean;
         createdBy?: string;
     } = {},
 ): StoredPerson {
@@ -222,8 +229,8 @@ export function createPerson(
     getDb()
         .prepare(
             `INSERT INTO persons
-             (id, full_name, nickname, birth_year, notes, sex, birth_date, death_date, birth_place, death_place, gedcom_id, gedcom_uid, import_status, created_by)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             (id, full_name, nickname, birth_year, notes, sex, birth_date, death_date, birth_place, death_place, gedcom_id, gedcom_uid, import_status, proposed, created_by)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
             id,
@@ -239,6 +246,7 @@ export function createPerson(
             opts.gedcomId ?? null,
             opts.gedcomUid ?? null,
             opts.importStatus ?? null,
+            opts.proposed ? 1 : 0,
             opts.createdBy ?? null,
         );
     return findPersonById(id)!;
@@ -282,6 +290,14 @@ export function confirmPersonImport(id: string): boolean {
         .prepare("UPDATE persons SET import_status = 'confirmed' WHERE id = ?")
         .run(id);
     return result.changes > 0;
+}
+
+/** Exact case-insensitive name match, preferring an approved person over a proposed one. */
+export function findPersonByName(fullName: string): StoredPerson | undefined {
+    const row = getDb()
+        .prepare('SELECT * FROM persons WHERE full_name = ? COLLATE NOCASE ORDER BY proposed, created_at LIMIT 1')
+        .get(fullName.trim()) as PersonRow | undefined;
+    return row ? rowToPerson(row) : undefined;
 }
 
 export function findPersonById(id: string): StoredPerson | undefined {
@@ -364,6 +380,91 @@ export function deletePerson(id: string): DeletePersonResult {
     if (seriesCount > 0) return { deleted: false, reason: 'has_series_tags' };
     const result = db.prepare('DELETE FROM persons WHERE id = ?').run(id);
     return { deleted: result.changes > 0 };
+}
+
+// ─── Proposed persons ─────────────────────────────────────────────────────────
+
+/** Accept a user-suggested person into the formal index. */
+export function approvePerson(id: string): boolean {
+    const result = getDb().prepare('UPDATE persons SET proposed = 0 WHERE id = ? AND proposed = 1').run(id);
+    return result.changes > 0;
+}
+
+/**
+ * Fold a proposed person into an existing one: their photo and series tags, comment
+ * mentions, gallery and featured-album picks, and relationships move to the target,
+ * then the proposed row is deleted. Rows the target already has are dropped rather
+ * than duplicated.
+ */
+export function mergePerson(sourceId: string, targetId: string): void {
+    const db = getDb();
+    db.transaction(() => {
+        db.prepare(
+            `DELETE FROM photo_subjects WHERE person_id = ?
+               AND bundle_id IN (SELECT bundle_id FROM photo_subjects WHERE person_id = ?)`,
+        ).run(sourceId, targetId);
+        db.prepare('UPDATE photo_subjects SET person_id = ? WHERE person_id = ?').run(targetId, sourceId);
+
+        db.prepare(
+            `DELETE FROM series_subjects WHERE person_id = ?
+               AND series_id IN (SELECT series_id FROM series_subjects WHERE person_id = ?)`,
+        ).run(sourceId, targetId);
+        db.prepare('UPDATE series_subjects SET person_id = ? WHERE person_id = ?').run(targetId, sourceId);
+
+        db.prepare(
+            `DELETE FROM comment_mentions WHERE mention_type = 'person' AND mentioned_id = ?
+               AND comment_id IN (SELECT comment_id FROM comment_mentions WHERE mention_type = 'person' AND mentioned_id = ?)`,
+        ).run(sourceId, targetId);
+        db.prepare("UPDATE comment_mentions SET mentioned_id = ? WHERE mention_type = 'person' AND mentioned_id = ?").run(
+            targetId,
+            sourceId,
+        );
+        // Comment bodies embed mentions as @[Label](person:<id>); keep the ids in step.
+        db.prepare('UPDATE photo_comments SET body = replace(body, ?, ?) WHERE body LIKE ?').run(
+            `(person:${sourceId})`,
+            `(person:${targetId})`,
+            `%(person:${sourceId})%`,
+        );
+
+        db.prepare(
+            `DELETE FROM person_gallery_persons WHERE person_id = ?
+               AND gallery_id IN (SELECT gallery_id FROM person_gallery_persons WHERE person_id = ?)`,
+        ).run(sourceId, targetId);
+        db.prepare('UPDATE person_gallery_persons SET person_id = ? WHERE person_id = ?').run(targetId, sourceId);
+
+        if (db.prepare('SELECT 1 FROM featured_album_persons WHERE person_id = ?').get(targetId)) {
+            db.prepare('DELETE FROM featured_album_persons WHERE person_id = ?').run(sourceId);
+        } else {
+            db.prepare('UPDATE featured_album_persons SET person_id = ? WHERE person_id = ?').run(targetId, sourceId);
+        }
+
+        // Relationships between the two would become self-loops; the rest move unless the target has them already.
+        db.prepare(
+            `DELETE FROM person_relationships
+             WHERE (from_person_id = ? AND to_person_id = ?) OR (from_person_id = ? AND to_person_id = ?)`,
+        ).run(sourceId, targetId, targetId, sourceId);
+        db.prepare('UPDATE OR IGNORE person_relationships SET from_person_id = ? WHERE from_person_id = ?').run(targetId, sourceId);
+        db.prepare('UPDATE OR IGNORE person_relationships SET to_person_id = ? WHERE to_person_id = ?').run(targetId, sourceId);
+
+        db.prepare(
+            `UPDATE persons SET portrait_photo_id = (SELECT portrait_photo_id FROM persons WHERE id = ?)
+             WHERE id = ? AND portrait_photo_id IS NULL`,
+        ).run(sourceId, targetId);
+
+        // Cascades clear anything left behind (e.g. relationship rows the target already had).
+        db.prepare('DELETE FROM persons WHERE id = ?').run(sourceId);
+    })();
+}
+
+/** Discard a proposed person along with their photo/series tags and comment mentions. */
+export function rejectProposedPerson(id: string): boolean {
+    const db = getDb();
+    return db.transaction(() => {
+        const result = db.prepare('DELETE FROM persons WHERE id = ? AND proposed = 1').run(id);
+        if (result.changes === 0) return false;
+        db.prepare("DELETE FROM comment_mentions WHERE mention_type = 'person' AND mentioned_id = ?").run(id);
+        return true;
+    })();
 }
 
 // ─── Relationships ────────────────────────────────────────────────────────────
@@ -543,7 +644,7 @@ export function getPeopleForPhotoEnriched(photoId: string): StoredPhotoSubjectEn
     if (!bundleId) return [];
     const rows = getDb()
         .prepare(
-            `SELECT ps.*, p.full_name, p.nickname
+            `SELECT ps.*, p.full_name, p.nickname, p.proposed
              FROM photo_subjects ps
              JOIN persons p ON ps.person_id = p.id
              WHERE ps.bundle_id = ?
@@ -558,6 +659,7 @@ export function getPeopleForPhotoEnriched(photoId: string): StoredPhotoSubjectEn
             personId: subject.personId!,
             fullName: row.full_name,
             nickname: row.nickname,
+            proposed: row.proposed === 1,
         };
     });
 }
@@ -627,6 +729,16 @@ export function verifyPhotoSubject(photoId: string, personId: string): boolean {
         .prepare('UPDATE photo_subjects SET verified = 1 WHERE bundle_id = ? AND person_id = ?')
         .run(bundleId, personId);
     return result.changes > 0;
+}
+
+/** The person tag on this photo's bundle, if any (face boxes without a person are ignored). */
+export function findPhotoSubject(photoId: string, personId: string): StoredPhotoSubject | undefined {
+    const bundleId = getBundleIdForPhoto(photoId);
+    if (!bundleId) return undefined;
+    const row = getDb()
+        .prepare('SELECT * FROM photo_subjects WHERE bundle_id = ? AND person_id = ?')
+        .get(bundleId, personId) as PhotoSubjectRow | undefined;
+    return row ? rowToPhotoSubject(row, photoId) : undefined;
 }
 
 export function removePhotoSubject(photoId: string, personId: string): boolean {

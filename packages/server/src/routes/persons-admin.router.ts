@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { requireAdmin } from '../auth/auth.middleware.js';
 import {
-    addPhotoSubject,
     addRelationship,
+    approvePerson,
     addSeriesSubject,
     confirmPersonImport,
     createPerson,
@@ -11,19 +11,18 @@ import {
     findPersonById,
     findRelationshipById,
     listPersonsNeedingReview,
-    removePhotoSubject,
+    mergePerson,
+    rejectProposedPerson,
     removeSeriesSubject,
     setPersonPortrait,
     updatePerson,
     verifyPhotoSubject,
     type RelationshipType,
-    type SubjectSource,
 } from '../db/persons.store.js';
 import { findPhotoById } from '../db/photos.store.js';
 import { findSeriesById } from '../db/series.store.js';
 
 const VALID_RELATION_TYPES = new Set<string>(['parent-of', 'spouse-of', 'sibling-of', 'friend-of']);
-const VALID_SUBJECT_SOURCES = new Set<string>(['manual', 'auto']);
 
 export function createPersonsAdminRouter(): Router {
     const router = Router();
@@ -49,7 +48,7 @@ export function createPersonsAdminRouter(): Router {
             res.status(400).json({ error: 'fullName is required' });
             return;
         }
-        const userId = (req as unknown as { user?: { id: string } }).user?.id;
+        const userId = req.user!.userId;
         const person = createPerson(fullName, {
             nickname,
             birthYear,
@@ -137,6 +136,63 @@ export function createPersonsAdminRouter(): Router {
         res.status(204).end();
     });
 
+    // ── Proposed persons ──────────────────────────────────────────────────────
+
+    /** Approve a user-suggested person into the index. */
+    router.post('/:id/approve', (req, res) => {
+        if (!findPersonById(req.params.id)) {
+            res.status(404).json({ error: 'Person not found' });
+            return;
+        }
+        if (!approvePerson(req.params.id)) {
+            res.status(409).json({ error: 'Person is not awaiting approval' });
+            return;
+        }
+        res.json(findPersonById(req.params.id));
+    });
+
+    /** Merge a user-suggested person into an existing person, moving their tags and mentions. */
+    router.post('/:id/merge', (req, res) => {
+        const { intoPersonId } = req.body as { intoPersonId?: string };
+        if (!intoPersonId) {
+            res.status(400).json({ error: 'intoPersonId is required' });
+            return;
+        }
+        const source = findPersonById(req.params.id);
+        if (!source) {
+            res.status(404).json({ error: 'Person not found' });
+            return;
+        }
+        if (!source.proposed) {
+            res.status(409).json({ error: 'Only suggested persons can be merged' });
+            return;
+        }
+        if (intoPersonId === source.id) {
+            res.status(400).json({ error: 'Cannot merge a person into themselves' });
+            return;
+        }
+        const target = findPersonById(intoPersonId);
+        if (!target) {
+            res.status(404).json({ error: 'Target person not found' });
+            return;
+        }
+        mergePerson(source.id, target.id);
+        res.json(findPersonById(target.id));
+    });
+
+    /** Reject a user-suggested person, removing them and their tags. */
+    router.post('/:id/reject', (req, res) => {
+        if (!findPersonById(req.params.id)) {
+            res.status(404).json({ error: 'Person not found' });
+            return;
+        }
+        if (!rejectProposedPerson(req.params.id)) {
+            res.status(409).json({ error: 'Person is not awaiting approval' });
+            return;
+        }
+        res.status(204).end();
+    });
+
     // ── GEDCOM import review ───────────────────────────────────────────────────
 
     /** List persons flagged needs_review after a GEDCOM reconciliation import. */
@@ -175,7 +231,7 @@ export function createPersonsAdminRouter(): Router {
             res.status(404).json({ error: 'Target person not found' });
             return;
         }
-        const userId = (req as unknown as { user?: { id: string } }).user?.id;
+        const userId = req.user!.userId;
         try {
             const rel = addRelationship(req.params.id, toPersonId, relationType as RelationshipType, userId);
             res.status(201).json(rel);
@@ -200,57 +256,6 @@ export function createPersonsAdminRouter(): Router {
     });
 
     // ── Photo tags ────────────────────────────────────────────────────────────
-
-    /** Tag a person in a photo. */
-    router.post('/:id/photo-tags', (req, res) => {
-        const { photoId, source, confidence, faceRegion } = req.body as {
-            photoId?: string;
-            source?: string;
-            confidence?: number;
-            faceRegion?: string;
-        };
-        if (!photoId) {
-            res.status(400).json({ error: 'photoId is required' });
-            return;
-        }
-        if (source && !VALID_SUBJECT_SOURCES.has(source)) {
-            res.status(400).json({ error: 'source must be manual or auto' });
-            return;
-        }
-        if (!findPersonById(req.params.id)) {
-            res.status(404).json({ error: 'Person not found' });
-            return;
-        }
-        if (!findPhotoById(photoId)) {
-            res.status(404).json({ error: 'Photo not found' });
-            return;
-        }
-        const userId = (req as unknown as { user?: { id: string } }).user?.id;
-        try {
-            const subject = addPhotoSubject(photoId, req.params.id, {
-                source: source as SubjectSource | undefined,
-                confidence,
-                faceRegion,
-                createdBy: userId,
-            });
-            res.status(201).json(subject);
-        } catch (err: unknown) {
-            if (err instanceof Error && err.message.includes('UNIQUE')) {
-                res.status(409).json({ error: 'Person already tagged in this photo' });
-            } else {
-                res.status(500).json({ error: 'Failed to tag person in photo' });
-            }
-        }
-    });
-
-    /** Remove a person tag from a photo. */
-    router.delete('/:id/photo-tags/:photoId', (req, res) => {
-        if (!removePhotoSubject(req.params.photoId, req.params.id)) {
-            res.status(404).json({ error: 'Tag not found' });
-            return;
-        }
-        res.status(204).end();
-    });
 
     /** Mark an auto-assigned photo tag as verified. */
     router.post('/:id/photo-tags/:photoId/verify', (req, res) => {
@@ -278,7 +283,7 @@ export function createPersonsAdminRouter(): Router {
             res.status(404).json({ error: 'Series not found' });
             return;
         }
-        const userId = (req as unknown as { user?: { id: string } }).user?.id;
+        const userId = req.user!.userId;
         try {
             const subject = addSeriesSubject(seriesId, req.params.id, userId);
             res.status(201).json(subject);

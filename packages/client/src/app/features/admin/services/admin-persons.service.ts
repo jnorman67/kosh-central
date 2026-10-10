@@ -33,4 +33,21 @@ export class AdminPersonsService {
     async remove(id: string): Promise<void> {
         await apiFetch<void>(`/api/admin/persons/${encodeURIComponent(id)}`, { method: 'DELETE' });
     }
+
+    async approve(id: string): Promise<AdminPerson> {
+        return apiFetch<AdminPerson>(`/api/admin/persons/${encodeURIComponent(id)}/approve`, { method: 'POST' });
+    }
+
+    /** Fold a suggested person into an existing one; returns the surviving person. */
+    async merge(id: string, intoPersonId: string): Promise<AdminPerson> {
+        return apiFetch<AdminPerson>(`/api/admin/persons/${encodeURIComponent(id)}/merge`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ intoPersonId }),
+        });
+    }
+
+    async reject(id: string): Promise<void> {
+        await apiFetch<void>(`/api/admin/persons/${encodeURIComponent(id)}/reject`, { method: 'POST' });
+    }
 }

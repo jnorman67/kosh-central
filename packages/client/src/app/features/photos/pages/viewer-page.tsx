@@ -487,6 +487,7 @@ export function ViewerPage() {
                                     )}
                                     <SubjectsPanel
                                         photoId={currentPhoto.catalogId}
+                                        currentUserId={me.id}
                                         isAdmin={isAdmin}
                                         onDisputeSubject={(personId, personName) => setDisputeTarget({ personId, personName })}
                                         className="shrink-0"

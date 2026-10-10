@@ -1,6 +1,10 @@
 import { Router } from 'express';
 import {
+    addPhotoSubject,
+    createPerson,
     findPersonById,
+    findPersonByName,
+    findPhotoSubject,
     getPhotosForPerson,
     getPeopleForPhotoEnriched,
     getPersonMentionSuggestionsForPhoto,
@@ -8,9 +12,10 @@ import {
     getRelationshipsForPerson,
     getSeriesForPerson,
     listPersons,
+    removePhotoSubject,
     searchPersons,
 } from '../db/persons.store.js';
-import { getPhotoLocations } from '../db/photos.store.js';
+import { findPhotoById, getPhotoLocations } from '../db/photos.store.js';
 import type { OneDriveService } from '../services/onedrive.service.js';
 import type { ThumbnailCacheService } from '../services/thumbnail-cache.service.js';
 
@@ -24,6 +29,32 @@ export function createPersonsRouter(
     router.get('/', (req, res) => {
         const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
         res.json(q ? searchPersons(q) : listPersons());
+    });
+
+    /**
+     * Suggest a person who isn't in the index yet. They can be tagged right away and show as
+     * pending until an admin approves, merges, or rejects them. An exact name match returns
+     * the existing person instead of creating a duplicate.
+     */
+    router.post('/proposals', (req, res) => {
+        const { fullName, nickname, notes } = req.body as { fullName?: string; nickname?: string; notes?: string };
+        const name = fullName?.trim();
+        if (!name) {
+            res.status(400).json({ error: 'fullName is required' });
+            return;
+        }
+        const existing = findPersonByName(name);
+        if (existing) {
+            res.json(existing);
+            return;
+        }
+        const person = createPerson(name, {
+            nickname: nickname?.trim() || undefined,
+            notes: notes?.trim() || undefined,
+            proposed: true,
+            createdBy: req.user!.userId,
+        });
+        res.status(201).json(person);
     });
 
     /** Get a single person. */
@@ -112,13 +143,57 @@ export function createPersonsRouter(
     return router;
 }
 
-/** Sub-router for photo subject reads, mounted on the photos router at /:photoId/subjects */
+/** Sub-router for photo subjects (people tagged in a photo), mounted on the photos router at /:photoId/subjects */
 export function createPhotoSubjectsRouter(): Router {
     const router = Router({ mergeParams: true });
 
     router.get('/', (req, res) => {
         const { photoId } = req.params as Record<string, string>;
         res.json(getPeopleForPhotoEnriched(photoId));
+    });
+
+    /** Tag a person in a photo. Open to every signed-in user. */
+    router.post('/', (req, res) => {
+        const { photoId } = req.params as Record<string, string>;
+        const { personId } = req.body as { personId?: string };
+        if (!personId) {
+            res.status(400).json({ error: 'personId is required' });
+            return;
+        }
+        if (!findPersonById(personId)) {
+            res.status(404).json({ error: 'Person not found' });
+            return;
+        }
+        if (!findPhotoById(photoId)) {
+            res.status(404).json({ error: 'Photo not found' });
+            return;
+        }
+        try {
+            const subject = addPhotoSubject(photoId, personId, { createdBy: req.user!.userId });
+            res.status(201).json(subject);
+        } catch (err: unknown) {
+            if (err instanceof Error && err.message.includes('UNIQUE')) {
+                res.status(409).json({ error: 'Person already tagged in this photo' });
+            } else {
+                res.status(500).json({ error: 'Failed to tag person in photo' });
+            }
+        }
+    });
+
+    /** Remove a person tag. Admins can remove any tag; other users only the tags they added. */
+    router.delete('/:personId', (req, res) => {
+        const { photoId, personId } = req.params as Record<string, string>;
+        const subject = findPhotoSubject(photoId, personId);
+        if (!subject) {
+            res.status(404).json({ error: 'Tag not found' });
+            return;
+        }
+        if (req.user!.role !== 'admin' && subject.createdBy !== req.user!.userId) {
+            res.status(403).json({ error: 'Only an admin or the person who added this tag can remove it' });
+            return;
+        }
+        removePhotoSubject(photoId, personId);
+        res.status(204).end();
     });
 
     return router;

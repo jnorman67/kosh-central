@@ -127,6 +127,20 @@ Any user can make their own galleries of the photos tagged with one or more peop
 
 A gallery opens in the normal viewer at `/?gallery=<id>` (with `&photo=` while viewing a photo), so comments, tagged people, OCR, backs, and face boxes all work as they do in an album. Each photo shows which album it came from. Photos are gathered per request, the same way as the featured album's people: albums in their admin-defined order, then each album's own photo order, one entry per physical photo. Tagging someone on a photo marks gallery data stale, so the change shows up on the next visit. Galleries live in `person_galleries` and `person_gallery_persons`. Deleting a person removes them from any gallery. The cross-album lookup shared with the featured album is in `services/tagged-photos.service.ts`.
 
+## Tagging People
+
+Any signed-in user can tag people in a photo from the **People** panel in the viewer (`POST /api/photos/:photoId/subjects`). Users can remove the tags they added. Admins can remove any tag and set a person's portrait. Anyone can flag a tag as wrong, which starts a comment.
+
+If the name someone types doesn't match anyone in the index, the search offers **Add "…" as a new person**. That creates a *suggested* person (`persons.proposed = 1`, via `POST /api/persons/proposals`) and tags the photo in one step. If the name exactly matches an existing person (ignoring case), that person is reused instead. Suggested people can be tagged, mentioned, and picked for galleries right away, and they show as "pending" in the People panel.
+
+Admins review suggestions on the **Persons** page (`/persons`). Suggestions are listed under **Awaiting review**, and the user menu shows how many are waiting. For each one, an admin can:
+
+- **Approve** it into the index. They can edit the name and details first.
+- **Merge** it into an existing person. Tags, comment mentions, gallery and featured-album picks, and relationships move to that person, and the suggestion is deleted.
+- **Reject** it, which deletes the suggestion and its tags.
+
+The store logic is in `db/persons.store.ts` (`approvePerson`, `mergePerson`, `rejectProposedPerson`).
+
 ## Users & Invites
 
 Sign-up is invitation-only. An admin manages who can register, and what they can do, from **Users & invites** in the user menu (`/admin/users`):

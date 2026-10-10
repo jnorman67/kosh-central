@@ -1,23 +1,26 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Check, Flag, ImageIcon, Plus, X } from 'lucide-react';
+import { Check, Flag, ImageIcon, Plus, UserPlus, X } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useSubjectsQueries } from '../contexts/subjects-query.context';
 
 interface SubjectsPanelProps {
     photoId: string;
+    currentUserId: string;
     isAdmin: boolean;
     onDisputeSubject: (personId: string, personName: string) => void;
     className?: string;
 }
 
-export function SubjectsPanel({ photoId, isAdmin, onDisputeSubject, className }: SubjectsPanelProps) {
-    const { usePhotoSubjects, useSubjectSuggestions, useSearchPersons, useAddSubject, useRemoveSubject, useSetPortrait } = useSubjectsQueries();
+export function SubjectsPanel({ photoId, currentUserId, isAdmin, onDisputeSubject, className }: SubjectsPanelProps) {
+    const { usePhotoSubjects, useSubjectSuggestions, useSearchPersons, useAddSubject, useRemoveSubject, useProposeAndTag, useSetPortrait } =
+        useSubjectsQueries();
 
     const { data: subjects = [] } = usePhotoSubjects(photoId);
-    const { data: suggestions = [] } = useSubjectSuggestions(isAdmin ? photoId : null);
+    const { data: suggestions = [] } = useSubjectSuggestions(photoId);
     const addSubject = useAddSubject();
     const removeSubject = useRemoveSubject();
+    const proposeAndTag = useProposeAndTag();
     const setPortrait = useSetPortrait();
     const [portraitToast, setPortraitToast] = useState<string | null>(null);
 
@@ -46,6 +49,9 @@ export function SubjectsPanel({ photoId, isAdmin, onDisputeSubject, className }:
             if (diff !== 0) return diff;
             return a.fullName.localeCompare(b.fullName);
         });
+    // Offer to suggest the typed name as a new person unless it already names someone (tagged or not).
+    const typedName = searchQuery.trim();
+    const canPropose = typedName.length > 0 && !searchResults.some((p) => p.fullName.toLowerCase() === typedName.toLowerCase());
 
     function openSearch() {
         setShowSearch(true);
@@ -62,6 +68,11 @@ export function SubjectsPanel({ photoId, isAdmin, onDisputeSubject, className }:
         closeSearch();
     }
 
+    function handleProposePerson() {
+        proposeAndTag.mutate({ fullName: typedName, photoId });
+        closeSearch();
+    }
+
     function handleSetPortrait(personId: string, personName: string) {
         setPortrait.mutate(
             { personId, photoId },
@@ -74,15 +85,13 @@ export function SubjectsPanel({ photoId, isAdmin, onDisputeSubject, className }:
         );
     }
 
-    if (subjects.length === 0 && suggestions.length === 0 && !isAdmin) return null;
-
     return (
         <div className={`border-b border-amber-200 ${className ?? ''}`}>
             <div className="flex items-center justify-between px-4 py-2">
                 <h3 className="text-sm font-semibold text-amber-900">
                     People {subjects.length > 0 && <span className="font-normal text-muted-foreground">({subjects.length})</span>}
                 </h3>
-                {isAdmin && !showSearch && (
+                {!showSearch && (
                     <Button
                         variant="ghost"
                         size="sm"
@@ -102,14 +111,17 @@ export function SubjectsPanel({ photoId, isAdmin, onDisputeSubject, className }:
                 </div>
             )}
 
-            {isAdmin && showSearch && (
+            {showSearch && (
                 <div className="relative px-4 pb-2">
                     <Input
                         ref={inputRef}
                         placeholder="Search people…"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Escape' && closeSearch()}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Escape') closeSearch();
+                            else if (e.key === 'Enter' && filteredResults.length === 0 && canPropose) handleProposePerson();
+                        }}
                         onBlur={(e) => {
                             if (!e.currentTarget.closest('[data-search-panel]')?.contains(e.relatedTarget)) {
                                 closeSearch();
@@ -117,7 +129,7 @@ export function SubjectsPanel({ photoId, isAdmin, onDisputeSubject, className }:
                         }}
                         className="h-7 text-sm"
                     />
-                    {filteredResults.length > 0 && searchQuery.length > 0 && (
+                    {(filteredResults.length > 0 || canPropose) && typedName.length > 0 && (
                         <div data-search-panel className="absolute z-10 mt-1 w-[calc(100%-2rem)] rounded-md border bg-background shadow-md">
                             {filteredResults.map((person) => (
                                 <button
@@ -129,8 +141,20 @@ export function SubjectsPanel({ photoId, isAdmin, onDisputeSubject, className }:
                                 >
                                     {person.fullName}
                                     {person.nickname && <span className="ml-1 text-muted-foreground">({person.nickname})</span>}
+                                    {person.proposed && <span className="ml-1 text-xs italic text-muted-foreground">suggested</span>}
                                 </button>
                             ))}
+                            {canPropose && (
+                                <button
+                                    type="button"
+                                    className="flex w-full items-center gap-1.5 border-t px-3 py-1.5 text-left text-sm hover:bg-accent"
+                                    onMouseDown={(e) => e.preventDefault()}
+                                    onClick={handleProposePerson}
+                                >
+                                    <UserPlus className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                                    <span className="min-w-0 truncate">Add “{typedName}” as a new person</span>
+                                </button>
+                            )}
                         </div>
                     )}
                 </div>
@@ -146,6 +170,14 @@ export function SubjectsPanel({ photoId, isAdmin, onDisputeSubject, className }:
                             <span className="min-w-0 truncate text-sm text-amber-900">
                                 {subject.fullName}
                                 {subject.nickname && <span className="ml-1 text-xs text-muted-foreground">({subject.nickname})</span>}
+                                {subject.proposed && (
+                                    <span
+                                        className="ml-1 text-xs italic text-muted-foreground"
+                                        title="Awaiting admin approval into the people index"
+                                    >
+                                        pending
+                                    </span>
+                                )}
                             </span>
                             <div className="flex shrink-0 items-center gap-0.5">
                                 <Button
@@ -159,29 +191,29 @@ export function SubjectsPanel({ photoId, isAdmin, onDisputeSubject, className }:
                                     <Flag className="h-3 w-3" />
                                 </Button>
                                 {isAdmin && (
-                                    <>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            className="h-6 w-6 p-0 text-muted-foreground hover:text-amber-700"
-                                            onClick={() => handleSetPortrait(subject.personId, subject.fullName)}
-                                            aria-label={`Set portrait: ${subject.fullName}`}
-                                            title="Use this photo as portrait"
-                                            disabled={setPortrait.isPending}
-                                        >
-                                            <ImageIcon className="h-3 w-3" />
-                                        </Button>
-                                        <Button
-                                            variant="ghost"
-                                            size="sm"
-                                            className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
-                                            onClick={() => removeSubject.mutate({ personId: subject.personId, photoId })}
-                                            aria-label={`Remove ${subject.fullName}`}
-                                            title="Remove this identification"
-                                        >
-                                            <X className="h-3 w-3" />
-                                        </Button>
-                                    </>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 w-6 p-0 text-muted-foreground hover:text-amber-700"
+                                        onClick={() => handleSetPortrait(subject.personId, subject.fullName)}
+                                        aria-label={`Set portrait: ${subject.fullName}`}
+                                        title="Use this photo as portrait"
+                                        disabled={setPortrait.isPending}
+                                    >
+                                        <ImageIcon className="h-3 w-3" />
+                                    </Button>
+                                )}
+                                {(isAdmin || subject.createdBy === currentUserId) && (
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                                        onClick={() => removeSubject.mutate({ personId: subject.personId, photoId })}
+                                        aria-label={`Remove ${subject.fullName}`}
+                                        title="Remove this identification"
+                                    >
+                                        <X className="h-3 w-3" />
+                                    </Button>
                                 )}
                             </div>
                         </div>
@@ -189,11 +221,9 @@ export function SubjectsPanel({ photoId, isAdmin, onDisputeSubject, className }:
                 </div>
             )}
 
-            {subjects.length === 0 && !showSearch && (
-                <p className="px-4 pb-3 text-xs text-muted-foreground">{isAdmin ? 'No people tagged yet.' : 'No people identified.'}</p>
-            )}
+            {subjects.length === 0 && !showSearch && <p className="px-4 pb-3 text-xs text-muted-foreground">No people tagged yet.</p>}
 
-            {isAdmin && suggestions.length > 0 && (
+            {suggestions.length > 0 && (
                 <div className="border-t border-amber-100 px-4 pb-3 pt-2">
                     <p className="mb-1 text-xs font-medium text-muted-foreground">Suggested from comments</p>
                     {suggestions.map((s) => (

@@ -1,6 +1,6 @@
 import { CommentPanel } from '@/app/features/comments/components/comment-panel';
-import { OcrQueryProvider } from '@/app/features/ocr/contexts/ocr-query.context';
 import { OcrPanel } from '@/app/features/ocr/components/ocr-panel';
+import { OcrQueryProvider } from '@/app/features/ocr/contexts/ocr-query.context';
 import { SubjectsQueryProvider } from '@/app/features/photos/contexts/subjects-query.context';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -16,7 +16,15 @@ interface MobilePanelProps {
     onDisputeSubject: (personId: string, personName: string) => void;
 }
 
-export function MobilePanel({ photoId, bundleId, currentUserId, isAdmin, initialBody, onCommentPosted, onDisputeSubject }: MobilePanelProps) {
+export function MobilePanel({
+    photoId,
+    bundleId,
+    currentUserId,
+    isAdmin,
+    initialBody,
+    onCommentPosted,
+    onDisputeSubject,
+}: MobilePanelProps) {
     const [peopleOpen, setPeopleOpen] = useState(false);
     const [commentsOpen, setCommentsOpen] = useState(false);
 
@@ -46,7 +54,9 @@ export function MobilePanel({ photoId, bundleId, currentUserId, isAdmin, initial
                 People
                 {peopleOpen ? <ChevronUp className="h-4 w-4 shrink-0" /> : <ChevronDown className="h-4 w-4 shrink-0" />}
             </button>
-            {peopleOpen && <SubjectsPanel photoId={photoId} isAdmin={isAdmin} onDisputeSubject={handleDisputeSubject} />}
+            {peopleOpen && (
+                <SubjectsPanel photoId={photoId} currentUserId={currentUserId} isAdmin={isAdmin} onDisputeSubject={handleDisputeSubject} />
+            )}
 
             <button
                 type="button"
@@ -68,11 +78,7 @@ export function MobilePanel({ photoId, bundleId, currentUserId, isAdmin, initial
 
             {bundleId && (
                 <OcrQueryProvider>
-                    <OcrPanel
-                        bundleId={bundleId}
-                        isAdmin={isAdmin}
-                        className="border-t border-amber-200"
-                    />
+                    <OcrPanel bundleId={bundleId} isAdmin={isAdmin} className="border-t border-amber-200" />
                 </OcrQueryProvider>
             )}
         </SubjectsQueryProvider>

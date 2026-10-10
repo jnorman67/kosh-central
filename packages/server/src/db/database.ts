@@ -1840,6 +1840,15 @@ const migrations: Migration[] = [
             );
         `,
     },
+    {
+        version: 37,
+        description: 'persons: add proposed flag for names suggested by users, pending admin approval',
+        // Any signed-in user can suggest a person who isn't in the index and tag photos with
+        // them straight away. An admin then approves, merges into an existing person, or rejects.
+        sql: `
+            ALTER TABLE persons ADD COLUMN proposed INTEGER NOT NULL DEFAULT 0 CHECK (proposed IN (0, 1));
+        `,
+    },
 ];
 
 /**

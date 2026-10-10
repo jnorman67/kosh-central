@@ -11,6 +11,8 @@ export interface AdminPerson {
     deathPlace: string | null;
     gedcomId: string | null;
     portraitPhotoId: string | null;
+    /** Suggested by a user and awaiting admin approval into the index. */
+    proposed: boolean;
     createdAt: string;
     createdBy: string | null;
 }

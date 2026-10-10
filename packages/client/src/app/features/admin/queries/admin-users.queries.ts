@@ -8,11 +8,12 @@ export const AdminUsersQueryKeys = {
 } as const;
 
 export const createAdminUsersQueries = (service: AdminUsersService) => {
-    const useListUsers = () =>
+    const useListUsers = ({ enabled = true }: { enabled?: boolean } = {}) =>
         useQuery({
             queryKey: AdminUsersQueryKeys.list,
             queryFn: () => service.list(),
             staleTime: 30 * 1000,
+            enabled,
         });
 
     const useUpdateUser = () => {

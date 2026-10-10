@@ -1,11 +1,18 @@
 import type { PersonInput } from '@/app/features/admin/models/person.models';
 import type { AdminPersonsService } from '@/app/features/admin/services/admin-persons.service';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 
 export const AdminPersonsQueryKeys = {
     list: ['AdminPersons', 'List'] as const,
     relationships: (id: string) => ['AdminPersons', 'Relationships', id] as const,
 } as const;
+
+/** Approving, merging or rejecting a suggestion changes names and tags shown across the app. */
+const invalidateAfterReview = (qc: QueryClient) => {
+    qc.invalidateQueries({ queryKey: AdminPersonsQueryKeys.list });
+    qc.invalidateQueries({ queryKey: ['Persons', 'All'] });
+    qc.invalidateQueries({ queryKey: ['Subjects'] });
+};
 
 export const createAdminPersonsQueries = (service: AdminPersonsService) => {
     const useListPersons = () =>
@@ -47,7 +54,40 @@ export const createAdminPersonsQueries = (service: AdminPersonsService) => {
         });
     };
 
-    return { useListPersons, useGetRelationships, useCreatePerson, useUpdatePerson, useDeletePerson };
+    const useApprovePerson = () => {
+        const qc = useQueryClient();
+        return useMutation({
+            mutationFn: (id: string) => service.approve(id),
+            onSuccess: () => invalidateAfterReview(qc),
+        });
+    };
+
+    const useMergePerson = () => {
+        const qc = useQueryClient();
+        return useMutation({
+            mutationFn: ({ id, intoPersonId }: { id: string; intoPersonId: string }) => service.merge(id, intoPersonId),
+            onSuccess: () => invalidateAfterReview(qc),
+        });
+    };
+
+    const useRejectPerson = () => {
+        const qc = useQueryClient();
+        return useMutation({
+            mutationFn: (id: string) => service.reject(id),
+            onSuccess: () => invalidateAfterReview(qc),
+        });
+    };
+
+    return {
+        useListPersons,
+        useGetRelationships,
+        useCreatePerson,
+        useUpdatePerson,
+        useDeletePerson,
+        useApprovePerson,
+        useMergePerson,
+        useRejectPerson,
+    };
 };
 
 export type AdminPersonsQueries = ReturnType<typeof createAdminPersonsQueries>;

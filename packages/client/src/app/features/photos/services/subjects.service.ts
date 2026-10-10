@@ -12,16 +12,25 @@ export class SubjectsService {
     }
 
     async addSubject(personId: string, photoId: string): Promise<PhotoSubject> {
-        return apiFetch<PhotoSubject>(`/api/admin/persons/${encodeURIComponent(personId)}/photo-tags`, {
+        return apiFetch<PhotoSubject>(`/api/photos/${encodeURIComponent(photoId)}/subjects`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ photoId }),
+            body: JSON.stringify({ personId }),
         });
     }
 
     async removeSubject(personId: string, photoId: string): Promise<void> {
-        await apiFetch<void>(`/api/admin/persons/${encodeURIComponent(personId)}/photo-tags/${encodeURIComponent(photoId)}`, {
+        await apiFetch<void>(`/api/photos/${encodeURIComponent(photoId)}/subjects/${encodeURIComponent(personId)}`, {
             method: 'DELETE',
+        });
+    }
+
+    /** Suggest a person not yet in the index. Returns the existing person if the name already matches one. */
+    async proposePerson(fullName: string): Promise<AdminPerson> {
+        return apiFetch<AdminPerson>('/api/persons/proposals', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fullName }),
         });
     }
 
