@@ -23,6 +23,8 @@ export interface AdminUsersResponse {
 }
 
 export interface UserUpdate {
+    displayName?: string;
+    email?: string;
     role?: Role;
     disabled?: boolean;
 }

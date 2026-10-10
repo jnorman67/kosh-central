@@ -2,6 +2,7 @@ import { AdminQueryProvider } from '@/app/features/admin/contexts/admin-query.co
 import { FeaturedAdminPage } from '@/app/features/admin/pages/featured-admin-page';
 import { FoldersAdminPage } from '@/app/features/admin/pages/folders-admin-page';
 import { PersonsAdminPage } from '@/app/features/admin/pages/persons-admin-page';
+import { UserEditPage } from '@/app/features/admin/pages/user-edit-page';
 import { UsersAdminPage } from '@/app/features/admin/pages/users-admin-page';
 import { AdminGuard } from '@/app/features/auth/components/admin-guard';
 import { AuthGuard } from '@/app/features/auth/components/auth-guard';
@@ -88,6 +89,18 @@ export const router = createBrowserRouter([
                 <AdminGuard>
                     <AdminQueryProvider>
                         <UsersAdminPage />
+                    </AdminQueryProvider>
+                </AdminGuard>
+            </AuthGuard>
+        ),
+    },
+    {
+        path: '/admin/users/:id',
+        element: (
+            <AuthGuard>
+                <AdminGuard>
+                    <AdminQueryProvider>
+                        <UserEditPage />
                     </AdminQueryProvider>
                 </AdminGuard>
             </AuthGuard>

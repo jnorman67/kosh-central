@@ -22,8 +22,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { hideSplash } from '@/lib/splash';
 import { cn } from '@/lib/utils';
-import { ArrowLeft, Trash2 } from 'lucide-react';
+import { ArrowLeft, Pencil, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 
 /** Server timestamps are either ISO strings or SQLite's "YYYY-MM-DD HH:MM:SS" (UTC). */
 function formatDate(value: string): string {
@@ -271,7 +272,7 @@ export function UsersAdminPage() {
                                                 <TableHead>Name</TableHead>
                                                 <TableHead className="w-32">Role</TableHead>
                                                 <TableHead className="w-28">Joined</TableHead>
-                                                <TableHead className="w-36" />
+                                                <TableHead className="w-48" />
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
@@ -282,7 +283,12 @@ export function UsersAdminPage() {
                                                     <TableRow key={user.id} className={cn(disabled && 'text-muted-foreground')}>
                                                         <TableCell>
                                                             <div className="font-medium">
-                                                                {user.displayName}
+                                                                <Link
+                                                                    to={`/admin/users/${encodeURIComponent(user.id)}`}
+                                                                    className="hover:underline"
+                                                                >
+                                                                    {user.displayName}
+                                                                </Link>
                                                                 {isSelf && <span className="ml-1.5 text-xs font-normal">(you)</span>}
                                                             </div>
                                                             <div className="text-xs text-muted-foreground">
@@ -304,7 +310,20 @@ export function UsersAdminPage() {
                                                             />
                                                         </TableCell>
                                                         <TableCell>{formatDate(user.createdAt)}</TableCell>
-                                                        <TableCell className="text-right">
+                                                        <TableCell className="space-x-1 text-right">
+                                                            <Tooltip>
+                                                                <TooltipTrigger asChild>
+                                                                    <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
+                                                                        <Link
+                                                                            to={`/admin/users/${encodeURIComponent(user.id)}`}
+                                                                            aria-label={`Edit ${user.displayName}`}
+                                                                        >
+                                                                            <Pencil className="h-4 w-4" />
+                                                                        </Link>
+                                                                    </Button>
+                                                                </TooltipTrigger>
+                                                                <TooltipContent>Edit user</TooltipContent>
+                                                            </Tooltip>
                                                             {!isSelf &&
                                                                 (disabled ? (
                                                                     <Button

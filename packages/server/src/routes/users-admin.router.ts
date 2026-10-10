@@ -9,6 +9,7 @@ import {
     ROLES,
     setUserDisabled,
     toAdminUser,
+    updateUserProfile,
     updateUserRole,
 } from '../auth/users.store.js';
 
@@ -70,7 +71,17 @@ export function createUsersAdminRouter(): Router {
 
     router.patch('/:id', (req, res) => {
         const { role, disabled } = req.body ?? {};
+        const displayName = typeof req.body?.displayName === 'string' ? req.body.displayName.trim() : req.body?.displayName;
+        const email = typeof req.body?.email === 'string' ? req.body.email.trim() : req.body?.email;
 
+        if (displayName !== undefined && (typeof displayName !== 'string' || displayName === '')) {
+            res.status(400).json({ error: 'Name is required', field: 'displayName' });
+            return;
+        }
+        if (email !== undefined && (typeof email !== 'string' || !EMAIL_PATTERN.test(email))) {
+            res.status(400).json({ error: 'Enter a valid email address', field: 'email' });
+            return;
+        }
         if (role !== undefined && !isRole(role)) {
             res.status(400).json({ error: ROLE_ERROR, field: 'role' });
             return;
@@ -90,7 +101,21 @@ export function createUsersAdminRouter(): Router {
             res.status(400).json({ error: "You can't change your own role or disable your own account" });
             return;
         }
+        if (email !== undefined) {
+            // Emails are unique case-insensitively, so a case-only change to this user's own address is fine.
+            const owner = findUserByEmail(email);
+            if (owner && owner.id !== user.id) {
+                res.status(409).json({ error: 'Someone else already has an account with this email', field: 'email' });
+                return;
+            }
+            // Taking an invited address would leave that invite unusable, since registration rejects existing emails.
+            if (findInvite(email)) {
+                res.status(409).json({ error: 'This email has a pending invite. Remove the invite first.', field: 'email' });
+                return;
+            }
+        }
 
+        updateUserProfile(user.id, { displayName, email });
         if (role !== undefined) updateUserRole(user.id, role);
         if (disabled !== undefined) setUserDisabled(user.id, disabled);
         res.json(toAdminUser(findUserById(user.id)!));

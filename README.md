@@ -134,6 +134,7 @@ Sign-up is invitation-only. An admin manages who can register, and what they can
 - **Invite someone:** enter their email and choose a role (User or Admin). No email is sent. Tell them to register at `/register` with that address. Once they register, the invite is used up and they move to the users list with the role from their invite.
 - **Change a role:** applies to pending invites and to existing users. A change to an existing user takes effect on their next request; they don't have to sign in again.
 - **Revoke access:** signs the user out at once and stops them signing in. Their account and comments stay (deleting the account would delete their comments too), and **Restore access** reverses it.
+- **Edit a user:** click their name, or the pencil icon, to open `/admin/users/<id>`. From there you can change their name, sign-in email, role and access, and save them all at once. The new email must not belong to another account or a pending invite (remove the invite first). No email is sent when it changes, so tell them. Admins can't set or reset passwords here. Only the user can change their password, at `/account/password`.
 
 Admins can't change their own role or revoke their own access, so there is always at least one active admin. Pending invites live in the `invites` table; revoked users have `users.disabled_at` set. `requireAuth` re-reads the user row on every request, so the role in the JWT is never trusted on its own.
 

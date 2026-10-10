@@ -1,5 +1,6 @@
-import type { Role, UserUpdate } from '@/app/features/admin/models/user.models';
+import type { AdminUsersResponse, Role, UserUpdate } from '@/app/features/admin/models/user.models';
 import type { AdminUsersService } from '@/app/features/admin/services/admin-users.service';
+import { AuthQueryKeys } from '@/app/features/auth/queries/auth.queries';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 export const AdminUsersQueryKeys = {
@@ -18,7 +19,15 @@ export const createAdminUsersQueries = (service: AdminUsersService) => {
         const qc = useQueryClient();
         return useMutation({
             mutationFn: ({ id, update }: { id: string; update: UserUpdate }) => service.updateUser(id, update),
-            onSuccess: () => qc.invalidateQueries({ queryKey: AdminUsersQueryKeys.list }),
+            onSuccess: (updated) => {
+                qc.setQueryData<AdminUsersResponse>(
+                    AdminUsersQueryKeys.list,
+                    (old) => old && { ...old, users: old.users.map((u) => (u.id === updated.id ? updated : u)) },
+                );
+                qc.invalidateQueries({ queryKey: AdminUsersQueryKeys.list });
+                // An admin may have edited their own name or email.
+                qc.invalidateQueries({ queryKey: AuthQueryKeys.me });
+            },
         });
     };
 

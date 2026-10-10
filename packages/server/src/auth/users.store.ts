@@ -67,6 +67,16 @@ export function updateUserPasswordHash(id: string, passwordHash: string): void {
     getDb().prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(passwordHash, id);
 }
 
+export function updateUserProfile(id: string, profile: { displayName?: string; email?: string }): void {
+    const db = getDb();
+    if (profile.displayName !== undefined) {
+        db.prepare('UPDATE users SET display_name = ? WHERE id = ?').run(profile.displayName, id);
+    }
+    if (profile.email !== undefined) {
+        db.prepare('UPDATE users SET email = ? WHERE id = ?').run(profile.email, id);
+    }
+}
+
 export function updateUserRole(id: string, role: Role): void {
     getDb().prepare('UPDATE users SET role = ? WHERE id = ?').run(role, id);
 }
