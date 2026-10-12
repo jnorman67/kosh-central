@@ -1849,6 +1849,15 @@ const migrations: Migration[] = [
             ALTER TABLE persons ADD COLUMN proposed INTEGER NOT NULL DEFAULT 0 CHECK (proposed IN (0, 1));
         `,
     },
+    {
+        version: 38,
+        description: 'users: add activity_seen_at, when each user last opened the comment activity feed',
+        // NULL until the first visit, so every commented photo counts as new until then.
+        sql: `
+            ALTER TABLE users ADD COLUMN activity_seen_at TEXT;
+            CREATE INDEX idx_photo_comments_created_at ON photo_comments(created_at);
+        `,
+    },
 ];
 
 /**

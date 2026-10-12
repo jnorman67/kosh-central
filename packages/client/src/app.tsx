@@ -1,3 +1,4 @@
+import { ActivityQueryProvider } from '@/app/features/activity/contexts/activity-query.context';
 import { AuthQueryProvider } from '@/app/features/auth/contexts/auth-query.context';
 import { AuthQueryKeys } from '@/app/features/auth/queries/auth.queries';
 import { FeaturedQueryProvider } from '@/app/features/featured/contexts/featured-query.context';
@@ -29,9 +30,11 @@ export function App() {
         <QueryClientProvider client={queryClient}>
             <AuthQueryProvider>
                 <FeaturedQueryProvider>
-                    <TooltipProvider delayDuration={300}>
-                        <RouterProvider router={router} />
-                    </TooltipProvider>
+                    <ActivityQueryProvider>
+                        <TooltipProvider delayDuration={300}>
+                            <RouterProvider router={router} />
+                        </TooltipProvider>
+                    </ActivityQueryProvider>
                 </FeaturedQueryProvider>
             </AuthQueryProvider>
         </QueryClientProvider>

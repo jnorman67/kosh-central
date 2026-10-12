@@ -127,6 +127,14 @@ Any user can make their own galleries of the photos tagged with one or more peop
 
 A gallery opens in the normal viewer at `/?gallery=<id>` (with `&photo=` while viewing a photo), so comments, tagged people, OCR, backs, and face boxes all work as they do in an album. Each photo shows which album it came from. Photos are gathered per request, the same way as the featured album's people: albums in their admin-defined order, then each album's own photo order, one entry per physical photo. Tagging someone on a photo marks gallery data stale, so the change shows up on the next visit. Galleries live in `person_galleries` and `person_gallery_persons`. Deleting a person removes them from any gallery. The cross-album lookup shared with the featured album is in `services/tagged-photos.service.ts`.
 
+## Activity Feed
+
+The **Activity** button in the viewer header (a speech bubble) opens `/activity`, a scrolling feed of commented photos, most recently commented first. Each card shows the photo, the album it's in, and its latest three comments, with a **Reply** box. Tapping the photo opens it in the viewer, and the viewer's back button returns to the same place in the feed. More photos load as the reader nears the end.
+
+The button's badge counts photos that other people have commented on since the user last opened the feed. Opening the feed resets the count. Comments that arrived since the previous visit are marked **New**, and stay marked when the reader goes into the viewer and comes back within 30 minutes. The last visit is stored in `users.activity_seen_at`, which is NULL until the first visit. Until then nothing is marked New, and every commented photo counts toward the badge.
+
+The feed (`GET /api/comments/activity`) pages by the last comment's time and bundle id rather than by offset, so new comments don't shift later pages. Photos that no album lists any more are left out, so a page can come back short. The client keeps loading until the screen fills. The routes are in `routes/comments.router.ts`.
+
 ## Tagging People
 
 Any signed-in user can tag people in a photo from the **People** panel in the viewer (`POST /api/photos/:photoId/subjects`). Users can remove the tags they added. Admins can remove any tag and set a person's portrait. Anyone can flag a tag as wrong, which starts a comment.

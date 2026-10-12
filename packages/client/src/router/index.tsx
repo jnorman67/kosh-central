@@ -1,3 +1,4 @@
+import { ActivityPage } from '@/app/features/activity/pages/activity-page';
 import { AdminQueryProvider } from '@/app/features/admin/contexts/admin-query.context';
 import { FeaturedAdminPage } from '@/app/features/admin/pages/featured-admin-page';
 import { FoldersAdminPage } from '@/app/features/admin/pages/folders-admin-page';
@@ -37,6 +38,16 @@ export const router = createBrowserRouter([
                         </CommentsQueryProvider>
                     </GalleriesQueryProvider>
                 </PhotosQueryProvider>
+            </AuthGuard>
+        ),
+    },
+    {
+        path: '/activity',
+        element: (
+            <AuthGuard>
+                <CommentsQueryProvider>
+                    <ActivityPage />
+                </CommentsQueryProvider>
             </AuthGuard>
         ),
     },

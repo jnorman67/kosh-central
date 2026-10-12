@@ -180,3 +180,107 @@ export function deleteComment(id: string): boolean {
         .run(id);
     return result.changes > 0;
 }
+
+/** A photo (bundle) with comments, as the activity feed lists it. */
+export interface ActiveBundle {
+    bundleId: string;
+    lastCommentAt: string;
+    commentCount: number;
+}
+
+/** Where a page of the activity feed starts: just after this bundle in feed order. */
+export interface ActivityCursor {
+    lastCommentAt: string;
+    bundleId: string;
+}
+
+/**
+ * Commented photos, most recently commented first. Pages by keyset rather than offset so a
+ * comment posted while someone scrolls doesn't shift later pages and repeat or skip a photo.
+ */
+export function listActiveBundles(after: ActivityCursor | null, limit: number): ActiveBundle[] {
+    const rows = getDb()
+        .prepare(
+            `SELECT bundle_id, MAX(created_at) AS last_comment_at, COUNT(*) AS comment_count
+             FROM photo_comments
+             GROUP BY bundle_id
+             HAVING @at IS NULL
+                 OR last_comment_at < @at
+                 OR (last_comment_at = @at AND bundle_id < @bundleId)
+             ORDER BY last_comment_at DESC, bundle_id DESC
+             LIMIT @limit`,
+        )
+        .all({ at: after?.lastCommentAt ?? null, bundleId: after?.bundleId ?? null, limit }) as {
+        bundle_id: string;
+        last_comment_at: string;
+        comment_count: number;
+    }[];
+    return rows.map((r) => ({ bundleId: r.bundle_id, lastCommentAt: r.last_comment_at, commentCount: r.comment_count }));
+}
+
+/**
+ * The latest `perBundle` comments on each of the given bundles, oldest first within each.
+ * `photoIdByBundle` names the photo the comments are reported against, as `listCommentsForPhoto` does.
+ */
+export function listRecentCommentsForBundles(
+    photoIdByBundle: ReadonlyMap<string, string>,
+    perBundle: number,
+): Map<string, StoredComment[]> {
+    const result = new Map<string, StoredComment[]>();
+    const bundleIds = [...photoIdByBundle.keys()];
+    if (bundleIds.length === 0) return result;
+    const ph = bundleIds.map(() => '?').join(',');
+    const rows = getDb()
+        .prepare(
+            `SELECT id, bundle_id, author_id, author_display_name, body, created_at, edited_at
+             FROM (
+                 SELECT c.id, c.bundle_id, c.author_id, u.display_name AS author_display_name,
+                        c.body, c.created_at, c.edited_at,
+                        ROW_NUMBER() OVER (PARTITION BY c.bundle_id ORDER BY c.created_at DESC, c.id DESC) AS rn
+                 FROM photo_comments c
+                 JOIN users u ON u.id = c.author_id
+                 WHERE c.bundle_id IN (${ph})
+             )
+             WHERE rn <= ?
+             ORDER BY created_at ASC, id ASC`,
+        )
+        .all(...bundleIds, perBundle) as CommentRow[];
+
+    const mentionMap = fetchMentionsForComments(rows.map((r) => r.id));
+    for (const row of rows) {
+        if (!result.has(row.bundle_id)) result.set(row.bundle_id, []);
+        result.get(row.bundle_id)!.push(rowToComment(row, photoIdByBundle.get(row.bundle_id)!, mentionMap.get(row.id) ?? []));
+    }
+    return result;
+}
+
+/** How many photos have comments from other people since the user last opened the activity feed. */
+export function countUnseenActiveBundles(userId: string): number {
+    const row = getDb()
+        .prepare(
+            `SELECT COUNT(DISTINCT c.bundle_id) AS n
+             FROM photo_comments c
+             JOIN users u ON u.id = ?
+             WHERE c.author_id != u.id
+               AND (u.activity_seen_at IS NULL OR c.created_at > u.activity_seen_at)`,
+        )
+        .get(userId) as { n: number };
+    return row.n;
+}
+
+export function getActivitySeenAt(userId: string): string | null {
+    const row = getDb().prepare('SELECT activity_seen_at FROM users WHERE id = ?').get(userId) as
+        | { activity_seen_at: string | null }
+        | undefined;
+    return row?.activity_seen_at ?? null;
+}
+
+/** Record that the user has just looked at the activity feed, returning when they last had before this. */
+export function markActivitySeen(userId: string): string | null {
+    const db = getDb();
+    return db.transaction(() => {
+        const previous = getActivitySeenAt(userId);
+        db.prepare(`UPDATE users SET activity_seen_at = datetime('now') WHERE id = ?`).run(userId);
+        return previous;
+    })();
+}

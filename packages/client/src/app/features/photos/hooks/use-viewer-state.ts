@@ -10,9 +10,10 @@ const PATH_PARAM = 'path';
 const PHOTO_PARAM = 'photo';
 const VIEW_PARAM = 'view';
 
-/** History state on a photo entry pushed from a gallery, so "back to gallery" can pop to that entry. */
+/** History state on a photo entry pushed from a gallery or the activity feed, so "back" can pop to that entry. */
 interface PhotoEntryState {
     openedFromGallery?: boolean;
+    openedFromActivity?: boolean;
 }
 
 /** The subfolder of a browse album the URL points at ('' for its root). Flatten albums have no subfolders to open. */
@@ -147,7 +148,7 @@ export function useViewerState({ folders, viewablePhotos }: UseViewerStateArgs) 
         if (!scope) return;
         // Pop back to the gallery entry the photo was opened from rather than stacking a duplicate,
         // so the browser's back button then leaves the gallery as expected.
-        if (entryState?.openedFromGallery) navigate(-1);
+        if (entryState?.openedFromGallery || entryState?.openedFromActivity) navigate(-1);
         else updateParams(buildParams(scope, currentPath, pagesView), { replace: true });
     }, [scope, currentPath, pagesView, entryState, navigate, updateParams]);
 
@@ -172,6 +173,8 @@ export function useViewerState({ folders, viewablePhotos }: UseViewerStateArgs) 
     return {
         currentFolder,
         currentGalleryId: galleryParam,
+        /** The photo was opened from the activity feed, which "back" returns to. */
+        openedFromActivity: !!entryState?.openedFromActivity,
         currentPath,
         currentPhotoIndex,
         pagesView,

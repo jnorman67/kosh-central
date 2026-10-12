@@ -133,7 +133,7 @@ app.use('/api/admin/persons', requireAuth, createPersonsAdminRouter());
 app.use('/api/persons', requireAuth, createPersonsRouter(oneDriveService, thumbnailCache));
 app.use('/api/relations', requireAuth, createRelationsRouter());
 app.use('/api/series', requireAuth, createSeriesRouter());
-app.use('/api/comments', requireAuth, createCommentsRouter());
+app.use('/api/comments', requireAuth, createCommentsRouter(oneDriveService));
 app.use('/api/ocr', requireAuth, createOcrRouter());
 app.use('/api/admin/ocr', requireAuth, createOcrAdminRouter(oneDriveService));
 app.use('/api/admin/sidecars', requireAuth, createSidecarsAdminRouter(sidecarImportService));

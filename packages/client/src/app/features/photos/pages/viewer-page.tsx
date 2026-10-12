@@ -1,3 +1,4 @@
+import { ActivityButton } from '@/app/features/activity/components/activity-button';
 import { useAuthQueries } from '@/app/features/auth/contexts/auth-query.context';
 import { CommentPanel } from '@/app/features/comments/components/comment-panel';
 import { FeaturedBanner } from '@/app/features/featured/components/featured-banner';
@@ -147,6 +148,7 @@ export function ViewerPage() {
     const {
         currentFolder,
         currentGalleryId,
+        openedFromActivity,
         currentPath,
         currentPhotoIndex,
         view: navView,
@@ -248,14 +250,17 @@ export function ViewerPage() {
     const peopleGalleryNames = peopleGallery ? listFormat.format(peopleGallery.persons.map((p) => p.fullName)) : '';
     // On phones a photo's back button doubles as the page title, naming where it goes back to. A subfolder,
     // or an album's pages, is captioned with the folder it belongs to.
-    const photoBackTitle = peopleGallery?.name ?? (pagesView ? 'Pages' : subfolderName || currentFolder?.displayName || 'Gallery');
-    const photoBackCaption = peopleGallery
-        ? undefined
-        : pagesView
-          ? subfolderName || currentFolder?.displayName
-          : subfolderName
-            ? currentFolder?.displayName
-            : undefined;
+    const photoBackTitle = openedFromActivity
+        ? 'Activity'
+        : (peopleGallery?.name ?? (pagesView ? 'Pages' : subfolderName || currentFolder?.displayName || 'Gallery'));
+    const photoBackCaption =
+        openedFromActivity || peopleGallery
+            ? undefined
+            : pagesView
+              ? subfolderName || currentFolder?.displayName
+              : subfolderName
+                ? currentFolder?.displayName
+                : undefined;
 
     const handleToggleCover = (path: string, isCover: boolean) => {
         if (!currentFolder || !currentPhoto) return;
@@ -291,7 +296,13 @@ export function ViewerPage() {
                                 {isPhoto && (
                                     <BackToGalleryButton
                                         onClick={backToGallery}
-                                        target={pagesView ? 'pages' : subfolderName || peopleGallery?.name || 'gallery'}
+                                        target={
+                                            openedFromActivity
+                                                ? 'activity'
+                                                : pagesView
+                                                  ? 'pages'
+                                                  : subfolderName || peopleGallery?.name || 'gallery'
+                                        }
                                         title={photoBackTitle}
                                         caption={photoBackCaption}
                                     />
@@ -390,6 +401,7 @@ export function ViewerPage() {
                             {isGallery && peopleGallery && <GalleryActions gallery={peopleGallery} onDeleted={goToAlbums} />}
                             {/* The album list carries its own featured banner. */}
                             {!isAlbums && <FeaturedButton />}
+                            <ActivityButton />
                             <UserMenu />
                         </div>
                     </div>
