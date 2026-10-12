@@ -39,7 +39,7 @@ export function GalleriesSection({ onSelect }: GalleriesSectionProps) {
                 </Button>
             </div>
             {galleries.length > 0 ? (
-                <div className="grid grid-cols-1 gap-6 sm:grid-cols-[repeat(auto-fill,minmax(240px,1fr))]">
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-[repeat(auto-fill,minmax(240px,1fr))] sm:gap-6">
                     {galleries.map((gallery) => {
                         const info = byId.get(gallery.id);
                         return (

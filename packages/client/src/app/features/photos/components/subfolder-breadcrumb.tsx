@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { cn } from '@/lib/utils';
 import { ArrowUp, ChevronRight } from 'lucide-react';
 import { Fragment } from 'react';
 
@@ -8,38 +9,52 @@ interface SubfolderBreadcrumbProps {
     path: string;
     albumName: string;
     onNavigate: (path: string) => void;
+    className?: string;
 }
 
-// Where the user is inside a browse album, following the album selector. Ancestors are links
-// (desktop only, for space); the up button always goes one level toward the album root.
-export function SubfolderBreadcrumb({ path, albumName, onNavigate }: SubfolderBreadcrumbProps) {
+/** Goes one level toward the album root. */
+export function SubfolderUpButton({ path, albumName, onNavigate, className }: SubfolderBreadcrumbProps) {
     const segments = path.split('/');
     const parentPath = segments.slice(0, -1).join('/');
     const parentName = segments.length > 1 ? segments[segments.length - 2] : albumName;
 
     return (
-        <nav aria-label="Folder" className="flex min-w-0 items-center gap-1 text-sm">
-            <Tooltip>
-                <TooltipTrigger asChild>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => onNavigate(parentPath)}
-                        aria-label={`Up to ${parentName}`}
-                        className="shrink-0"
-                    >
-                        <ArrowUp className="h-4 w-4" />
-                    </Button>
-                </TooltipTrigger>
-                <TooltipContent>Up to {parentName} (Esc)</TooltipContent>
-            </Tooltip>
+        <Tooltip>
+            <TooltipTrigger asChild>
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => onNavigate(parentPath)}
+                    aria-label={`Up to ${parentName}`}
+                    className={cn('shrink-0', className)}
+                >
+                    <ArrowUp className="h-4 w-4" />
+                </Button>
+            </TooltipTrigger>
+            <TooltipContent>Up to {parentName} (Esc)</TooltipContent>
+        </Tooltip>
+    );
+}
+
+// Where the user is inside a browse album, following the album selector. Ancestors are links
+// (desktop only, for space). Phones show just the current folder, titled under the album name,
+// and put the up button at the start of the header instead.
+export function SubfolderBreadcrumb({ path, albumName, onNavigate, className }: SubfolderBreadcrumbProps) {
+    const segments = path.split('/');
+
+    return (
+        <nav aria-label="Folder" className={cn('flex min-w-0 max-w-full items-center gap-1 text-sm', className)}>
+            <SubfolderUpButton path={path} albumName={albumName} onNavigate={onNavigate} className="hidden sm:inline-flex" />
             {segments.map((name, i) => {
                 const isLast = i === segments.length - 1;
                 return (
                     <Fragment key={i}>
                         {i > 0 && <ChevronRight className="hidden h-4 w-4 shrink-0 text-muted-foreground sm:block" />}
                         {isLast ? (
-                            <span className="truncate font-medium" title={name}>
+                            <span
+                                className="truncate px-1 text-[15px] font-semibold leading-tight text-amber-950 sm:px-0 sm:text-sm sm:font-medium sm:leading-normal sm:text-foreground"
+                                title={name}
+                            >
                                 {name}
                             </span>
                         ) : (

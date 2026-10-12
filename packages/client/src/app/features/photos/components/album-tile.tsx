@@ -66,8 +66,9 @@ export function AlbumTile({ title, coverUrl, subtitle, isNew, isLoading, placeIt
                         New
                     </span>
                 )}
-                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-3 text-left">
-                    <div className="truncate text-sm font-medium text-white">{title}</div>
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-2.5 text-left sm:p-3">
+                    {/* Two lines, so sibling folders that share a long prefix stay tellable apart. */}
+                    <div className="line-clamp-2 text-sm font-medium leading-snug text-white">{title}</div>
                     {subtitle && <div className="text-xs text-zinc-300">{subtitle}</div>}
                 </div>
             </div>

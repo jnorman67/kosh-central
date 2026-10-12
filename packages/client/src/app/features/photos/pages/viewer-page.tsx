@@ -17,7 +17,7 @@ import { PhotoGallery } from '@/app/features/photos/components/photo-gallery';
 import { PhotoPagesReader } from '@/app/features/photos/components/photo-pages-reader';
 import { RelatedStrip } from '@/app/features/photos/components/related-strip';
 import { RelatedThumbnail } from '@/app/features/photos/components/related-thumbnail';
-import { SubfolderBreadcrumb } from '@/app/features/photos/components/subfolder-breadcrumb';
+import { SubfolderBreadcrumb, SubfolderUpButton } from '@/app/features/photos/components/subfolder-breadcrumb';
 import { SubjectsPanel } from '@/app/features/photos/components/subjects-panel';
 import { usePhotosQueries } from '@/app/features/photos/contexts/photos-query.context';
 import { SubjectsQueryProvider } from '@/app/features/photos/contexts/subjects-query.context';
@@ -39,6 +39,7 @@ import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { hideSplash } from '@/lib/splash';
+import { cn } from '@/lib/utils';
 import { ArrowRight, BookOpen, ChevronDown, ExternalLink, Filter, LayoutGrid, ScanFace, Star, StarOff, Users, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
@@ -245,6 +246,16 @@ export function ViewerPage() {
     const featuredPersonNames = (!peopleGalleryId && !pagesView && galleryData?.featuredPersonNames) || [];
     const listFormat = new Intl.ListFormat('en', { type: 'conjunction' });
     const peopleGalleryNames = peopleGallery ? listFormat.format(peopleGallery.persons.map((p) => p.fullName)) : '';
+    // On phones a photo's back button doubles as the page title, naming where it goes back to. A subfolder,
+    // or an album's pages, is captioned with the folder it belongs to.
+    const photoBackTitle = peopleGallery?.name ?? (pagesView ? 'Pages' : subfolderName || currentFolder?.displayName || 'Gallery');
+    const photoBackCaption = peopleGallery
+        ? undefined
+        : pagesView
+          ? subfolderName || currentFolder?.displayName
+          : subfolderName
+            ? currentFolder?.displayName
+            : undefined;
 
     const handleToggleCover = (path: string, isCover: boolean) => {
         if (!currentFolder || !currentPhoto) return;
@@ -268,11 +279,11 @@ export function ViewerPage() {
                     <div className="flex min-h-[52px] items-center justify-between gap-2 pl-1 sm:pl-0">
                         {isAlbums ? (
                             <div className="flex min-w-0 items-center gap-2">
-                                <BrandMark title="Kosh Central" />
+                                <BrandMark title="Kosh Central" showName />
                                 <span className="hidden text-sm text-muted-foreground sm:inline">All albums</span>
                             </div>
                         ) : (
-                            <div className="flex min-w-0 flex-1 items-center gap-2 sm:flex-none">
+                            <div className="flex min-w-0 flex-1 items-center gap-1 sm:gap-2">
                                 {/* On phones the back button is the way out of a photo; the album list is a step further. */}
                                 <div className={isPhoto ? 'hidden sm:block' : undefined}>
                                     <BrandMark onClick={goToAlbums} title="Browse albums" />
@@ -281,31 +292,51 @@ export function ViewerPage() {
                                     <BackToGalleryButton
                                         onClick={backToGallery}
                                         target={pagesView ? 'pages' : subfolderName || peopleGallery?.name || 'gallery'}
-                                    />
-                                )}
-                                {currentGalleryId ? (
-                                    <div
-                                        className="flex min-w-0 flex-1 items-center gap-2 px-2 py-2 text-sm font-medium sm:flex-none sm:px-4"
-                                        title={peopleGalleryNames}
-                                    >
-                                        <Users className="h-4 w-4 shrink-0 text-muted-foreground" />
-                                        <span className="truncate">{peopleGallery?.name ?? 'Gallery'}</span>
-                                    </div>
-                                ) : (
-                                    <FolderSelector
-                                        folders={folders}
-                                        selectedId={currentFolder?.id ?? null}
-                                        onSelect={setFolder}
-                                        isLoading={foldersLoading}
+                                        title={photoBackTitle}
+                                        caption={photoBackCaption}
                                     />
                                 )}
                                 {isGallery && currentFolder && currentPath && (
-                                    <SubfolderBreadcrumb
+                                    <SubfolderUpButton
                                         path={currentPath}
                                         albumName={currentFolder.displayName}
                                         onNavigate={openSubfolder}
+                                        className="sm:hidden"
                                     />
                                 )}
+                                {/* Phones title the page here, with a subfolder under its album; a photo is titled by its back
+                                    button instead. Wider screens run the album selector and breadcrumb in a row. */}
+                                <div
+                                    className={cn(
+                                        'min-w-0 flex-1 flex-col items-start sm:flex sm:flex-row sm:items-center sm:gap-2',
+                                        isPhoto ? 'hidden' : 'flex',
+                                    )}
+                                >
+                                    {currentGalleryId ? (
+                                        <div
+                                            className="flex min-w-0 max-w-full items-center gap-2 px-1 py-1 text-[15px] font-semibold leading-tight text-amber-950 sm:px-4 sm:py-2 sm:text-sm sm:font-medium sm:text-foreground"
+                                            title={peopleGalleryNames}
+                                        >
+                                            <Users className="h-4 w-4 shrink-0 text-muted-foreground" />
+                                            <span className="line-clamp-2 sm:line-clamp-1">{peopleGallery?.name ?? 'Gallery'}</span>
+                                        </div>
+                                    ) : (
+                                        <FolderSelector
+                                            folders={folders}
+                                            selectedId={currentFolder?.id ?? null}
+                                            onSelect={setFolder}
+                                            isLoading={foldersLoading}
+                                            caption={isGallery && !!currentPath}
+                                        />
+                                    )}
+                                    {isGallery && currentFolder && currentPath && (
+                                        <SubfolderBreadcrumb
+                                            path={currentPath}
+                                            albumName={currentFolder.displayName}
+                                            onNavigate={openSubfolder}
+                                        />
+                                    )}
+                                </div>
                             </div>
                         )}
                         <div className="flex shrink-0 items-center gap-1 pr-1 sm:gap-3 sm:px-4">
@@ -563,12 +594,13 @@ export function ViewerPage() {
                             )}
                         </div>
                     ) : (
-                        <div className="flex items-center justify-between gap-2 px-2 py-2 sm:grid sm:grid-cols-3 sm:px-4">
-                            <div className="hidden min-w-0 items-center justify-start gap-3 sm:flex">
+                        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 px-2 py-2 sm:grid-cols-3 sm:px-4">
+                            {/* Empty on phones, but still holds its column so the photo controls stay centered. */}
+                            <div className="flex min-w-0 items-center justify-start gap-3">
                                 {shareLink && (
                                     <Tooltip>
                                         <TooltipTrigger asChild>
-                                            <Button variant="ghost" size="sm" asChild className="shrink-0">
+                                            <Button variant="ghost" size="sm" asChild className="hidden shrink-0 sm:inline-flex">
                                                 <a href={shareLink} target="_blank" rel="noreferrer">
                                                     <ExternalLink className="h-4 w-4" />
                                                     <span className="sr-only">Open in OneDrive</span>
@@ -579,7 +611,7 @@ export function ViewerPage() {
                                     </Tooltip>
                                 )}
                                 {displayPhoto && (
-                                    <span className="truncate text-sm text-muted-foreground" title={displayPhoto.name}>
+                                    <span className="hidden truncate text-sm text-muted-foreground sm:block" title={displayPhoto.name}>
                                         {displayPhoto.name}
                                         {displayPhoto.sourceFolderDisplayName && ` · from ${displayPhoto.sourceFolderDisplayName}`}
                                     </span>

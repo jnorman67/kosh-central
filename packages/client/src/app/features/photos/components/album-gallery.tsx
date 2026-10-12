@@ -33,7 +33,7 @@ export function AlbumGallery({ folders, onSelect, placeKey, leading }: AlbumGall
     return (
         <div ref={ref} className="h-full overflow-auto bg-black p-4 sm:p-6">
             {leading}
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-[repeat(auto-fill,minmax(240px,1fr))]">
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-[repeat(auto-fill,minmax(240px,1fr))] sm:gap-6">
                 {folders.map((folder) => {
                     const info = byId.get(folder.id);
                     return (

@@ -9,10 +9,12 @@ interface SubjectsPanelProps {
     currentUserId: string;
     isAdmin: boolean;
     onDisputeSubject: (personId: string, personName: string) => void;
+    /** Leave out the "People" heading when the panel sits under one already, e.g. a collapsible section. */
+    hideHeading?: boolean;
     className?: string;
 }
 
-export function SubjectsPanel({ photoId, currentUserId, isAdmin, onDisputeSubject, className }: SubjectsPanelProps) {
+export function SubjectsPanel({ photoId, currentUserId, isAdmin, onDisputeSubject, hideHeading = false, className }: SubjectsPanelProps) {
     const { usePhotoSubjects, useSubjectSuggestions, useSearchPersons, useAddSubject, useRemoveSubject, useProposeAndTag, useSetPortrait } =
         useSubjectsQueries();
 
@@ -87,23 +89,39 @@ export function SubjectsPanel({ photoId, currentUserId, isAdmin, onDisputeSubjec
 
     return (
         <div className={`border-b border-amber-200 ${className ?? ''}`}>
-            <div className="flex items-center justify-between px-4 py-2">
-                <h3 className="text-sm font-semibold text-amber-900">
-                    People {subjects.length > 0 && <span className="font-normal text-muted-foreground">({subjects.length})</span>}
-                </h3>
-                {!showSearch && (
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-6 p-0"
-                        onClick={openSearch}
-                        aria-label="Tag a person"
-                        title="Tag a person"
-                    >
-                        <Plus className="h-3.5 w-3.5" />
-                    </Button>
-                )}
-            </div>
+            {hideHeading ? (
+                !showSearch && (
+                    <div className="px-2 pb-1">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-amber-800 hover:bg-amber-50 hover:text-amber-900"
+                            onClick={openSearch}
+                        >
+                            <Plus className="h-4 w-4" />
+                            Tag a person
+                        </Button>
+                    </div>
+                )
+            ) : (
+                <div className="flex items-center justify-between px-4 py-2">
+                    <h3 className="text-sm font-semibold text-amber-900">
+                        People {subjects.length > 0 && <span className="font-normal text-muted-foreground">({subjects.length})</span>}
+                    </h3>
+                    {!showSearch && (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0"
+                            onClick={openSearch}
+                            aria-label="Tag a person"
+                            title="Tag a person"
+                        >
+                            <Plus className="h-3.5 w-3.5" />
+                        </Button>
+                    )}
+                </div>
+            )}
 
             {portraitToast && (
                 <div className="mx-4 mb-1 rounded border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-xs text-emerald-700">
@@ -127,7 +145,7 @@ export function SubjectsPanel({ photoId, currentUserId, isAdmin, onDisputeSubjec
                                 closeSearch();
                             }
                         }}
-                        className="h-7 text-sm"
+                        className="h-9 md:h-7"
                     />
                     {(filteredResults.length > 0 || canPropose) && typedName.length > 0 && (
                         <div data-search-panel className="absolute z-10 mt-1 w-[calc(100%-2rem)] rounded-md border bg-background shadow-md">

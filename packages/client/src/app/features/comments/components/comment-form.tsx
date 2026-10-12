@@ -253,10 +253,10 @@ export function CommentForm({
                     suppressContentEditableWarning
                     onInput={handleInput}
                     onKeyDown={handleKeyDown}
-                    className="min-h-[4.5rem] w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
+                    className="min-h-[4.5rem] w-full rounded-md border border-input bg-background px-3 py-2 text-base focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50 md:text-sm"
                 />
                 {isEmpty && (
-                    <span className="pointer-events-none absolute left-3 top-2 select-none text-sm text-muted-foreground">
+                    <span className="pointer-events-none absolute left-3 top-2 select-none text-base text-muted-foreground md:text-sm">
                         Add a comment… (type @ to mention)
                     </span>
                 )}

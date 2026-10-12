@@ -55,6 +55,9 @@ export class OneDriveService {
     private inFlight = new Map<string, Promise<Photo[]>>();
     /** itemId → anonymous view URL. Graph's createLink is idempotent per-app, so these are stable. */
     private shareLinkCache = new Map<string, string>();
+    /** Listing requests to Graph under way, and walks waiting for one to finish (see withGraphSlot). */
+    private graphRequests = 0;
+    private graphWaiters: (() => void)[] = [];
 
     /** A listing older than this is still served, but refreshed in the background. */
     private static readonly REFRESH_AFTER_MS = 10 * 60 * 1000;
@@ -64,6 +67,11 @@ export class OneDriveService {
     private static readonly WARM_INTERVAL_MS = 5 * 60 * 1000;
 
     private static readonly FETCH_TIMEOUT_MS = 30_000;
+    /**
+     * Most listing requests in flight at once, across every album. On a cold start /covers lists
+     * all albums together; without a cap their parallel subfolder walks would swamp Graph.
+     */
+    private static readonly MAX_GRAPH_REQUESTS = 8;
 
     constructor(private msalService: MsalService) {}
 
@@ -164,36 +172,16 @@ export class OneDriveService {
         const accessToken = await this.msalService.getAccessToken();
         const encoded = this.encodeSharingUrl(sharingUrl);
         const rootChildrenUrl = `https://graph.microsoft.com/v1.0/shares/${encoded}/driveItem/children?$expand=thumbnails`;
-
-        const photos: Photo[] = [];
-        await this.collectPhotos(rootChildrenUrl, accessToken, '', photos);
-        return photos;
+        return this.collectPhotos(rootChildrenUrl, accessToken, '');
     }
 
     /**
-     * Walk a children listing, appending image items to `out` and recursing
-     * into folder items. Follows `@odata.nextLink` for paginated listings.
+     * Walk a children listing, returning its image items and recursing into folder items.
+     * Follows `@odata.nextLink` for paginated listings. Subfolders are walked in parallel (Graph
+     * takes seconds per request, and an album can have dozens of subfolders), but photos come back
+     * in listing order: each folder's photos at that folder's position, the next page after.
      */
-    private async collectPhotos(
-        childrenUrl: string,
-        accessToken: string,
-        subfolderPath: string,
-        out: Photo[],
-    ): Promise<void> {
-        const response = await fetchWithRetry(
-            childrenUrl,
-            {
-                headers: {
-                    Accept: 'application/json',
-                    Authorization: `Bearer ${accessToken}`,
-                },
-            },
-            OneDriveService.FETCH_TIMEOUT_MS,
-        );
-        if (!response.ok) {
-            throw new Error(`Graph API error: ${response.status} ${response.statusText}`);
-        }
-
+    private async collectPhotos(childrenUrl: string, accessToken: string, subfolderPath: string): Promise<Photo[]> {
         type ThumbnailSet = {
             small?: { url: string };
             medium?: { url: string };
@@ -208,8 +196,25 @@ export class OneDriveService {
             thumbnails?: ThumbnailSet[];
             parentReference?: { driveId?: string };
         };
-        const json = (await response.json()) as { value?: Item[]; '@odata.nextLink'?: string };
+        // Hold a Graph slot only for this request, not the recursive walks, or nested folders deadlock.
+        const json = await this.withGraphSlot(async () => {
+            const response = await fetchWithRetry(
+                childrenUrl,
+                {
+                    headers: {
+                        Accept: 'application/json',
+                        Authorization: `Bearer ${accessToken}`,
+                    },
+                },
+                OneDriveService.FETCH_TIMEOUT_MS,
+            );
+            if (!response.ok) {
+                throw new Error(`Graph API error: ${response.status} ${response.statusText}`);
+            }
+            return (await response.json()) as { value?: Item[]; '@odata.nextLink'?: string };
+        });
 
+        const parts: (Photo[] | Promise<Photo[]>)[] = [];
         for (const item of json.value ?? []) {
             if (item.folder) {
                 if (['archive', 'archived', 'ignore'].includes(item.name.toLowerCase())) continue;
@@ -217,25 +222,42 @@ export class OneDriveService {
                 if (!driveId) continue;
                 const childUrl = `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${item.id}/children?$expand=thumbnails`;
                 const nextSub = subfolderPath ? `${subfolderPath}/${item.name}` : item.name;
-                await this.collectPhotos(childUrl, accessToken, nextSub, out);
+                parts.push(this.collectPhotos(childUrl, accessToken, nextSub));
                 continue;
             }
             if (!item.file?.mimeType?.startsWith('image/')) continue;
             if (!item.parentReference?.driveId) continue;
             const thumb = item.thumbnails?.[0];
-            out.push({
-                id: item.id,
-                name: item.name,
-                subfolderPath,
-                downloadUrl: item['@microsoft.graph.downloadUrl'] ?? '',
-                thumbnailUrl: thumb?.large?.url ?? thumb?.medium?.url ?? thumb?.small?.url,
-                mimeType: item.file.mimeType,
-                driveId: item.parentReference.driveId,
-            });
+            parts.push([
+                {
+                    id: item.id,
+                    name: item.name,
+                    subfolderPath,
+                    downloadUrl: item['@microsoft.graph.downloadUrl'] ?? '',
+                    thumbnailUrl: thumb?.large?.url ?? thumb?.medium?.url ?? thumb?.small?.url,
+                    mimeType: item.file.mimeType,
+                    driveId: item.parentReference.driveId,
+                },
+            ]);
         }
 
         if (json['@odata.nextLink']) {
-            await this.collectPhotos(json['@odata.nextLink'], accessToken, subfolderPath, out);
+            parts.push(this.collectPhotos(json['@odata.nextLink'], accessToken, subfolderPath));
+        }
+        return (await Promise.all(parts)).flat();
+    }
+
+    /** Run one Graph request once fewer than MAX_GRAPH_REQUESTS are under way across all albums. */
+    private async withGraphSlot<T>(request: () => Promise<T>): Promise<T> {
+        while (this.graphRequests >= OneDriveService.MAX_GRAPH_REQUESTS) {
+            await new Promise<void>((resolve) => this.graphWaiters.push(resolve));
+        }
+        this.graphRequests++;
+        try {
+            return await request();
+        } finally {
+            this.graphRequests--;
+            this.graphWaiters.shift()?.();
         }
     }
 

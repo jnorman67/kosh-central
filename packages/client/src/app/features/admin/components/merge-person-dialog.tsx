@@ -70,7 +70,7 @@ export function MergePersonDialog({ source, persons, onOpenChange, onMerge }: Pr
                         placeholder="Search the index…"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        className="h-8 pl-7 text-sm"
+                        className="h-8 pl-7"
                         autoFocus
                     />
                 </div>

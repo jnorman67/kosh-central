@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { hideSplash } from '@/lib/splash';
+import { cn } from '@/lib/utils';
 import { ArrowLeft, Check, Merge, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
@@ -96,7 +97,7 @@ function PersonDetail({
     ].filter(Boolean);
 
     return (
-        <div className="flex flex-col gap-6 p-6">
+        <div className="flex flex-col gap-6 p-4 sm:p-6">
             <div className="flex items-start justify-between gap-4">
                 <div>
                     <h2 className="text-xl font-semibold">{person.fullName}</h2>
@@ -354,8 +355,8 @@ export function PersonsAdminPage() {
             }
             viewer={
                 <div className="flex h-full overflow-hidden">
-                    {/* ── Sidebar ── */}
-                    <div className="flex w-72 shrink-0 flex-col border-r">
+                    {/* ── Sidebar ── (phones show the list or one person, not both) */}
+                    <div className={cn('w-full shrink-0 flex-col sm:flex sm:w-72 sm:border-r', selected ? 'hidden' : 'flex')}>
                         <div className="flex items-center gap-2 border-b px-3 py-2">
                             <div className="relative flex-1">
                                 <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -363,7 +364,7 @@ export function PersonsAdminPage() {
                                     placeholder="Search…"
                                     value={search}
                                     onChange={(e) => setSearch(e.target.value)}
-                                    className="h-8 pl-7 text-sm"
+                                    className="h-8 pl-7"
                                 />
                             </div>
                             {isAdmin && (
@@ -430,7 +431,13 @@ export function PersonsAdminPage() {
                     </div>
 
                     {/* ── Detail panel ── */}
-                    <div className="flex-1 overflow-y-auto">
+                    <div className={cn('min-w-0 flex-1 overflow-y-auto', !selected && 'hidden sm:block')}>
+                        {selected && (
+                            <Button variant="ghost" size="sm" onClick={() => setSelectedId(null)} className="ml-2 mt-2 sm:hidden">
+                                <ArrowLeft className="h-4 w-4" />
+                                All persons
+                            </Button>
+                        )}
                         {selected ? (
                             <PersonDetail
                                 person={selected}

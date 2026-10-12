@@ -9,10 +9,20 @@ interface CommentPanelProps {
     isAdmin: boolean;
     initialBody?: string;
     onCommentPosted?: () => void;
+    /** Leave out the "Comments" heading when the panel sits under one already, e.g. a collapsible section. */
+    hideHeading?: boolean;
     className?: string;
 }
 
-export function CommentPanel({ photoId, currentUserId, isAdmin, initialBody, onCommentPosted, className }: CommentPanelProps) {
+export function CommentPanel({
+    photoId,
+    currentUserId,
+    isAdmin,
+    initialBody,
+    onCommentPosted,
+    hideHeading = false,
+    className,
+}: CommentPanelProps) {
     const { useGetComments, useCreateComment } = useCommentsQueries();
     const { data: comments = [], isLoading } = useGetComments(photoId);
     const createMutation = useCreateComment();
@@ -23,11 +33,13 @@ export function CommentPanel({ photoId, currentUserId, isAdmin, initialBody, onC
 
     return (
         <div className={`flex flex-col overflow-hidden ${className ?? ''}`}>
-            <div className="border-b border-amber-200 px-4 py-2">
-                <h3 className="text-sm font-semibold text-amber-900">
-                    Comments {comments.length > 0 && <span className="text-muted-foreground font-normal">({comments.length})</span>}
-                </h3>
-            </div>
+            {!hideHeading && (
+                <div className="border-b border-amber-200 px-4 py-2">
+                    <h3 className="text-sm font-semibold text-amber-900">
+                        Comments {comments.length > 0 && <span className="text-muted-foreground font-normal">({comments.length})</span>}
+                    </h3>
+                </div>
+            )}
             <div className="flex-1 overflow-y-auto px-4">
                 {isLoading ? (
                     <p className="py-4 text-center text-sm text-muted-foreground">Loading…</p>
