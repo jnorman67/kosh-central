@@ -1,3 +1,4 @@
+import { defaultGalleryName } from '@/app/features/galleries/lib/people-link';
 import type { Gallery, GalleryInput, GalleryMatchMode } from '@/app/features/galleries/models/galleries.models';
 import { PersonsPicker, type PickedPerson } from '@/app/features/photos/components/persons-picker';
 import { SubjectsQueryProvider } from '@/app/features/photos/contexts/subjects-query.context';
@@ -16,20 +17,17 @@ const MATCH_MODES: { value: GalleryMatchMode; label: string; hint: string }[] = 
     { value: 'all', label: 'All together', hint: 'Only photos with all of these people in them.' },
 ];
 
-/** The name a gallery gets when the user leaves it blank, e.g. "Ann, Bob and Carol". */
-export function defaultGalleryName(persons: PickedPerson[]): string {
-    return new Intl.ListFormat('en', { type: 'conjunction' }).format(persons.map((p) => p.nickname || p.fullName)).slice(0, NAME_MAX);
-}
-
 interface GalleryFormDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     /** The gallery being edited; omit to create one. */
     initial?: Gallery | null;
+    /** What a new gallery starts with, e.g. the people of a shared link being saved. */
+    defaults?: GalleryInput;
     onSubmit: (input: GalleryInput) => Promise<void>;
 }
 
-export function GalleryFormDialog({ open, onOpenChange, initial, onSubmit }: GalleryFormDialogProps) {
+export function GalleryFormDialog({ open, onOpenChange, initial, defaults, onSubmit }: GalleryFormDialogProps) {
     const [name, setName] = useState('');
     const [persons, setPersons] = useState<PickedPerson[]>([]);
     const [matchMode, setMatchMode] = useState<GalleryMatchMode>('any');
@@ -38,12 +36,13 @@ export function GalleryFormDialog({ open, onOpenChange, initial, onSubmit }: Gal
 
     useEffect(() => {
         if (!open) return;
-        setName(initial?.name ?? '');
-        setPersons(initial?.persons ?? []);
-        setMatchMode(initial?.matchMode ?? 'any');
+        const start = initial ?? defaults;
+        setName(start?.name ?? '');
+        setPersons(start?.persons ?? []);
+        setMatchMode(start?.matchMode ?? 'any');
         setFormError(null);
         setSaving(false);
-    }, [open, initial]);
+    }, [open, initial, defaults]);
 
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
@@ -74,7 +73,8 @@ export function GalleryFormDialog({ open, onOpenChange, initial, onSubmit }: Gal
                 <DialogHeader>
                     <DialogTitle>{initial ? 'Edit gallery' : 'New gallery'}</DialogTitle>
                     <DialogDescription>
-                        Gathers the photos tagged with these people from every album. Only you can see it.
+                        Gathers the photos tagged with these people from every album. It's listed only for you, though you can share a link
+                        to it.
                     </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">

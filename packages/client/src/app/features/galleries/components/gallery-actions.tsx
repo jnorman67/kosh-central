@@ -1,5 +1,6 @@
 import { GalleryFormDialog } from '@/app/features/galleries/components/gallery-form-dialog';
 import { useGalleriesQueries } from '@/app/features/galleries/contexts/galleries-query.context';
+import { useShareGalleryLink } from '@/app/features/galleries/hooks/use-share-gallery-link';
 import type { Gallery } from '@/app/features/galleries/models/galleries.models';
 import {
     AlertDialog,
@@ -14,7 +15,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
-import { EllipsisVertical, Pencil, Trash2 } from 'lucide-react';
+import { EllipsisVertical, Pencil, Share2, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 
 interface GalleryActionsProps {
@@ -23,7 +24,7 @@ interface GalleryActionsProps {
     onDeleted: () => void;
 }
 
-/** Edit and delete buttons for the people gallery being viewed. Phones fold them into one menu,
+/** Share, edit and delete buttons for the people gallery being viewed. Phones fold them into one menu,
  *  leaving the header room for the gallery's name. */
 export function GalleryActions({ gallery, onDeleted }: GalleryActionsProps) {
     const { useUpdateGallery, useDeleteGallery } = useGalleriesQueries();
@@ -31,9 +32,13 @@ export function GalleryActions({ gallery, onDeleted }: GalleryActionsProps) {
     const deleteGallery = useDeleteGallery();
     const [editing, setEditing] = useState(false);
     const [confirmingDelete, setConfirmingDelete] = useState(false);
+    const { share, copied } = useShareGalleryLink();
+    // Nobody left to show, so nothing worth sharing.
+    const canShare = gallery.persons.length > 0;
 
     return (
         <>
+            {copied && <span className="text-xs text-muted-foreground">Link copied</span>}
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="sm" className="sm:hidden" aria-label="Gallery options">
@@ -41,6 +46,12 @@ export function GalleryActions({ gallery, onDeleted }: GalleryActionsProps) {
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                    {canShare && (
+                        <DropdownMenuItem onSelect={() => void share(gallery)}>
+                            <Share2 />
+                            Share link
+                        </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem onSelect={() => setEditing(true)}>
                         <Pencil />
                         Edit gallery
@@ -51,6 +62,23 @@ export function GalleryActions({ gallery, onDeleted }: GalleryActionsProps) {
                     </DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>
+            {canShare && (
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => void share(gallery)}
+                            aria-label="Share gallery link"
+                            className="hidden sm:inline-flex"
+                        >
+                            <Share2 className="h-4 w-4" />
+                            <span className="hidden md:inline">Share</span>
+                        </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Copy a link that shows anyone signed in these people’s photos</TooltipContent>
+                </Tooltip>
+            )}
             <Tooltip>
                 <TooltipTrigger asChild>
                     <Button

@@ -1,4 +1,5 @@
 import { useAuthQueries } from '@/app/features/auth/contexts/auth-query.context';
+import { readReturnTo } from '@/app/features/auth/lib/return-to';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -19,6 +20,7 @@ export function LoginPage() {
     useEffect(() => hideSplash(), []);
 
     const registered = searchParams.get('registered') === 'true';
+    const returnTo = readReturnTo(searchParams);
 
     function handleSubmit(e: FormEvent) {
         e.preventDefault();
@@ -26,7 +28,7 @@ export function LoginPage() {
             { email, password },
             {
                 // The featured page forwards to the viewer when no album is featured.
-                onSuccess: () => navigate('/featured', { replace: true }),
+                onSuccess: () => navigate(returnTo ?? '/featured', { replace: true }),
             },
         );
     }

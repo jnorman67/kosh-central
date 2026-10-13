@@ -8,7 +8,8 @@ import {
     listGalleriesForUser,
     updateGallery,
     type GalleryInput,
-    type StoredGallery,
+    type GalleryMatchMode,
+    type GalleryPerson,
 } from '../db/galleries.store.js';
 import { findPersonById, getBundleIdsForPersons } from '../db/persons.store.js';
 import { getRatingsByUserForPhotos } from '../db/ratings.store.js';
@@ -47,13 +48,29 @@ function validate(body: unknown): GalleryInput | FieldError {
     return { name, matchMode: isGalleryMatchMode(b.matchMode) ? b.matchMode : 'any', personIds };
 }
 
-/** Every file of each photo the gallery covers, in the stable cross-album order. */
-function resolveGalleryPhotos(oneDriveService: OneDriveService, gallery: StoredGallery): Promise<TaggedPhoto[]> {
+/** Every file of each photo the people appear in, in the stable cross-album order. */
+function resolveGalleryPhotos(
+    oneDriveService: OneDriveService,
+    { persons, matchMode }: { persons: GalleryPerson[]; matchMode: GalleryMatchMode },
+): Promise<TaggedPhoto[]> {
     const bundleIds = getBundleIdsForPersons(
-        gallery.persons.map((p) => p.id),
-        { requireAll: gallery.matchMode === 'all' },
+        persons.map((p) => p.id),
+        { requireAll: matchMode === 'all' },
     );
     return getPhotosOfBundles(oneDriveService, new Set(bundleIds));
+}
+
+/** Gallery photos in the same shape as an album's, each marked with the album it lives in. */
+function toGalleryPhotos(userId: string, tagged: TaggedPhoto[]) {
+    const ratings = getRatingsByUserForPhotos(
+        userId,
+        tagged.map(({ cataloged }) => cataloged.id),
+    );
+    return tagged.map(({ folder, photo, cataloged }) => ({
+        ...toClientPhoto(photo, cataloged, ratings),
+        sourceFolderId: folder.slug,
+        sourceFolderDisplayName: folder.displayName,
+    }));
 }
 
 /** A user's own galleries of the photos tagged with chosen people. Each user sees only their own. */
@@ -84,6 +101,37 @@ export function createGalleriesRouter(oneDriveService: OneDriveService): Router 
             }),
         );
         res.json(results);
+    });
+
+    /**
+     * The photos of a list of people, without saving it as a gallery: what a shared gallery link
+     * opens. Anyone signed in can already see every album, so the link reveals nothing new. People
+     * deleted (or merged away) since the link was made are left out and counted.
+     */
+    router.get('/preview', async (req, res) => {
+        const raw = typeof req.query.people === 'string' ? req.query.people : '';
+        const personIds = [...new Set(raw.split(',').filter(Boolean))].slice(0, PERSONS_MAX);
+        if (personIds.length === 0) {
+            res.status(400).json({ error: 'Choose at least one person', field: 'people' });
+            return;
+        }
+        const matchMode: GalleryMatchMode = req.query.match === 'all' ? 'all' : 'any';
+        const persons: GalleryPerson[] = personIds.flatMap((id) => {
+            const person = findPersonById(id);
+            return person ? [{ id: person.id, fullName: person.fullName, nickname: person.nickname }] : [];
+        });
+        try {
+            const tagged = await resolveGalleryPhotos(oneDriveService, { persons, matchMode });
+            res.json({
+                persons,
+                matchMode,
+                missingPersonCount: personIds.length - persons.length,
+                photos: toGalleryPhotos(req.user!.userId, tagged),
+            });
+        } catch (err) {
+            console.error('Gallery preview error:', err);
+            res.status(502).json({ error: 'Failed to fetch photos from OneDrive' });
+        }
     });
 
     router.post('/', (req, res) => {
@@ -117,7 +165,6 @@ export function createGalleriesRouter(oneDriveService: OneDriveService): Router 
         res.status(204).end();
     });
 
-    /** The gallery's photos in the same shape as an album's, each marked with the album it lives in. */
     router.get('/:id/photos', async (req, res) => {
         const gallery = findGalleryForUser(req.params.id, req.user!.userId);
         if (!gallery) {
@@ -126,16 +173,7 @@ export function createGalleriesRouter(oneDriveService: OneDriveService): Router 
         }
         try {
             const tagged = await resolveGalleryPhotos(oneDriveService, gallery);
-            const ratings = getRatingsByUserForPhotos(
-                req.user!.userId,
-                tagged.map(({ cataloged }) => cataloged.id),
-            );
-            const photos = tagged.map(({ folder, photo, cataloged }) => ({
-                ...toClientPhoto(photo, cataloged, ratings),
-                sourceFolderId: folder.slug,
-                sourceFolderDisplayName: folder.displayName,
-            }));
-            res.json({ photos });
+            res.json({ photos: toGalleryPhotos(req.user!.userId, tagged) });
         } catch (err) {
             console.error('Gallery photos error:', err);
             res.status(502).json({ error: 'Failed to fetch photos from OneDrive' });

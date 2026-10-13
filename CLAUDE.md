@@ -49,7 +49,7 @@ packages/server/src/
   routes/folders-admin.router.ts     # /api/admin/folders (admin-only CRUD + export/import)
   routes/featured.router.ts          # /api/featured (resolved featured album for the post-login page)
   routes/featured-admin.router.ts    # /api/admin/featured (admin-only featured album settings)
-  routes/galleries.router.ts         # /api/galleries (the signed-in user's own people galleries)
+  routes/galleries.router.ts         # /api/galleries (the signed-in user's own people galleries + shared-link preview)
   routes/users-admin.router.ts       # /api/admin/users (admin-only invites, roles, revoke/restore access)
   routes/photos.router.ts            # /api/photos (catalog + import)
   routes/photos-admin.router.ts      # /api/admin/photos (admin-only preferred-version toggle)
@@ -70,7 +70,7 @@ packages/client/src/
   app/features/admin/                # Admin pages (folder configuration, featured album, users & invites)
   app/features/featured/             # Post-login featured album page + themes
   app/features/activity/             # Activity feed (/activity): commented photos, newest comment first; header badge
-  app/features/galleries/            # People galleries: album-list section, create/edit dialog (open in the viewer via ?gallery=)
+  app/features/galleries/            # People galleries: album-list section, create/edit dialog, share links (open in the viewer via ?gallery= or ?people=)
   components/ui/                     # shadcn components (button, card, input, label, select, dialog, alert-dialog, table)
   components/layout/viewer-layout.tsx # CSS Grid shell (header/viewer/toolbar/panel)
 ```

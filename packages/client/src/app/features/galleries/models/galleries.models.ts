@@ -31,3 +31,11 @@ export interface GalleryPhotosResponse {
     /** Every file of each photo (backs and alternate scans too), each marked with its album. */
     photos: Photo[];
 }
+
+/** The photos of a shared gallery link, with the people it names who still exist. */
+export interface GalleryPreviewResponse extends GalleryPhotosResponse {
+    persons: PickedPerson[];
+    matchMode: GalleryMatchMode;
+    /** People named in the link who have since been deleted or merged away. */
+    missingPersonCount: number;
+}

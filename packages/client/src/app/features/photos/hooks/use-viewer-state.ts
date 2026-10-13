@@ -1,3 +1,4 @@
+import { usePeopleLink, writePeopleLink, type PeopleLink } from '@/app/features/galleries/lib/people-link';
 import type { Photo, PhotoFolder } from '@/app/features/photos/models/photos.models';
 import { useCallback, useMemo } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
@@ -24,7 +25,7 @@ export function readSubfolderPath(params: URLSearchParams, folder: PhotoFolder |
 
 /** Whether the URL asks for the album's pages (scanned document) view rather than its gallery. */
 export function readPagesView(params: URLSearchParams): boolean {
-    return !readGalleryId(params) && params.get(VIEW_PARAM) === 'pages';
+    return !!params.get(FOLDER_PARAM) && params.get(VIEW_PARAM) === 'pages';
 }
 
 /** The people gallery the URL points at, if it isn't pointing at an album. */
@@ -32,14 +33,16 @@ export function readGalleryId(params: URLSearchParams): string | null {
     return params.get(FOLDER_PARAM) ? null : params.get(GALLERY_PARAM);
 }
 
-/** What the viewer has open: an album or one of the user's people galleries. */
-type Scope = { folderId: string } | { galleryId: string };
+/** What the viewer has open: an album, one of the user's people galleries, or a shared people link. */
+type Scope = { folderId: string } | { galleryId: string } | { people: PeopleLink };
 
 /** People galleries have no subfolders or pages view, so `path` and `pagesView` apply to albums only. */
 function buildParams(scope: Scope, path = '', pagesView = false, photo?: Photo): URLSearchParams {
     const next = new URLSearchParams();
     if ('galleryId' in scope) {
         next.set(GALLERY_PARAM, scope.galleryId);
+    } else if ('people' in scope) {
+        writePeopleLink(next, scope.people);
     } else {
         next.set(FOLDER_PARAM, scope.folderId);
         if (path) next.set(PATH_PARAM, path);
@@ -74,9 +77,17 @@ export function useViewerState({ folders, viewablePhotos }: UseViewerStateArgs) 
     const folderParam = params.get(FOLDER_PARAM);
     const galleryParam = readGalleryId(params);
     const photoParam = params.get(PHOTO_PARAM);
+    const peopleLink = usePeopleLink(params);
     const scope = useMemo<Scope | null>(
-        () => (folderParam ? { folderId: folderParam } : galleryParam ? { galleryId: galleryParam } : null),
-        [folderParam, galleryParam],
+        () =>
+            folderParam
+                ? { folderId: folderParam }
+                : galleryParam
+                  ? { galleryId: galleryParam }
+                  : peopleLink
+                    ? { people: peopleLink }
+                    : null,
+        [folderParam, galleryParam, peopleLink],
     );
 
     const currentFolder = useMemo(() => (folderParam ? (folders.find((f) => f.id === folderParam) ?? null) : null), [folders, folderParam]);
@@ -94,7 +105,7 @@ export function useViewerState({ folders, viewablePhotos }: UseViewerStateArgs) 
         return findPhotoIndex(viewablePhotos, photoParam) !== -1;
     }, [viewablePhotos, photoParam]);
 
-    const view: ViewMode = !currentFolder && !galleryParam ? 'albums' : photoParamResolvesToPhoto ? 'photo' : 'gallery';
+    const view: ViewMode = !currentFolder && !galleryParam && !peopleLink ? 'albums' : photoParamResolvesToPhoto ? 'photo' : 'gallery';
 
     const updateParams = useCallback(
         (next: URLSearchParams, opts?: { replace?: boolean; state?: PhotoEntryState | null }) => {
@@ -111,8 +122,8 @@ export function useViewerState({ folders, viewablePhotos }: UseViewerStateArgs) 
     );
 
     const openGallery = useCallback(
-        (galleryId: string) => {
-            updateParams(buildParams({ galleryId }));
+        (galleryId: string, opts?: { replace?: boolean }) => {
+            updateParams(buildParams({ galleryId }), opts);
         },
         [updateParams],
     );
@@ -173,6 +184,8 @@ export function useViewerState({ folders, viewablePhotos }: UseViewerStateArgs) 
     return {
         currentFolder,
         currentGalleryId: galleryParam,
+        /** The shared people link open in place of an album or saved gallery. */
+        currentPeopleLink: peopleLink,
         /** The photo was opened from the activity feed, which "back" returns to. */
         openedFromActivity: !!entryState?.openedFromActivity,
         currentPath,

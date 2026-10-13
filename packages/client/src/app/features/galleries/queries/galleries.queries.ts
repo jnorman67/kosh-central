@@ -1,3 +1,4 @@
+import { peopleLinkKey, type PeopleLink } from '@/app/features/galleries/lib/people-link';
 import type { GalleryInput } from '@/app/features/galleries/models/galleries.models';
 import type { GalleriesService } from '@/app/features/galleries/services/galleries.service';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -7,6 +8,7 @@ export const GalleriesQueryKeys = {
     list: ['Galleries', 'List'] as const,
     covers: ['Galleries', 'Covers'] as const,
     photos: (id: string) => ['Galleries', 'Photos', id] as const,
+    preview: (key: string) => ['Galleries', 'Preview', key] as const,
 } as const;
 
 export const createGalleriesQueries = (service: GalleriesService) => {
@@ -29,6 +31,16 @@ export const createGalleriesQueries = (service: GalleriesService) => {
             queryKey: GalleriesQueryKeys.photos(id!),
             queryFn: () => service.getGalleryPhotos(id!),
             enabled: !!id,
+            staleTime: 10 * 60 * 1000,
+        });
+
+    // A shared link's photos. Under the same 'Galleries' key as saved galleries, so tagging
+    // someone marks both stale.
+    const useGetGalleryPreview = (link: PeopleLink | null) =>
+        useQuery({
+            queryKey: GalleriesQueryKeys.preview(link ? peopleLinkKey(link) : ''),
+            queryFn: () => service.getGalleryPreview(link!),
+            enabled: !!link,
             staleTime: 10 * 60 * 1000,
         });
 
@@ -57,7 +69,15 @@ export const createGalleriesQueries = (service: GalleriesService) => {
         });
     };
 
-    return { useGetGalleries, useGetGalleryCovers, useGetGalleryPhotos, useCreateGallery, useUpdateGallery, useDeleteGallery };
+    return {
+        useGetGalleries,
+        useGetGalleryCovers,
+        useGetGalleryPhotos,
+        useGetGalleryPreview,
+        useCreateGallery,
+        useUpdateGallery,
+        useDeleteGallery,
+    };
 };
 
 export type GalleriesQueries = ReturnType<typeof createGalleriesQueries>;

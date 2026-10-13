@@ -127,6 +127,14 @@ Any user can make their own galleries of the photos tagged with one or more peop
 
 A gallery opens in the normal viewer at `/?gallery=<id>` (with `&photo=` while viewing a photo), so comments, tagged people, OCR, backs, and face boxes all work as they do in an album. Each photo shows which album it came from. Photos are gathered per request, the same way as the featured album's people: albums in their admin-defined order, then each album's own photo order, one entry per physical photo. Tagging someone on a photo marks gallery data stale, so the change shows up on the next visit. Galleries live in `person_galleries` and `person_gallery_persons`. Deleting a person removes them from any gallery. The cross-album lookup shared with the featured album is in `services/tagged-photos.service.ts`.
 
+### Sharing a gallery
+
+A gallery is shared as a link that names its people, not as the saved gallery itself: `/?people=<id>,<id>&match=all&name=Grandparents` (`match` is left out for "any", and `name` when it just lists the people). **Share** copies the link, or opens the share sheet on phones. Whoever opens it sees the same photos, worked out live from the current tags by `GET /api/galleries/preview`, and can **Save** their own copy. Later edits to the original don't reach that copy. Because every signed-in user can already see every album, a link reveals nothing new. It still requires sign-in: someone signed out goes to `/login?next=…` and comes back to the link afterwards.
+
+An unsaved link lives only in its URL, so there's nothing on the server to expire. Saved galleries last until their owner deletes them. People deleted or merged away since a link was made are dropped and counted ("1 person from the link no longer listed"). A gallery or link with nobody left says so instead of showing an empty grid.
+
+There is deliberately no server cache of gallery results. The expensive part, listing albums from OneDrive, is already cached (`OneDriveService`, refreshed every 5 minutes, at most 45 minutes old), and matching tags is one indexed SQLite query. On the client, gallery and link photos stay fresh for 10 minutes (their OneDrive download URLs are short-lived), and any tag change marks them stale.
+
 ## Activity Feed
 
 The **Activity** button in the viewer header (a speech bubble) opens `/activity`, a scrolling feed of commented photos, most recently commented first. Each card shows the photo, the album it's in, and its latest three comments, with a **Reply** box. Tapping the photo opens it in the viewer, and the viewer's back button returns to the same place in the feed. More photos load as the reader nears the end.

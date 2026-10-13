@@ -1,4 +1,11 @@
-import type { Gallery, GalleryCover, GalleryInput, GalleryPhotosResponse } from '@/app/features/galleries/models/galleries.models';
+import type { PeopleLink } from '@/app/features/galleries/lib/people-link';
+import type {
+    Gallery,
+    GalleryCover,
+    GalleryInput,
+    GalleryPhotosResponse,
+    GalleryPreviewResponse,
+} from '@/app/features/galleries/models/galleries.models';
 import { apiFetch } from '@/lib/api-client';
 
 function toBody({ persons, ...rest }: GalleryInput): string {
@@ -16,6 +23,11 @@ export class GalleriesService {
 
     async getGalleryPhotos(id: string): Promise<GalleryPhotosResponse> {
         return apiFetch<GalleryPhotosResponse>(`/api/galleries/${encodeURIComponent(id)}/photos`);
+    }
+
+    async getGalleryPreview({ personIds, matchMode }: PeopleLink): Promise<GalleryPreviewResponse> {
+        const params = new URLSearchParams({ people: personIds.join(','), match: matchMode });
+        return apiFetch<GalleryPreviewResponse>(`/api/galleries/preview?${params}`);
     }
 
     async createGallery(input: GalleryInput): Promise<Gallery> {

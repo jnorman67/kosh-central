@@ -1,5 +1,6 @@
 import { ActivityQueryProvider } from '@/app/features/activity/contexts/activity-query.context';
 import { AuthQueryProvider } from '@/app/features/auth/contexts/auth-query.context';
+import { loginPathFor } from '@/app/features/auth/lib/return-to';
 import { AuthQueryKeys } from '@/app/features/auth/queries/auth.queries';
 import { FeaturedQueryProvider } from '@/app/features/featured/contexts/featured-query.context';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -16,7 +17,7 @@ function handleAuthError(error: unknown) {
     if (!(error instanceof ApiError) || error.status !== 401) return;
     queryClient.setQueryData(AuthQueryKeys.me, null);
     if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
-        router.navigate('/login', { replace: true });
+        router.navigate(loginPathFor(window.location.pathname + window.location.search), { replace: true });
     }
 }
 

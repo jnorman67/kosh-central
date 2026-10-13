@@ -5,7 +5,10 @@ import { FeaturedBanner } from '@/app/features/featured/components/featured-bann
 import { FeaturedButton } from '@/app/features/featured/components/featured-button';
 import { GalleriesSection } from '@/app/features/galleries/components/galleries-section';
 import { GalleryActions } from '@/app/features/galleries/components/gallery-actions';
+import { PeopleLinkActions } from '@/app/features/galleries/components/people-link-actions';
 import { useGalleriesQueries } from '@/app/features/galleries/contexts/galleries-query.context';
+import { defaultGalleryName, peopleLinkKey, usePeopleLink } from '@/app/features/galleries/lib/people-link';
+import type { GalleryInput } from '@/app/features/galleries/models/galleries.models';
 import { OcrPanel } from '@/app/features/ocr/components/ocr-panel';
 import { OcrQueryProvider } from '@/app/features/ocr/contexts/ocr-query.context';
 import { AlbumGallery } from '@/app/features/photos/components/album-gallery';
@@ -79,7 +82,7 @@ export function ViewerPage() {
     const { useGetFolders, useGetPhotos, useSetFolderCover, useClearFolderCover, useGetShareLink, useGetFaces } = usePhotosQueries();
     const setCover = useSetFolderCover();
     const clearCover = useClearFolderCover();
-    const { useGetGalleries, useGetGalleryPhotos } = useGalleriesQueries();
+    const { useGetGalleries, useGetGalleryPhotos, useGetGalleryPreview } = useGalleriesQueries();
     const { useGetMe } = useAuthQueries();
     const { data: me } = useGetMe();
     const [enlargedRelatedId, setEnlargedRelatedId] = useState<string | null>(null);
@@ -111,6 +114,16 @@ export function ViewerPage() {
     const { data: peopleGalleries = [] } = useGetGalleries();
     const peopleGallery = peopleGalleries.find((g) => g.id === peopleGalleryId) ?? null;
     const { data: peopleGalleryData, isLoading: peopleGalleryLoading, isError: peopleGalleryError } = useGetGalleryPhotos(peopleGalleryId);
+    // A shared link names its people in the URL instead of a saved gallery; it opens the same way.
+    const peopleLink = usePeopleLink(searchParams);
+    const { data: peopleLinkData, isLoading: peopleLinkLoading, isError: peopleLinkError } = useGetGalleryPreview(peopleLink);
+    // The open people gallery, saved or from a link, as the form and share button take it.
+    const peopleView = useMemo<GalleryInput | null>(() => {
+        if (peopleGallery) return peopleGallery;
+        if (!peopleLink || !peopleLinkData) return null;
+        const { persons, matchMode } = peopleLinkData;
+        return { persons, matchMode, name: peopleLink.name ?? defaultGalleryName(persons) };
+    }, [peopleGallery, peopleLink, peopleLinkData]);
     // Always fetch gallery data — it tells us whether a pages subfolder exists.
     const { data: galleryData, isLoading: galleryLoading } = useGetPhotos(folderForFetch?.id ?? null, 'gallery', pathForFetch);
     // Fetch pages data only when the user has switched to that view; null folderId disables the query.
@@ -120,9 +133,15 @@ export function ViewerPage() {
         pathForFetch,
     );
     const hasPagesSubfolder = galleryData?.hasPagesSubfolder ?? false;
-    const photosData = peopleGalleryId ? peopleGalleryData : pagesView ? pagesData : galleryData;
+    const photosData = peopleGalleryId ? peopleGalleryData : peopleLink ? peopleLinkData : pagesView ? pagesData : galleryData;
     const allPhotos = photosData?.photos ?? [];
-    const photosLoading = peopleGalleryId ? peopleGalleryLoading : pagesView ? pagesLoading : galleryLoading;
+    const photosLoading = peopleGalleryId
+        ? peopleGalleryLoading
+        : peopleLink
+          ? peopleLinkLoading
+          : pagesView
+            ? pagesLoading
+            : galleryLoading;
 
     // Show one photo per bundle in the gallery: the preferred front. Uncataloged
     // photos have no bundle info and are always shown. Photos that are siblings
@@ -148,6 +167,7 @@ export function ViewerPage() {
     const {
         currentFolder,
         currentGalleryId,
+        currentPeopleLink,
         openedFromActivity,
         currentPath,
         currentPhotoIndex,
@@ -165,15 +185,22 @@ export function ViewerPage() {
 
     const uncatalogedCount = useMemo(() => allPhotos.filter((p) => !p.catalogId).length, [allPhotos]);
 
+    // A people gallery's own scroll place: by id when saved, by its people when opened from a link.
+    const peoplePlace = currentGalleryId
+        ? peopleGalleryPlace(currentGalleryId)
+        : currentPeopleLink
+          ? peopleGalleryPlace(`link:${peopleLinkKey(currentPeopleLink)}`)
+          : null;
+
     // Reset the filter when switching folders, subfolders or galleries.
     useEffect(() => {
         setUncatalogedOnly(false);
-    }, [currentFolder?.id, currentPath, currentGalleryId]);
+    }, [currentFolder?.id, currentPath, peoplePlace]);
 
     // Dismiss the initial splash once the first view's data is ready: folders always; also the
     // folder's or gallery's photos if the URL selected one on first load.
-    const isOpen = !!currentFolder || !!currentGalleryId;
-    const initialDataReady = !foldersLoading && (!(folderForFetch || peopleGalleryId) || !photosLoading);
+    const isOpen = !!currentFolder || !!peoplePlace;
+    const initialDataReady = !foldersLoading && (!(folderForFetch || peopleGalleryId || peopleLink) || !photosLoading);
     useEffect(() => {
         if (initialDataReady) hideSplash();
     }, [initialDataReady]);
@@ -187,10 +214,11 @@ export function ViewerPage() {
         rememberViewerLocation(location.search);
     }, [location.search]);
     useEffect(() => {
-        if (!currentGalleryId) return;
-        updatePlace(ALBUMS_PLACE, { focus: peopleGalleryPlace(currentGalleryId) });
-        if (currentPhotoKey) updatePlace(peopleGalleryPlace(currentGalleryId), { focus: currentPhotoKey });
-    }, [currentGalleryId, currentPhotoKey]);
+        if (!peoplePlace) return;
+        // Only a saved gallery has a tile on the album list to come back to.
+        if (currentGalleryId) updatePlace(ALBUMS_PLACE, { focus: peoplePlace });
+        if (currentPhotoKey) updatePlace(peoplePlace, { focus: currentPhotoKey });
+    }, [peoplePlace, currentGalleryId, currentPhotoKey]);
     useEffect(() => {
         if (!currentFolder) return;
         updatePlace(ALBUMS_PLACE, { focus: currentFolder.id });
@@ -247,14 +275,25 @@ export function ViewerPage() {
     const featuredPeopleStart = viewablePhotos.findIndex((p) => !!p.sourceFolderId);
     const featuredPersonNames = (!peopleGalleryId && !pagesView && galleryData?.featuredPersonNames) || [];
     const listFormat = new Intl.ListFormat('en', { type: 'conjunction' });
-    const peopleGalleryNames = peopleGallery ? listFormat.format(peopleGallery.persons.map((p) => p.fullName)) : '';
+    const peopleGalleryNames = peopleView ? listFormat.format(peopleView.persons.map((p) => p.fullName)) : '';
+    const missingPersonCount = peopleLinkData?.missingPersonCount ?? 0;
+    // Why a people gallery has nothing to show, when it's for want of people rather than photos.
+    const peopleUnavailable = peopleGalleryError
+        ? 'This gallery isn’t available. It may have been deleted.'
+        : peopleLinkError
+          ? 'This gallery link couldn’t be opened.'
+          : peopleGallery?.persons.length === 0
+            ? 'Everyone in this gallery has been removed from the people index. Edit it to choose people, or delete it.'
+            : peopleLinkData?.persons.length === 0
+              ? 'The people in this link are no longer in the people index.'
+              : null;
     // On phones a photo's back button doubles as the page title, naming where it goes back to. A subfolder,
     // or an album's pages, is captioned with the folder it belongs to.
     const photoBackTitle = openedFromActivity
         ? 'Activity'
-        : (peopleGallery?.name ?? (pagesView ? 'Pages' : subfolderName || currentFolder?.displayName || 'Gallery'));
+        : (peopleView?.name ?? (pagesView ? 'Pages' : subfolderName || currentFolder?.displayName || 'Gallery'));
     const photoBackCaption =
-        openedFromActivity || peopleGallery
+        openedFromActivity || peopleView
             ? undefined
             : pagesView
               ? subfolderName || currentFolder?.displayName
@@ -301,7 +340,7 @@ export function ViewerPage() {
                                                 ? 'activity'
                                                 : pagesView
                                                   ? 'pages'
-                                                  : subfolderName || peopleGallery?.name || 'gallery'
+                                                  : subfolderName || peopleView?.name || 'gallery'
                                         }
                                         title={photoBackTitle}
                                         caption={photoBackCaption}
@@ -323,13 +362,15 @@ export function ViewerPage() {
                                         isPhoto ? 'hidden' : 'flex',
                                     )}
                                 >
-                                    {currentGalleryId ? (
+                                    {peoplePlace ? (
                                         <div
                                             className="flex min-w-0 max-w-full items-center gap-2 px-1 py-1 text-[15px] font-semibold leading-tight text-amber-950 sm:px-4 sm:py-2 sm:text-sm sm:font-medium sm:text-foreground"
                                             title={peopleGalleryNames}
                                         >
                                             <Users className="h-4 w-4 shrink-0 text-muted-foreground" />
-                                            <span className="line-clamp-2 sm:line-clamp-1">{peopleGallery?.name ?? 'Gallery'}</span>
+                                            <span className="line-clamp-2 sm:line-clamp-1">
+                                                {peopleView?.name || peopleLink?.name || 'Gallery'}
+                                            </span>
                                         </div>
                                     ) : (
                                         <FolderSelector
@@ -399,6 +440,9 @@ export function ViewerPage() {
                                 </Button>
                             )}
                             {isGallery && peopleGallery && <GalleryActions gallery={peopleGallery} onDeleted={goToAlbums} />}
+                            {isGallery && peopleLink && peopleView && peopleView.persons.length > 0 && (
+                                <PeopleLinkActions gallery={peopleView} onSaved={(id) => openGallery(id, { replace: true })} />
+                            )}
                             {/* The album list carries its own featured banner. */}
                             {!isAlbums && <FeaturedButton />}
                             <ActivityButton />
@@ -420,9 +464,9 @@ export function ViewerPage() {
                                 </>
                             }
                         />
-                    ) : isGallery && peopleGalleryError ? (
-                        <div className="flex h-full items-center justify-center bg-black text-zinc-500">
-                            This gallery isn’t available. It may have been deleted.
+                    ) : isGallery && peopleUnavailable ? (
+                        <div className="flex h-full items-center justify-center bg-black px-6 text-center text-zinc-500">
+                            {peopleUnavailable}
                         </div>
                     ) : isGallery ? (
                         pagesView ? (
@@ -437,11 +481,7 @@ export function ViewerPage() {
                                 photos={viewablePhotos}
                                 isLoading={photosLoading && isOpen}
                                 onSelect={openPhoto}
-                                placeKey={
-                                    currentGalleryId
-                                        ? peopleGalleryPlace(currentGalleryId)
-                                        : galleryPlace(currentFolder?.id ?? '', currentPath, false)
-                                }
+                                placeKey={peoplePlace ?? galleryPlace(currentFolder?.id ?? '', currentPath, false)}
                                 subfolders={subfolders}
                                 onSelectSubfolder={openSubfolder}
                                 section={
@@ -578,8 +618,12 @@ export function ViewerPage() {
                                     : viewablePhotos.length === 1
                                       ? 'photo'
                                       : 'photos'}
-                                {peopleGallery &&
-                                    ` of ${peopleGalleryNames}${peopleGallery.matchMode === 'all' && peopleGallery.persons.length > 1 ? ' together' : ''}`}
+                                {peopleView &&
+                                    peopleView.persons.length > 0 &&
+                                    ` of ${peopleGalleryNames}${peopleView.matchMode === 'all' && peopleView.persons.length > 1 ? ' together' : ''}`}
+                                {missingPersonCount > 0 &&
+                                    !peopleUnavailable &&
+                                    ` · ${missingPersonCount} ${missingPersonCount === 1 ? 'person' : 'people'} from the link no longer listed`}
                                 {uncatalogedOnly && ' (uncataloged only)'}
                             </span>
                             {hasPagesSubfolder && (
