@@ -78,12 +78,7 @@ export function PersonFormDialog({ open, onOpenChange, mode, initial, onSubmit }
     const field = (label: string, id: keyof PersonInput, required = false) => (
         <div className="space-y-1.5">
             <Label htmlFor={id}>{label}</Label>
-            <Input
-                id={id}
-                value={(form[id] as string) ?? ''}
-                onChange={(e) => set(id, e.target.value || null)}
-                required={required}
-            />
+            <Input id={id} value={(form[id] as string) ?? ''} onChange={(e) => set(id, e.target.value || null)} required={required} />
         </div>
     );
 
@@ -120,7 +115,9 @@ export function PersonFormDialog({ open, onOpenChange, mode, initial, onSubmit }
                         {field('Death date', 'deathDate')}
                         {field('Death place', 'deathPlace')}
                     </div>
-                    <p className="text-xs text-muted-foreground">Dates can be full (25 JUN 1940), partial (JUN 1940), or year-only (1940).</p>
+                    <p className="text-xs text-muted-foreground">
+                        Dates can be full (25 JUN 1940), partial (JUN 1940), or year-only (1940).
+                    </p>
 
                     <div className="space-y-1.5">
                         <Label htmlFor="notes">Notes</Label>

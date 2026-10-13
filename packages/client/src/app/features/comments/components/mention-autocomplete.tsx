@@ -87,12 +87,8 @@ export function MentionAutocomplete({ candidates, activeIndex, onSelect, onActiv
                                     </span>
                                 )}
                             </div>
-                            {c.nickname && (
-                                <div className="truncate text-xs text-muted-foreground">"{c.nickname}"</div>
-                            )}
-                            {dis && (
-                                <div className="truncate text-xs text-muted-foreground">{dis}</div>
-                            )}
+                            {c.nickname && <div className="truncate text-xs text-muted-foreground">"{c.nickname}"</div>}
+                            {dis && <div className="truncate text-xs text-muted-foreground">{dis}</div>}
                         </div>
                     </button>
                 );

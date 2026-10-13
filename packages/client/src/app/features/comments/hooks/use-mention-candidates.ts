@@ -1,8 +1,8 @@
 import { apiFetch } from '@/lib/api-client';
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
-import type { MentionCandidate } from '../models/comments.models';
 import { useCommentsQueries } from '../contexts/comments-query.context';
+import type { MentionCandidate } from '../models/comments.models';
 
 interface PersonResult {
     id: string;

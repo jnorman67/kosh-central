@@ -26,10 +26,7 @@ export function CommentItem({ comment, currentUserId, isAdmin }: CommentItemProp
     });
 
     function handleUpdate(body: string, mentions: MentionInput[]) {
-        updateMutation.mutate(
-            { commentId: comment.id, photoId: comment.photoId, body, mentions },
-            { onSuccess: () => setEditing(false) },
-        );
+        updateMutation.mutate({ commentId: comment.id, photoId: comment.photoId, body, mentions }, { onSuccess: () => setEditing(false) });
     }
 
     function handleDelete() {
@@ -42,9 +39,7 @@ export function CommentItem({ comment, currentUserId, isAdmin }: CommentItemProp
                 <span className="text-sm font-medium">{comment.authorDisplayName}</span>
                 <div className="flex shrink-0 items-center gap-1">
                     <span className="text-xs text-muted-foreground">{formattedDate}</span>
-                    {comment.editedAt && (
-                        <span className="text-xs text-muted-foreground">(edited)</span>
-                    )}
+                    {comment.editedAt && <span className="text-xs text-muted-foreground">(edited)</span>}
                     {canModify && !editing && (
                         <>
                             {currentUserId === comment.authorId && (

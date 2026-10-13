@@ -38,16 +38,12 @@ export function OcrPanel({ bundleId, isAdmin, className }: OcrPanelProps) {
             <div className="min-h-0 overflow-y-auto">
                 {isLoading && <p className="px-4 pb-3 text-xs text-muted-foreground">Loading…</p>}
 
-                {runOcr.isPending && (
-                    <p className="px-4 pb-3 text-xs text-muted-foreground">Analysing image…</p>
-                )}
+                {runOcr.isPending && <p className="px-4 pb-3 text-xs text-muted-foreground">Analysing image…</p>}
 
                 {!isLoading && !runOcr.isPending && hasResult && (
                     <div className="px-4 pb-3">
                         <p className="whitespace-pre-wrap text-sm text-amber-950">{data.text}</p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                            via OCR · {new Date(data.ranAt + 'Z').toLocaleDateString()}
-                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">via OCR · {new Date(data.ranAt + 'Z').toLocaleDateString()}</p>
                     </div>
                 )}
 
@@ -55,9 +51,7 @@ export function OcrPanel({ bundleId, isAdmin, className }: OcrPanelProps) {
                     <p className="px-4 pb-3 text-xs text-muted-foreground">No OCR result yet.</p>
                 )}
 
-                {runOcr.isError && (
-                    <p className="px-4 pb-3 text-xs text-red-600">OCR failed — please try again.</p>
-                )}
+                {runOcr.isError && <p className="px-4 pb-3 text-xs text-red-600">OCR failed — please try again.</p>}
             </div>
         </div>
     );

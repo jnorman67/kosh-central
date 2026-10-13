@@ -89,14 +89,7 @@ interface CommentFormProps {
     submitLabel?: string;
 }
 
-export function CommentForm({
-    photoId: _photoId,
-    initialBody = '',
-    onSubmit,
-    onCancel,
-    isSubmitting = false,
-    submitLabel = 'Post',
-}: CommentFormProps) {
+export function CommentForm({ initialBody = '', onSubmit, onCancel, isSubmitting = false, submitLabel = 'Post' }: CommentFormProps) {
     const [mentionQuery, setMentionQuery] = useState<string | null>(null);
     const [activeIndex, setActiveIndex] = useState(0);
     const [isEmpty, setIsEmpty] = useState(!initialBody);
@@ -106,12 +99,8 @@ export function CommentForm({
     const filteredCandidates = useMemo(() => {
         if (mentionQuery === null) return [];
         const q = mentionQuery.trimEnd().toLowerCase();
-        const matches = allCandidates.filter(
-            (c) => c.displayLabel.toLowerCase().includes(q) || c.nickname?.toLowerCase().includes(q),
-        );
-        const recentRank = new Map(
-            getRecentMentions().map((e, i) => [`${e.type}:${e.id}`, i]),
-        );
+        const matches = allCandidates.filter((c) => c.displayLabel.toLowerCase().includes(q) || c.nickname?.toLowerCase().includes(q));
+        const recentRank = new Map(getRecentMentions().map((e, i) => [`${e.type}:${e.id}`, i]));
         matches.sort((a, b) => {
             const aRecent = recentRank.get(`${a.type}:${a.id}`) ?? Infinity;
             const bRecent = recentRank.get(`${b.type}:${b.id}`) ?? Infinity;
@@ -140,7 +129,7 @@ export function CommentForm({
         if (!editor) return;
         editor.innerHTML = initialBody ? bodyToHTML(initialBody) : '';
         setIsEmpty(!initialBody);
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    }, []);
 
     useEffect(() => {
         setActiveIndex(0);
