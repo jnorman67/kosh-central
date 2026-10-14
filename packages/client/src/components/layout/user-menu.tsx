@@ -96,7 +96,7 @@ export function UserMenu() {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onSelect={() => navigate('/account/password')}>
                     <KeyRound />
-                    Change password
+                    {me.hasPassword ? 'Change password' : 'Set a password'}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onSelect={handleLogout}>

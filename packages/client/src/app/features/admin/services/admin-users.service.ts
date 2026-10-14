@@ -1,4 +1,4 @@
-import type { AdminUser, AdminUsersResponse, Invite, Role, UserUpdate } from '@/app/features/admin/models/user.models';
+import type { AdminUser, AdminUsersResponse, CreatedLink, Invite, Role, UserUpdate } from '@/app/features/admin/models/user.models';
 import { apiFetch } from '@/lib/api-client';
 
 export class AdminUsersService {
@@ -12,6 +12,14 @@ export class AdminUsersService {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(update),
         });
+    }
+
+    async createLoginLink(id: string): Promise<CreatedLink> {
+        return apiFetch<CreatedLink>(`/api/admin/users/${encodeURIComponent(id)}/login-link`, { method: 'POST' });
+    }
+
+    async createInviteLink(email: string): Promise<CreatedLink> {
+        return apiFetch<CreatedLink>(`/api/admin/users/invites/${encodeURIComponent(email)}/link`, { method: 'POST' });
     }
 
     async createInvite(email: string, role: Role): Promise<Invite> {

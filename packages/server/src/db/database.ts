@@ -1858,6 +1858,25 @@ const migrations: Migration[] = [
             CREATE INDEX idx_photo_comments_created_at ON photo_comments(created_at);
         `,
     },
+    {
+        version: 39,
+        description: 'Add auth_links: one-time sign-in links (user_id) and invite links (invite_email)',
+        // Admins copy these links and send them by text or email; there's no email service.
+        // Only SHA-256 hashes of the tokens are stored. Invite links die with their invite.
+        // Users who join by invite link have no password (password_hash = '') until they set one.
+        sql: `
+            CREATE TABLE auth_links (
+                token_hash TEXT PRIMARY KEY,
+                user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+                invite_email TEXT COLLATE NOCASE REFERENCES invites(email) ON DELETE CASCADE,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                expires_at TEXT NOT NULL,
+                CHECK ((user_id IS NULL) != (invite_email IS NULL))
+            );
+            CREATE INDEX idx_auth_links_user ON auth_links(user_id);
+            CREATE INDEX idx_auth_links_invite ON auth_links(invite_email);
+        `,
+    },
 ];
 
 /**

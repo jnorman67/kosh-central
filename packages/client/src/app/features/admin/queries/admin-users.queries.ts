@@ -32,6 +32,10 @@ export const createAdminUsersQueries = (service: AdminUsersService) => {
         });
     };
 
+    const useCreateLoginLink = () => useMutation({ mutationFn: (id: string) => service.createLoginLink(id) });
+
+    const useCreateInviteLink = () => useMutation({ mutationFn: (email: string) => service.createInviteLink(email) });
+
     const useCreateInvite = () => {
         const qc = useQueryClient();
         return useMutation({
@@ -56,7 +60,15 @@ export const createAdminUsersQueries = (service: AdminUsersService) => {
         });
     };
 
-    return { useListUsers, useUpdateUser, useCreateInvite, useUpdateInvite, useDeleteInvite };
+    return {
+        useListUsers,
+        useUpdateUser,
+        useCreateLoginLink,
+        useCreateInviteLink,
+        useCreateInvite,
+        useUpdateInvite,
+        useDeleteInvite,
+    };
 };
 
 export type AdminUsersQueries = ReturnType<typeof createAdminUsersQueries>;

@@ -1,3 +1,4 @@
+import { type SendLink, SendLinkDialog } from '@/app/features/admin/components/send-link-dialog';
 import { useAdminUsersQueries } from '@/app/features/admin/contexts/admin-query.context';
 import type { AdminUser, Role } from '@/app/features/admin/models/user.models';
 import { useAuthQueries } from '@/app/features/auth/contexts/auth-query.context';
@@ -22,7 +23,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { hideSplash } from '@/lib/splash';
 import { cn } from '@/lib/utils';
-import { ArrowLeft, Pencil, Trash2 } from 'lucide-react';
+import { ArrowLeft, Link2, Pencil, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
@@ -54,13 +55,16 @@ export function UsersAdminPage() {
     const backToViewer = useBackToViewer();
     const { useGetMe } = useAuthQueries();
     const { data: me } = useGetMe();
-    const { useListUsers, useUpdateUser, useCreateInvite, useUpdateInvite, useDeleteInvite } = useAdminUsersQueries();
+    const { useListUsers, useUpdateUser, useCreateLoginLink, useCreateInviteLink, useCreateInvite, useUpdateInvite, useDeleteInvite } =
+        useAdminUsersQueries();
 
     const { data, isLoading, error } = useListUsers();
     const updateUser = useUpdateUser();
     const createInvite = useCreateInvite();
     const updateInvite = useUpdateInvite();
     const deleteInvite = useDeleteInvite();
+    const createLoginLink = useCreateLoginLink();
+    const createInviteLink = useCreateInviteLink();
 
     const [inviteEmail, setInviteEmail] = useState('');
     const [inviteRole, setInviteRole] = useState<Role>('user');
@@ -68,6 +72,7 @@ export function UsersAdminPage() {
     const [actionError, setActionError] = useState<string | null>(null);
     const [toast, setToast] = useState<string | null>(null);
     const [revoking, setRevoking] = useState<AdminUser | null>(null);
+    const [sendLink, setSendLink] = useState<SendLink | null>(null);
 
     useEffect(() => {
         if (!isLoading) hideSplash();
@@ -86,6 +91,32 @@ export function UsersAdminPage() {
         setActionError(errorMessage(err));
     }
 
+    function sendLoginLink(user: AdminUser) {
+        createLoginLink.mutate(user.id, {
+            onSuccess: ({ token, expiresAt }) =>
+                setSendLink({
+                    title: `Sign-in link for ${user.displayName}`,
+                    description: `Opening it signs ${user.displayName} in, no password needed.`,
+                    url: `${window.location.origin}/link/${token}`,
+                    expiresAt,
+                }),
+            onError: fail,
+        });
+    }
+
+    function sendInviteLink(email: string) {
+        createInviteLink.mutate(email, {
+            onSuccess: ({ token, expiresAt }) =>
+                setSendLink({
+                    title: `Invite link for ${email}`,
+                    description: 'Opening it asks for their name, then signs them in. No password needed.',
+                    url: `${window.location.origin}/join/${token}`,
+                    expiresAt,
+                }),
+            onError: fail,
+        });
+    }
+
     function handleInvite(e: React.FormEvent) {
         e.preventDefault();
         setInviteError(null);
@@ -97,6 +128,7 @@ export function UsersAdminPage() {
                     setInviteEmail('');
                     setInviteRole('user');
                     report(`Invited ${email}`);
+                    sendInviteLink(email);
                 },
                 onError: (err) => setInviteError(errorMessage(err)),
             },
@@ -139,8 +171,8 @@ export function UsersAdminPage() {
                         <div className="space-y-1">
                             <h1 className="text-xl font-semibold">Users & invites</h1>
                             <p className="text-sm text-muted-foreground">
-                                Only invited email addresses can create an account. Once someone registers, their invite moves to the users
-                                list.
+                                Only invited email addresses can join. Send people an invite link and they'll only need to enter their name.
+                                If someone can't get in, send them a sign-in link.
                             </p>
                         </div>
 
@@ -184,10 +216,7 @@ export function UsersAdminPage() {
                                     {inviteError ? (
                                         <span className="text-destructive">{inviteError}</span>
                                     ) : (
-                                        <>
-                                            No email is sent. Tell them to register at{' '}
-                                            <span className="font-medium">{window.location.origin}/register</span> with this address.
-                                        </>
+                                        <>No email is sent. You'll get a link to send them by text or email.</>
                                     )}
                                 </p>
                             </form>
@@ -207,7 +236,7 @@ export function UsersAdminPage() {
                                                 <TableHead>Email</TableHead>
                                                 <TableHead className="w-32">Role</TableHead>
                                                 <TableHead className="w-28">Invited</TableHead>
-                                                <TableHead className="w-12" />
+                                                <TableHead className="w-24" />
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
@@ -229,7 +258,22 @@ export function UsersAdminPage() {
                                                         />
                                                     </TableCell>
                                                     <TableCell className="text-muted-foreground">{formatDate(invite.createdAt)}</TableCell>
-                                                    <TableCell>
+                                                    <TableCell className="space-x-1 whitespace-nowrap text-right">
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    className="h-8 w-8"
+                                                                    aria-label={`Get invite link for ${invite.email}`}
+                                                                    disabled={createInviteLink.isPending}
+                                                                    onClick={() => sendInviteLink(invite.email)}
+                                                                >
+                                                                    <Link2 className="h-4 w-4" />
+                                                                </Button>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent>Get invite link</TooltipContent>
+                                                        </Tooltip>
                                                         <Tooltip>
                                                             <TooltipTrigger asChild>
                                                                 <Button
@@ -293,6 +337,7 @@ export function UsersAdminPage() {
                                                             </div>
                                                             <div className="text-xs text-muted-foreground">
                                                                 {user.email}
+                                                                {!user.hasPassword && ' · signs in by link'}
                                                                 {disabled && ` · access revoked ${formatDate(user.disabledAt!)}`}
                                                             </div>
                                                         </TableCell>
@@ -311,6 +356,23 @@ export function UsersAdminPage() {
                                                         </TableCell>
                                                         <TableCell>{formatDate(user.createdAt)}</TableCell>
                                                         <TableCell className="space-x-1 text-right">
+                                                            {!disabled && (
+                                                                <Tooltip>
+                                                                    <TooltipTrigger asChild>
+                                                                        <Button
+                                                                            variant="ghost"
+                                                                            size="icon"
+                                                                            className="h-8 w-8"
+                                                                            aria-label={`Get sign-in link for ${user.displayName}`}
+                                                                            disabled={createLoginLink.isPending}
+                                                                            onClick={() => sendLoginLink(user)}
+                                                                        >
+                                                                            <Link2 className="h-4 w-4" />
+                                                                        </Button>
+                                                                    </TooltipTrigger>
+                                                                    <TooltipContent>Get sign-in link</TooltipContent>
+                                                                </Tooltip>
+                                                            )}
                                                             <Tooltip>
                                                                 <TooltipTrigger asChild>
                                                                     <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
@@ -354,6 +416,8 @@ export function UsersAdminPage() {
                             )}
                         </section>
                     </div>
+
+                    <SendLinkDialog link={sendLink} onClose={() => setSendLink(null)} />
 
                     <AlertDialog open={revoking !== null} onOpenChange={(open) => !open && setRevoking(null)}>
                         <AlertDialogContent>

@@ -9,28 +9,31 @@ import { type FormEvent, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 export function ChangePasswordPage() {
-    const { useChangePassword } = useAuthQueries();
+    const { useGetMe, useChangePassword } = useAuthQueries();
+    const { data: me } = useGetMe();
     const changePassword = useChangePassword();
+    // People who joined by invite link have no password; setting one is optional.
+    const settingFirst = me?.hasPassword === false;
 
     const [currentPassword, setCurrentPassword] = useState('');
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [clientError, setClientError] = useState('');
-    const [success, setSuccess] = useState(false);
+    const [success, setSuccess] = useState<string | null>(null);
 
     useEffect(() => hideSplash(), []);
 
     function handleSubmit(e: FormEvent) {
         e.preventDefault();
         setClientError('');
-        setSuccess(false);
+        setSuccess(null);
 
         if (newPassword !== confirmPassword) {
             setClientError('New passwords do not match');
             return;
         }
 
-        if (newPassword === currentPassword) {
+        if (!settingFirst && newPassword === currentPassword) {
             setClientError('New password must be different from current password');
             return;
         }
@@ -38,8 +41,8 @@ export function ChangePasswordPage() {
         changePassword.mutate(
             { currentPassword, newPassword },
             {
-                onSuccess: () => {
-                    setSuccess(true);
+                onSuccess: (message) => {
+                    setSuccess(`${message}.`);
                     setCurrentPassword('');
                     setNewPassword('');
                     setConfirmPassword('');
@@ -54,22 +57,28 @@ export function ChangePasswordPage() {
         <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-amber-50 to-background px-4">
             <Card className="w-full max-w-sm">
                 <CardHeader>
-                    <CardTitle className="text-2xl">Change password</CardTitle>
-                    <CardDescription>Update the password for your account</CardDescription>
+                    <CardTitle className="text-2xl">{settingFirst ? 'Set a password' : 'Change password'}</CardTitle>
+                    <CardDescription>
+                        {settingFirst
+                            ? "Optional. You'll stay signed in on this device either way; a password lets you sign in on others."
+                            : 'Update the password for your account'}
+                    </CardDescription>
                 </CardHeader>
                 <CardContent>
                     <form onSubmit={handleSubmit} className="space-y-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="currentPassword">Current password</Label>
-                            <Input
-                                id="currentPassword"
-                                type="password"
-                                required
-                                autoComplete="current-password"
-                                value={currentPassword}
-                                onChange={(e) => setCurrentPassword(e.target.value)}
-                            />
-                        </div>
+                        {!settingFirst && (
+                            <div className="space-y-2">
+                                <Label htmlFor="currentPassword">Current password</Label>
+                                <Input
+                                    id="currentPassword"
+                                    type="password"
+                                    required
+                                    autoComplete="current-password"
+                                    value={currentPassword}
+                                    onChange={(e) => setCurrentPassword(e.target.value)}
+                                />
+                            </div>
+                        )}
                         <div className="space-y-2">
                             <Label htmlFor="newPassword">New password</Label>
                             <Input
@@ -96,10 +105,10 @@ export function ChangePasswordPage() {
                         </div>
 
                         {error && <p className="text-sm text-destructive">{error}</p>}
-                        {success && <p className="rounded-md bg-green-50 p-3 text-sm text-green-700">Password updated.</p>}
+                        {success && <p className="rounded-md bg-green-50 p-3 text-sm text-green-700">{success}</p>}
 
                         <Button type="submit" className="w-full" disabled={changePassword.isPending}>
-                            {changePassword.isPending ? 'Updating...' : 'Update password'}
+                            {changePassword.isPending ? 'Saving...' : settingFirst ? 'Set password' : 'Update password'}
                         </Button>
                     </form>
 

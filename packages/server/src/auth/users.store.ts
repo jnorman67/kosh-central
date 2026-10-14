@@ -19,7 +19,7 @@ export interface StoredUser {
 }
 
 /** What the admin users page sees: everything except the password hash. */
-export type AdminUser = Omit<StoredUser, 'passwordHash'>;
+export type AdminUser = Omit<StoredUser, 'passwordHash'> & { hasPassword: boolean };
 
 interface UserRow {
     id: string;
@@ -43,8 +43,14 @@ function rowToUser(row: UserRow): StoredUser {
     };
 }
 
-export function toAdminUser({ passwordHash: _passwordHash, ...rest }: StoredUser): AdminUser {
-    return rest;
+/** Users who joined by invite link have no password (an empty hash) until they set one. */
+export function hasPassword(user: StoredUser): boolean {
+    return user.passwordHash !== '';
+}
+
+export function toAdminUser(user: StoredUser): AdminUser {
+    const { passwordHash: _passwordHash, ...rest } = user;
+    return { ...rest, hasPassword: hasPassword(user) };
 }
 
 export function findUserByEmail(email: string): StoredUser | undefined {
