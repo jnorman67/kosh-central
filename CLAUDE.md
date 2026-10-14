@@ -44,6 +44,7 @@ packages/server/src/
   auth/auth.middleware.ts            # JWT verification middleware
   auth/users.store.ts                # User CRUD (SQLite) + Role type
   auth/invites.store.ts              # Pending invites (email + role); consumed on registration
+  auth/links.store.ts                # One-time sign-in links and invite links (hashed tokens in auth_links)
   routes/auth.router.ts              # /api/auth (register, login, logout, me)
   routes/folders.router.ts           # /api/folders (protected)
   routes/folders-admin.router.ts     # /api/admin/folders (admin-only CRUD + export/import)
@@ -86,11 +87,11 @@ Server env lives in `packages/server/.env` (gitignored):
 
 SQLite with sequential migrations defined in `packages/server/src/db/database.ts`. Add new migrations to the `migrations` array — they run automatically on server startup. `make db-status` lists applied/pending migrations without applying them (`make db-prod-status` for the prod snapshot). The database file is gitignored.
 
-Tables: `users` (`disabled_at` set when access is revoked; `activity_seen_at` = last visit to the activity feed), `invites` (pending registrations), `photos` (content-addressed by SHA-256 hash, carry `bundle_id` / `side` / `is_preferred`), `photo_locations` (multiple locations per photo), `bundles` (one per physical photograph; scanner-keyed for idempotent re-import), `photo_relations` (cross-bundle `duplicate-of` only; front/back/original grouping lives on bundles), `photo_series` + `photo_series_members` (ordered groups), `folders` (admin-editable folder config, seeded once from `folders.seed.ts`; `subfolder_mode` is `flatten` or `browse`), `featured_album` (single row: the album highlighted after sign-in) + `featured_album_persons` (people whose tagged photos follow it), `person_galleries` + `person_gallery_persons` (each user's private galleries of photos tagged with chosen people; `match_mode` is `any` or `all`).
+Tables: `users` (`disabled_at` set when access is revoked; `activity_seen_at` = last visit to the activity feed), `invites` (pending registrations), `auth_links` (one-time sign-in links by `user_id` and invite links by `invite_email`; token hashes only), `photos` (content-addressed by SHA-256 hash, carry `bundle_id` / `side` / `is_preferred`), `photo_locations` (multiple locations per photo), `bundles` (one per physical photograph; scanner-keyed for idempotent re-import), `photo_relations` (cross-bundle `duplicate-of` only; front/back/original grouping lives on bundles), `photo_series` + `photo_series_members` (ordered groups), `folders` (admin-editable folder config, seeded once from `folders.seed.ts`; `subfolder_mode` is `flatten` or `browse`), `featured_album` (single row: the album highlighted after sign-in) + `featured_album_persons` (people whose tagged photos follow it), `person_galleries` + `person_gallery_persons` (each user's private galleries of photos tagged with chosen people; `match_mode` is `any` or `all`).
 
 ## Auth Flow
 
-Users are invitation-only. Admins add invites (email + role) at `/admin/users`; they're stored in the `invites` table. Users register with an invited email, which consumes the invite, then log in to receive a 7-day JWT cookie. `requireAuth` re-reads the user row on every request, so role changes and revoked access (`users.disabled_at`) take effect immediately. Users are disabled, never deleted, because deleting cascades to their comments. All `/api/folders` routes require authentication.
+Users are invitation-only. Admins add invites (email + role) at `/admin/users`; they're stored in the `invites` table. Admins send an invite link (`/join/<token>`): the invitee enters only a name and is signed in, with no password (`password_hash = ''`) until they set one. The older path still works: register at `/register` with an invited email and a password, then log in. Admins can also send any user a one-time sign-in link (`/link/<token>`). The session is a JWT cookie that lasts 90 days and is re-issued daily by `requireAuth`, so it lasts 90 days from the last visit. `requireAuth` re-reads the user row on every request, so role changes and revoked access (`users.disabled_at`) take effect immediately. Users are disabled, never deleted, because deleting cascades to their comments. All `/api/folders` routes require authentication.
 
 ## State Management
 

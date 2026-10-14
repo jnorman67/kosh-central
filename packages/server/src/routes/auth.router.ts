@@ -1,27 +1,42 @@
 import bcrypt from "bcryptjs";
 import { Router } from "express";
-import jwt from "jsonwebtoken";
-import {
-    type AuthPayload,
-    getJwtSecret,
-    requireAuth,
-} from "../auth/auth.middleware.js";
+import { requireAuth, startSession } from "../auth/auth.middleware.js";
 import { acceptInvite, findInvite } from "../auth/invites.store.js";
+import { consumeLoginLink, findInviteLinkEmail } from "../auth/links.store.js";
 import {
     findUserByEmail,
     findUserById,
+    hasPassword,
     listUsers,
+    type StoredUser,
     updateUserPasswordHash,
 } from "../auth/users.store.js";
 
-const TOKEN_MAX_AGE = 7 * 24 * 60 * 60 * 1000; // 7 days
+const LINK_INVALID =
+    "This link has expired or has already been used. Ask for a new one.";
+
+/** Phone keyboards often add a trailing space after an autocompleted address. */
+function readEmail(value: unknown): string {
+    return typeof value === "string" ? value.trim() : "";
+}
+
+function toAuthUser(user: StoredUser) {
+    return {
+        id: user.id,
+        email: user.email,
+        displayName: user.displayName,
+        role: user.role,
+        hasPassword: hasPassword(user),
+    };
+}
 
 export function createAuthRouter(): Router {
     const router = Router();
 
     router.post("/register", async (req, res) => {
         try {
-            const { email, displayName, password } = req.body;
+            const email = readEmail(req.body?.email);
+            const { displayName, password } = req.body;
 
             if (!email || !displayName || !password) {
                 res.status(400).json({
@@ -37,17 +52,19 @@ export function createAuthRouter(): Router {
                 return;
             }
 
-            const invite = findInvite(email);
-            if (!invite) {
-                res.status(403).json({
-                    error: "This email is not on the invite list",
+            // Registering consumes the invite, so check for an account first: someone who
+            // already registered should be told to sign in, not that they aren't invited.
+            if (findUserByEmail(email)) {
+                res.status(409).json({
+                    error: "You already have an account with this email. Sign in instead.",
                 });
                 return;
             }
 
-            if (findUserByEmail(email)) {
-                res.status(409).json({
-                    error: "An account with this email already exists",
+            const invite = findInvite(email);
+            if (!invite) {
+                res.status(403).json({
+                    error: "This email is not on the invite list",
                 });
                 return;
             }
@@ -75,7 +92,8 @@ export function createAuthRouter(): Router {
 
     router.post("/login", async (req, res) => {
         try {
-            const { email, password } = req.body;
+            const email = readEmail(req.body?.email);
+            const { password } = req.body;
 
             if (!email || !password) {
                 res.status(400).json({
@@ -90,6 +108,13 @@ export function createAuthRouter(): Router {
                 return;
             }
 
+            if (!hasPassword(user)) {
+                res.status(401).json({
+                    error: "This account doesn't have a password. Sign in with the link you were sent, or ask for a new one.",
+                });
+                return;
+            }
+
             const valid = await bcrypt.compare(password, user.passwordHash);
             if (!valid) {
                 res.status(401).json({ error: "Invalid email or password" });
@@ -101,34 +126,74 @@ export function createAuthRouter(): Router {
                 return;
             }
 
-            const payload: AuthPayload = {
-                userId: user.id,
-                email: user.email,
-                role: user.role,
-            };
-            const token = jwt.sign(payload, getJwtSecret(), {
-                expiresIn: "7d",
-            });
-
-            res.cookie("token", token, {
-                httpOnly: true,
-                secure: process.env.NODE_ENV === "production",
-                sameSite: "lax",
-                maxAge: TOKEN_MAX_AGE,
-            });
-
-            res.json({
-                user: {
-                    id: user.id,
-                    email: user.email,
-                    displayName: user.displayName,
-                    role: user.role,
-                },
-            });
+            startSession(res, user);
+            res.json({ user: toAuthUser(user) });
         } catch (err) {
             console.error("POST /login error:", err);
             res.status(500).json({ error: "Internal server error" });
         }
+    });
+
+    // One-time sign-in link. The page at /link/:token POSTs here, rather than the link hitting
+    // the server directly, so link previews in messaging apps can't use the link up.
+    router.post("/link", (req, res) => {
+        const token = typeof req.body?.token === "string" ? req.body.token : "";
+        const userId = token ? consumeLoginLink(token) : undefined;
+        const user = userId ? findUserById(userId) : undefined;
+        if (!user) {
+            res.status(410).json({ error: LINK_INVALID });
+            return;
+        }
+        if (user.disabledAt) {
+            res.status(403).json({ error: "This account has been disabled" });
+            return;
+        }
+
+        startSession(res, user);
+        res.json({ user: toAuthUser(user) });
+    });
+
+    // Invite link: look up who it's for, so the join page can greet them.
+    router.get("/join/:token", (req, res) => {
+        const email = findInviteLinkEmail(req.params.token);
+        if (!email) {
+            res.status(410).json({ error: LINK_INVALID });
+            return;
+        }
+        res.json({ email });
+    });
+
+    // Invite link: create the account (no password) and sign straight in.
+    router.post("/join/:token", (req, res) => {
+        const displayName =
+            typeof req.body?.displayName === "string"
+                ? req.body.displayName.trim()
+                : "";
+        if (!displayName) {
+            res.status(400).json({ error: "Please enter your name" });
+            return;
+        }
+
+        const email = findInviteLinkEmail(req.params.token);
+        const invite = email ? findInvite(email) : undefined;
+        if (!invite) {
+            res.status(410).json({ error: LINK_INVALID });
+            return;
+        }
+
+        const user: StoredUser = {
+            id: crypto.randomUUID(),
+            email: invite.email,
+            displayName,
+            passwordHash: "",
+            role: invite.role,
+            createdAt: new Date().toISOString(),
+            disabledAt: null,
+        };
+        acceptInvite(user);
+
+        startSession(res, user);
+        res.status(201).json({ user: toAuthUser(user) });
     });
 
     router.post("/logout", (_req, res) => {
@@ -140,9 +205,9 @@ export function createAuthRouter(): Router {
         try {
             const { currentPassword, newPassword } = req.body;
 
-            if (!currentPassword || !newPassword) {
+            if (!newPassword) {
                 res.status(400).json({
-                    error: "Current and new passwords are required",
+                    error: "A new password is required",
                 });
                 return;
             }
@@ -160,37 +225,26 @@ export function createAuthRouter(): Router {
                 return;
             }
 
-            const valid = await bcrypt.compare(
-                currentPassword,
-                user.passwordHash,
-            );
-            if (!valid) {
-                res.status(401).json({
-                    error: "Current password is incorrect",
-                });
-                return;
+            // Someone who joined by link has no password yet, so there's nothing to confirm.
+            if (hasPassword(user)) {
+                const valid =
+                    typeof currentPassword === "string" &&
+                    (await bcrypt.compare(currentPassword, user.passwordHash));
+                if (!valid) {
+                    res.status(401).json({
+                        error: "Current password is incorrect",
+                    });
+                    return;
+                }
             }
 
             const newHash = await bcrypt.hash(newPassword, 12);
             updateUserPasswordHash(user.id, newHash);
 
-            const payload: AuthPayload = {
-                userId: user.id,
-                email: user.email,
-                role: user.role,
-            };
-            const token = jwt.sign(payload, getJwtSecret(), {
-                expiresIn: "7d",
+            startSession(res, user);
+            res.json({
+                message: hasPassword(user) ? "Password updated" : "Password set",
             });
-
-            res.cookie("token", token, {
-                httpOnly: true,
-                secure: process.env.NODE_ENV === "production",
-                sameSite: "lax",
-                maxAge: TOKEN_MAX_AGE,
-            });
-
-            res.json({ message: "Password updated" });
         } catch (err) {
             console.error("POST /change-password error:", err);
             res.status(500).json({ error: "Internal server error" });
@@ -209,14 +263,7 @@ export function createAuthRouter(): Router {
             return;
         }
 
-        res.json({
-            user: {
-                id: user.id,
-                email: user.email,
-                displayName: user.displayName,
-                role: user.role,
-            },
-        });
+        res.json({ user: toAuthUser(user) });
     });
 
     return router;

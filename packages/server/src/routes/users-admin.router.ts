@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { requireAdmin } from '../auth/auth.middleware.js';
 import { createInvite, deleteInvite, findInvite, listInvites, updateInviteRole } from '../auth/invites.store.js';
+import { createInviteLink, createLoginLink } from '../auth/links.store.js';
 import {
     findUserByEmail,
     findUserById,
@@ -61,12 +62,36 @@ export function createUsersAdminRouter(): Router {
         res.json(invite);
     });
 
+    // Returns a token; the client turns it into a /join/<token> link for the admin to send.
+    router.post('/invites/:email/link', (req, res) => {
+        const invite = findInvite(req.params.email);
+        if (!invite) {
+            res.status(404).json({ error: 'Invite not found' });
+            return;
+        }
+        res.status(201).json(createInviteLink(invite.email));
+    });
+
     router.delete('/invites/:email', (req, res) => {
         if (!deleteInvite(req.params.email)) {
             res.status(404).json({ error: 'Invite not found' });
             return;
         }
         res.status(204).end();
+    });
+
+    // Returns a token; the client turns it into a /link/<token> sign-in link for the admin to send.
+    router.post('/:id/login-link', (req, res) => {
+        const user = findUserById(req.params.id);
+        if (!user) {
+            res.status(404).json({ error: 'User not found' });
+            return;
+        }
+        if (user.disabledAt) {
+            res.status(400).json({ error: 'Restore access before sending a sign-in link' });
+            return;
+        }
+        res.status(201).json(createLoginLink(user.id));
     });
 
     router.patch('/:id', (req, res) => {

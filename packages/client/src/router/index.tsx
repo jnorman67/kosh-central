@@ -8,6 +8,8 @@ import { UsersAdminPage } from '@/app/features/admin/pages/users-admin-page';
 import { AdminGuard } from '@/app/features/auth/components/admin-guard';
 import { AuthGuard } from '@/app/features/auth/components/auth-guard';
 import { ChangePasswordPage } from '@/app/features/auth/pages/change-password-page';
+import { JoinPage } from '@/app/features/auth/pages/join-page';
+import { LinkPage } from '@/app/features/auth/pages/link-page';
 import { LoginPage } from '@/app/features/auth/pages/login-page';
 import { RegisterPage } from '@/app/features/auth/pages/register-page';
 import { CommentsQueryProvider } from '@/app/features/comments/contexts/comments-query.context';
@@ -26,6 +28,14 @@ export const router = createBrowserRouter([
     {
         path: '/register',
         element: <RegisterPage />,
+    },
+    {
+        path: '/link/:token',
+        element: <LinkPage />,
+    },
+    {
+        path: '/join/:token',
+        element: <JoinPage />,
     },
     {
         path: '/',
