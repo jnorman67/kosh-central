@@ -13,6 +13,7 @@ import { OcrPanel } from '@/app/features/ocr/components/ocr-panel';
 import { OcrQueryProvider } from '@/app/features/ocr/contexts/ocr-query.context';
 import { AlbumGallery } from '@/app/features/photos/components/album-gallery';
 import { BackToGalleryButton } from '@/app/features/photos/components/back-to-gallery-button';
+import { FileViewer } from '@/app/features/photos/components/file-viewer';
 import { FolderSelector } from '@/app/features/photos/components/folder-selector';
 import { LetterboxViewer } from '@/app/features/photos/components/letterbox-viewer';
 import { MobilePanel } from '@/app/features/photos/components/mobile-panel';
@@ -27,6 +28,7 @@ import { usePhotosQueries } from '@/app/features/photos/contexts/photos-query.co
 import { SubjectsQueryProvider } from '@/app/features/photos/contexts/subjects-query.context';
 import { photoKey, readGalleryId, readPagesView, readSubfolderPath, useViewerState } from '@/app/features/photos/hooks/use-viewer-state';
 import { coverName, isCoverPhoto } from '@/app/features/photos/lib/cover';
+import { fileContentUrl, isImageFile } from '@/app/features/photos/lib/files';
 import {
     ALBUMS_PLACE,
     galleryPlace,
@@ -44,7 +46,20 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { hideSplash } from '@/lib/splash';
 import { cn } from '@/lib/utils';
-import { ArrowRight, BookOpen, ChevronDown, ExternalLink, Filter, LayoutGrid, ScanFace, Star, StarOff, Users, X } from 'lucide-react';
+import {
+    ArrowRight,
+    BookOpen,
+    ChevronDown,
+    Download,
+    ExternalLink,
+    Filter,
+    LayoutGrid,
+    ScanFace,
+    Star,
+    StarOff,
+    Users,
+    X,
+} from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 
@@ -150,7 +165,7 @@ export function ViewerPage() {
     // A second copy of the same image is dropped: the viewer finds photos by content hash, so
     // stepping onto the copy would land back on the first and stall navigation.
     const viewablePhotos = useMemo(() => {
-        if (uncatalogedOnly) return allPhotos.filter((p) => !p.catalogId);
+        if (uncatalogedOnly) return allPhotos.filter((p) => !p.catalogId && isImageFile(p));
         const seen = new Set<string>();
         return allPhotos.filter((p) => {
             if (p.contentHash) {
@@ -183,7 +198,8 @@ export function ViewerPage() {
         prevPhoto,
     } = useViewerState({ folders, viewablePhotos });
 
-    const uncatalogedCount = useMemo(() => allPhotos.filter((p) => !p.catalogId).length, [allPhotos]);
+    // Only pictures are catalogued, so documents never count as uncataloged.
+    const uncatalogedCount = useMemo(() => allPhotos.filter((p) => !p.catalogId && isImageFile(p)).length, [allPhotos]);
 
     // A people gallery's own scroll place: by id when saved, by its people when opened from a link.
     const peoplePlace = currentGalleryId
@@ -258,7 +274,10 @@ export function ViewerPage() {
     const displayPhoto = enlargedRelated ? enlargedRelated.photo : currentPhoto;
     // Anonymous view link for the displayed photo — fetched lazily and cached forever.
     // Photos of featured people live in other albums, so their link comes from there.
-    const { data: shareLink } = useGetShareLink(displayPhoto?.sourceFolderId ?? currentFolder?.id ?? null, displayPhoto?.id ?? null);
+    const displayFolderId = displayPhoto?.sourceFolderId ?? currentFolder?.id ?? null;
+    const { data: shareLink } = useGetShareLink(displayFolderId, displayPhoto?.id ?? null);
+    // Pictures show in the zoomable viewer; PDFs, text, video and other documents in the file viewer.
+    const displayIsDocument = !!displayPhoto && !isImageFile(displayPhoto);
     // Face boxes for the displayed photo. Only fetched when face mode is on AND the
     // photo is cataloged (uncataloged photos have no bundle and no sidecar rows).
     const { data: faces } = useGetFaces(displayPhoto?.catalogId, faceMode && !!displayPhoto?.catalogId);
@@ -270,6 +289,10 @@ export function ViewerPage() {
     const subfolderName = currentPath.split('/').pop() ?? '';
     // A cover belongs to a folder: the album itself or, in a browse album, the subfolder being viewed.
     const isAlbumCover = !!currentPhoto && isCoverPhoto(currentPhoto, currentFolder?.coverFileName);
+    // A cover is shown from the file's thumbnail, so a document without one can't be a cover.
+    const canBeCover = !!currentPhoto && !currentPhoto.sourceFolderId && (isImageFile(currentPhoto) || !!currentPhoto.thumbnailUrl);
+    // Gallery counts say "photos" unless the gallery holds documents too.
+    const itemNoun = viewablePhotos.every(isImageFile) ? 'photo' : 'item';
     const isSubfolderCover = !!currentPhoto && !!currentPath && isCoverPhoto(currentPhoto, galleryData?.coverFileName, currentPath);
     // Where the featured album's own photos end and photos of its featured people begin.
     const featuredPeopleStart = viewablePhotos.findIndex((p) => !!p.sourceFolderId);
@@ -316,6 +339,7 @@ export function ViewerPage() {
             {isPhoto &&
                 viewablePhotos
                     .slice(currentPhotoIndex + 1, currentPhotoIndex + 3)
+                    .filter(isImageFile)
                     .map((p) => <link key={p.id} rel="preload" as="image" href={p.downloadUrl} />)}
 
             <ViewerLayout
@@ -392,7 +416,7 @@ export function ViewerPage() {
                             </div>
                         )}
                         <div className="flex shrink-0 items-center gap-1 pr-1 sm:gap-3 sm:px-4">
-                            {isAdmin && isPhoto && currentPhoto && !currentPhoto.sourceFolderId && currentPath && (
+                            {isAdmin && isPhoto && canBeCover && currentPath && (
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
                                         <Button
@@ -418,7 +442,7 @@ export function ViewerPage() {
                                     </DropdownMenuContent>
                                 </DropdownMenu>
                             )}
-                            {isAdmin && isPhoto && currentPhoto && !currentPhoto.sourceFolderId && !currentPath && (
+                            {isAdmin && isPhoto && canBeCover && !currentPath && (
                                 <Button
                                     variant="ghost"
                                     size="sm"
@@ -496,15 +520,19 @@ export function ViewerPage() {
                         )
                     ) : (
                         <div className="relative h-full w-full">
-                            <LetterboxViewer
-                                photo={displayPhoto}
-                                isLoading={photosLoading && isOpen}
-                                onClick={enlargedRelated ? () => setEnlargedRelatedId(null) : undefined}
-                                onSwipeNext={handleNext}
-                                onSwipePrev={handlePrev}
-                                showFaces={faceMode}
-                                faces={faces}
-                            />
+                            {displayIsDocument && displayFolderId ? (
+                                <FileViewer key={displayPhoto.id} file={displayPhoto} folderId={displayFolderId} shareLink={shareLink} />
+                            ) : (
+                                <LetterboxViewer
+                                    photo={displayPhoto}
+                                    isLoading={photosLoading && isOpen}
+                                    onClick={enlargedRelated ? () => setEnlargedRelatedId(null) : undefined}
+                                    onSwipeNext={handleNext}
+                                    onSwipePrev={handlePrev}
+                                    showFaces={faceMode}
+                                    faces={faces}
+                                />
+                            )}
                             {currentPhoto && relatedPhotos.length > 0 && (
                                 <RelatedStrip
                                     className="md:hidden"
@@ -616,8 +644,8 @@ export function ViewerPage() {
                                         ? 'page'
                                         : 'pages'
                                     : viewablePhotos.length === 1
-                                      ? 'photo'
-                                      : 'photos'}
+                                      ? itemNoun
+                                      : `${itemNoun}s`}
                                 {peopleView &&
                                     peopleView.persons.length > 0 &&
                                     ` of ${peopleGalleryNames}${peopleView.matchMode === 'all' && peopleView.persons.length > 1 ? ' together' : ''}`}
@@ -664,6 +692,19 @@ export function ViewerPage() {
                                             </Button>
                                         </TooltipTrigger>
                                         <TooltipContent>Open in OneDrive</TooltipContent>
+                                    </Tooltip>
+                                )}
+                                {displayIsDocument && displayFolderId && (
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Button variant="ghost" size="sm" asChild className="shrink-0">
+                                                <a href={fileContentUrl(displayFolderId, displayPhoto, true)} download={displayPhoto.name}>
+                                                    <Download className="h-4 w-4" />
+                                                    <span className="sr-only">Download</span>
+                                                </a>
+                                            </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>Download</TooltipContent>
                                     </Tooltip>
                                 )}
                                 {displayPhoto && (

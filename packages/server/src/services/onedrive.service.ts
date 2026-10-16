@@ -27,6 +27,24 @@ export interface Photo {
     driveId: string;
 }
 
+/** True for a file the viewer shows as a picture; anything else (PDFs, text, video…) is a document. */
+export function isImageFile(photo: Pick<Photo, 'mimeType'>): boolean {
+    return photo.mimeType.startsWith('image/');
+}
+
+/** Files that are Kosh's own data or system clutter rather than something to view. */
+const HIDDEN_FILE_NAMES = new Set(['desktop.ini', 'thumbs.db']);
+/** JSON files are Kosh sidecars and manifests; XMP and AAE are photo-editor sidecars. */
+const HIDDEN_FILE_EXTENSIONS = ['.json', '.xmp', '.aae', '.tmp'];
+
+/** Whether an album shows a file. Hidden files, Office lock files and sidecars are left out. */
+export function isViewableFile(name: string): boolean {
+    const lower = name.toLowerCase();
+    if (lower.startsWith('.') || lower.startsWith('~$')) return false;
+    if (HIDDEN_FILE_NAMES.has(lower)) return false;
+    return !HIDDEN_FILE_EXTENSIONS.some((ext) => lower.endsWith(ext));
+}
+
 /**
  * Path of the folder whose "pages" subfolder a photo sits in, relative to the album root, or null
  * when the photo isn't in a pages folder. Pages folders can sit at any depth:
@@ -176,7 +194,7 @@ export class OneDriveService {
     }
 
     /**
-     * Walk a children listing, returning its image items and recursing into folder items.
+     * Walk a children listing, returning its viewable files and recursing into folder items.
      * Follows `@odata.nextLink` for paginated listings. Subfolders are walked in parallel (Graph
      * takes seconds per request, and an album can have dozens of subfolders), but photos come back
      * in listing order: each folder's photos at that folder's position, the next page after.
@@ -191,7 +209,7 @@ export class OneDriveService {
             id: string;
             name: string;
             '@microsoft.graph.downloadUrl'?: string;
-            file?: { mimeType: string };
+            file?: { mimeType?: string };
             folder?: { childCount?: number };
             thumbnails?: ThumbnailSet[];
             parentReference?: { driveId?: string };
@@ -225,7 +243,7 @@ export class OneDriveService {
                 parts.push(this.collectPhotos(childUrl, accessToken, nextSub));
                 continue;
             }
-            if (!item.file?.mimeType?.startsWith('image/')) continue;
+            if (!item.file || !isViewableFile(item.name)) continue;
             if (!item.parentReference?.driveId) continue;
             const thumb = item.thumbnails?.[0];
             parts.push([
@@ -235,7 +253,7 @@ export class OneDriveService {
                     subfolderPath,
                     downloadUrl: item['@microsoft.graph.downloadUrl'] ?? '',
                     thumbnailUrl: thumb?.large?.url ?? thumb?.medium?.url ?? thumb?.small?.url,
-                    mimeType: item.file.mimeType,
+                    mimeType: item.file.mimeType || 'application/octet-stream',
                     driveId: item.parentReference.driveId,
                 },
             ]);

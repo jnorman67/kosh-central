@@ -107,7 +107,8 @@ app.use('/api', (req, res, next) => {
     const start = performance.now();
     res.on('finish', () => {
         const ms = performance.now() - start;
-        if (ms >= SLOW_REQUEST_MS) {
+        // File content is streamed, so a long video is slow by nature.
+        if (ms >= SLOW_REQUEST_MS && !req.path.endsWith('/content')) {
             console.log(`Slow request: ${req.method} ${req.originalUrl} ${res.statusCode} ${Math.round(ms)}ms`);
         }
     });

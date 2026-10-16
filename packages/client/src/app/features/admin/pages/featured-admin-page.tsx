@@ -6,6 +6,7 @@ import { PersonsPicker } from '@/app/features/photos/components/persons-picker';
 import { usePhotosQueries } from '@/app/features/photos/contexts/photos-query.context';
 import { useBackToViewer } from '@/app/features/photos/hooks/use-back-to-viewer';
 import { isCoverPhoto } from '@/app/features/photos/lib/cover';
+import { isImageFile } from '@/app/features/photos/lib/files';
 import { UserMenu } from '@/components/layout/user-menu';
 import { ViewerLayout } from '@/components/layout/viewer-layout';
 import { Button } from '@/components/ui/button';
@@ -46,11 +47,11 @@ export function FeaturedAdminPage() {
 
     const { data: photosData, isLoading: photosLoading } = useGetAllPhotos(form?.folderSlug ?? null);
     // Same "one photo per bundle" rule the viewer's gallery uses. Photos of the featured people
-    // live in other albums, so they can't be the featured photo.
+    // live in other albums, so they can't be the featured photo, and documents can't be either.
     const viewablePhotos = useMemo(
         () =>
             (photosData?.photos ?? []).filter(
-                (p) => !p.sourceFolderId && (!p.catalogId || !p.bundleId || (p.side === 'front' && !!p.isPreferred)),
+                (p) => isImageFile(p) && !p.sourceFolderId && (!p.catalogId || !p.bundleId || (p.side === 'front' && !!p.isPreferred)),
             ),
         [photosData],
     );

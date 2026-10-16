@@ -1,5 +1,7 @@
+import { FileThumbnail } from '@/app/features/photos/components/file-thumbnail';
 import { usePlaceMemory } from '@/app/features/photos/hooks/use-place-memory';
 import { photoKey } from '@/app/features/photos/hooks/use-viewer-state';
+import { isImageFile } from '@/app/features/photos/lib/files';
 import type { Photo } from '@/app/features/photos/models/photos.models';
 import { cn } from '@/lib/utils';
 
@@ -37,12 +39,22 @@ export function PhotoPagesReader({ photos, isLoading, onSelect, placeKey }: Phot
                         )}
                         aria-label={`Open page ${i + 1}`}
                     >
-                        <img
-                            src={p.downloadUrl}
-                            alt={`Page ${i + 1}`}
-                            loading="lazy"
-                            className="block h-auto w-full object-contain transition-opacity group-hover:opacity-90"
-                        />
+                        {isImageFile(p) ? (
+                            <img
+                                src={p.downloadUrl}
+                                alt={`Page ${i + 1}`}
+                                loading="lazy"
+                                className="block h-auto w-full object-contain transition-opacity group-hover:opacity-90"
+                            />
+                        ) : (
+                            // A document page opens in the viewer; here it is its preview, at a fixed shape.
+                            <div className="aspect-[4/3] w-full">
+                                <FileThumbnail
+                                    file={p}
+                                    imgClassName="h-full w-full object-contain transition-opacity group-hover:opacity-90"
+                                />
+                            </div>
+                        )}
                         <span className="absolute left-2 top-2 rounded bg-black/60 px-2 py-0.5 text-xs text-white">Page {i + 1}</span>
                     </button>
                 ))}

@@ -109,6 +109,17 @@ Either way, some folder names are special at any depth: `archive`, `archived`, a
 
 Covers can be set per subfolder in browse albums (admins: **Cover** menu on a photo inside a subfolder). A cover is stored as the photo's path relative to the folder it covers (`folder_covers.folder_path` is the album's `folderPath`, plus the subfolder path for subfolder covers), so an album cover can come from a subfolder.
 
+### Documents and other files
+
+Albums show every file, not only images. The exceptions are hidden files (names starting with `.`), Office lock files (`~$…`), `desktop.ini`, `Thumbs.db`, and sidecars (`*.json`, which covers Kosh sidecars and `kosh-manifest.json`, plus `*.xmp`, `*.aae` and `*.tmp`). Pictures open in the zoomable viewer. Other files open in a file viewer (`components/file-viewer.tsx`):
+
+- **PDF** — the browser's own PDF viewer. Browsers that can't show one in the page (`navigator.pdfViewerEnabled === false`, mostly Android phones) get a card with Open and Download buttons instead.
+- **Text** (`text/*`, or `.txt` `.md` `.csv` `.tsv` `.log`) — shown as text. Files that aren't valid UTF-8 are read as Windows-1252, and only the first 1 MB is shown.
+- **Video and audio** — the browser's player. A video the browser can't decode (an AVI, say) falls back to the download card.
+- **Anything else** — a card with **Open in OneDrive** (Office files open in the browser there) and **Download**.
+
+The bytes come through `GET /api/folders/:folderId/files/:itemId/content/:fileName`. The route streams from OneDrive and passes Range requests through, so video can seek, and `?download=1` saves the file instead. The trailing file name is only there so the browser uses it as the PDF's title and the saved file's name. Text is always served as `text/plain`, and everything except PDFs carries a `Content-Security-Policy: sandbox` header, so an HTML or SVG file can't run script on the app's origin. Gallery tiles use OneDrive's preview image with a type badge, or an icon and the file name when there's no preview. Documents are never cataloged, so they don't count as uncataloged, aren't picked as covers automatically, and don't appear on the featured page or as slideshow and favorite candidates. An admin can still choose one that has a preview image as a cover.
+
 ### Keeping the viewer's place
 
 The viewer's position lives in the URL (`folder`, `path`, `view=pages`, `photo`), so reloads and the browser's back button return to the same album, subfolder, view, and photo. Scroll offsets aren't in the URL. Instead, `packages/client/src/app/features/photos/lib/places.ts` stores them in `sessionStorage` (per tab, cleared on sign-out), together with the item last opened from each view. Returning to the album list, a gallery, or a pages reader restores its scroll position and highlights the album, subfolder, or photo the user came back from, scrolling it into view if needed. "Back to viewer" on the other pages (Persons, admin pages, Change password, Featured's continue button) returns to the last viewer URL rather than the album list. New scrollable views should use `usePlaceMemory` and mark their items with `data-place-item`.

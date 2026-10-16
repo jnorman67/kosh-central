@@ -1,5 +1,14 @@
 import type { FaceBox, FavoritesPage, FolderCover, PhotoFolder, PhotosResponse } from '@/app/features/photos/models/photos.models';
-import { apiFetch } from '@/lib/api-client';
+import { ApiError, apiFetch } from '@/lib/api-client';
+
+/** Larger text files are previewed only up to here. */
+const TEXT_PREVIEW_BYTES = 1024 * 1024;
+
+export interface TextFile {
+    text: string;
+    /** The file runs past what the preview shows. */
+    truncated: boolean;
+}
 
 function pathQuery(path: string): string {
     return path ? `?${new URLSearchParams({ path })}` : '';
@@ -57,6 +66,23 @@ export class PhotosService {
     async getShareLink(folderId: string, itemId: string): Promise<string> {
         const body = await apiFetch<{ webUrl: string }>(`/api/folders/${folderId}/photos/${encodeURIComponent(itemId)}/share-link`);
         return body.webUrl;
+    }
+
+    /** A text file's contents, read as UTF-8, or as Windows-1252 when it isn't valid UTF-8 (older files often aren't). */
+    async getTextFile(url: string): Promise<TextFile> {
+        const res = await fetch(url);
+        if (!res.ok) throw new ApiError(`Request failed (${res.status})`, res.status);
+        const bytes = new Uint8Array(await res.arrayBuffer());
+        const shown = bytes.subarray(0, TEXT_PREVIEW_BYTES);
+        const truncated = bytes.length > shown.length;
+        let text: string;
+        try {
+            // A cut can split a multi-byte character, so only a whole file is decoded strictly.
+            text = new TextDecoder('utf-8', { fatal: !truncated }).decode(shown);
+        } catch {
+            text = new TextDecoder('windows-1252').decode(shown);
+        }
+        return { text, truncated };
     }
 
     async getFaces(photoId: string): Promise<FaceBox[]> {

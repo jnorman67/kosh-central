@@ -1,4 +1,7 @@
 import { Router } from 'express';
+import { Readable } from 'node:stream';
+import type { ReadableStream as NodeReadableStream } from 'node:stream/web';
+import { pipeline } from 'node:stream/promises';
 import { requireAdmin } from '../auth/auth.middleware.js';
 import { getFeaturedAlbum } from '../db/featured.store.js';
 import { clearFolderCover, getAllFolderCovers, getFolderCover, setFolderCover } from '../db/folder-covers.store.js';
@@ -7,7 +10,13 @@ import { findPhotoByFolderAndName, type StoredPhoto } from '../db/photos.store.j
 import { getRatingsByUserForPhotos } from '../db/ratings.store.js';
 import { getRelationsForPhoto } from '../db/relations.store.js';
 import { getFeaturedTaggedPhotos } from '../services/featured-photos.service.js';
-import { isInPagesSubfolder, OneDriveService, pagesOwnerPath, type Photo as OneDrivePhoto } from '../services/onedrive.service.js';
+import {
+    isImageFile,
+    isInPagesSubfolder,
+    OneDriveService,
+    pagesOwnerPath,
+    type Photo as OneDrivePhoto,
+} from '../services/onedrive.service.js';
 import { isGalleryFile } from '../services/tagged-photos.service.js';
 import { ThumbnailCacheService } from '../services/thumbnail-cache.service.js';
 
@@ -28,6 +37,7 @@ function coverName(photo: OneDrivePhoto, scopePath: string): string {
 
 /** Mirror of the client's pickCover: prefer the admin-configured cover, else the first
  *  photo that is uncataloged, or cataloged-without-bundle, or a preferred front.
+ *  Only pictures are picked automatically; documents are a fallback when there are none.
  *  `scopePath` is the subfolder the cover belongs to ('' for the album itself). */
 export function pickCoverPhoto(
     photos: OneDrivePhoto[],
@@ -40,15 +50,29 @@ export function pickCoverPhoto(
             photos.find((p) => coverName(p, scopePath) === coverFileName) ?? photos.find((p) => p.name === coverFileName);
         if (chosen) return chosen;
     }
-    for (const p of photos) {
+    const images = photos.filter(isImageFile);
+    for (const p of images) {
         const fullFolder = p.subfolderPath ? `${folderPath}/${p.subfolderPath}` : folderPath;
         const cat = findPhotoByFolderAndName(fullFolder, p.name);
         if (!cat) return p;
         if (!cat.bundleId) return p;
         if (cat.side === 'front' && cat.isPreferred) return p;
     }
-    return photos[0] ?? null;
+    return images[0] ?? photos.find((p) => p.thumbnailUrl) ?? null;
 }
+
+/**
+ * How the content route serves a file. Types the viewer shows in place go inline; text always as
+ * plain text, so an HTML or SVG file can't run as a page here. Everything else is a download.
+ */
+function contentHeaders(mimeType: string): { contentType: string; inline: boolean } {
+    if (mimeType.startsWith('text/')) return { contentType: 'text/plain', inline: true };
+    const inline = ['image/', 'video/', 'audio/'].some((prefix) => mimeType.startsWith(prefix)) || mimeType === 'application/pdf';
+    return { contentType: mimeType, inline };
+}
+
+/** Upstream headers the content route passes through, so media players can seek. */
+const PASSTHROUGH_HEADERS = ['content-length', 'content-range', 'accept-ranges'];
 
 /** A OneDrive photo as galleries receive it, joined with its catalog row when it has one.
  *  `ratings` holds the requesting user's ratings by catalog id. */
@@ -296,6 +320,59 @@ export function createFoldersRouter(oneDriveService: OneDriveService, thumbnailC
         } catch (err) {
             console.error('OneDrive error:', err);
             res.status(502).json({ error: 'Failed to fetch photos from OneDrive' });
+        }
+    });
+
+    /**
+     * A file's bytes, streamed from OneDrive, for files the viewer shows itself rather than as an
+     * <img>: PDFs in the browser's viewer, text, video and audio. Range requests pass through so
+     * media can seek. `?download=1` saves the file instead of showing it. The trailing file name
+     * is only for the browser, which titles a PDF and names a saved copy from the URL.
+     */
+    router.get('/:folderId/files/:itemId/content/:fileName?', async (req, res) => {
+        const folder = findFolderBySlug(req.params.folderId);
+        if (!folder) {
+            res.status(404).json({ error: 'Folder not found' });
+            return;
+        }
+        // Stop pulling from OneDrive as soon as the browser hangs up (seeking aborts the old request).
+        const abort = new AbortController();
+        res.on('close', () => abort.abort());
+        try {
+            const photos = await oneDriveService.getPhotos(folder.sharingUrl);
+            const file = photos.find((p) => p.id === req.params.itemId);
+            if (!file?.downloadUrl) {
+                res.status(404).json({ error: 'File not found' });
+                return;
+            }
+            // Uncompressed, so the length and ranges passed through match the bytes sent.
+            const headers: Record<string, string> = { 'Accept-Encoding': 'identity' };
+            if (req.headers.range) headers.Range = req.headers.range;
+            const upstream = await fetch(file.downloadUrl, { headers, signal: abort.signal });
+            if (!upstream.ok || !upstream.body) {
+                res.status(upstream.status === 416 ? 416 : 502).json({ error: `Upstream file fetch failed: ${upstream.status}` });
+                return;
+            }
+            const { contentType, inline } = contentHeaders(file.mimeType);
+            res.status(upstream.status);
+            res.setHeader('Content-Type', contentType);
+            for (const name of PASSTHROUGH_HEADERS) {
+                const value = upstream.headers.get(name);
+                if (value) res.setHeader(name, value);
+            }
+            const disposition = inline && req.query.download !== '1' ? 'inline' : 'attachment';
+            res.setHeader('Content-Disposition', `${disposition}; filename*=UTF-8''${encodeURIComponent(file.name)}`);
+            res.setHeader('X-Content-Type-Options', 'nosniff');
+            // Opened directly, a file's own scripts must not run on this origin. Chrome refuses to
+            // show a PDF under a sandbox policy, and its PDF viewer is sandboxed already.
+            if (contentType !== 'application/pdf') res.setHeader('Content-Security-Policy', 'sandbox');
+            res.setHeader('Cache-Control', 'private, max-age=3600');
+            await pipeline(Readable.fromWeb(upstream.body as NodeReadableStream<Uint8Array>), res);
+        } catch (err) {
+            if (abort.signal.aborted) return;
+            console.error('File content proxy error:', err);
+            if (res.headersSent) res.destroy();
+            else res.status(502).json({ error: 'Failed to fetch file' });
         }
     });
 

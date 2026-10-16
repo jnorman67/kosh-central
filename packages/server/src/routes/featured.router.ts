@@ -4,7 +4,7 @@ import { getFeaturedAlbum } from '../db/featured.store.js';
 import { findFolderBySlug } from '../db/folders.store.js';
 import { findPhotoByFolderAndName } from '../db/photos.store.js';
 import { getFeaturedTaggedPhotos } from '../services/featured-photos.service.js';
-import { isInPagesSubfolder, OneDriveService } from '../services/onedrive.service.js';
+import { isImageFile, isInPagesSubfolder, OneDriveService } from '../services/onedrive.service.js';
 import { isGalleryFile } from '../services/tagged-photos.service.js';
 import { pickCoverPhoto } from './folders.router.js';
 
@@ -25,7 +25,8 @@ export function createFeaturedRouter(oneDriveService: OneDriveService): Router {
         let photos: { name: string; imageUrl: string; thumbnailUrl?: string; photoKey: string }[] = [];
         try {
             const rawPhotos = await oneDriveService.getPhotos(folder.sharingUrl);
-            const galleryPhotos = rawPhotos.filter((p) => !isInPagesSubfolder(p.subfolderPath));
+            // The featured page shows pictures only.
+            const galleryPhotos = rawPhotos.filter((p) => isImageFile(p) && !isInPagesSubfolder(p.subfolderPath));
             const chosen = pickCoverPhoto(
                 galleryPhotos,
                 folder.folderPath,

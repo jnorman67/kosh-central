@@ -1,4 +1,5 @@
 import { AlbumTile, formatAlbumContents } from '@/app/features/photos/components/album-tile';
+import { FileThumbnail } from '@/app/features/photos/components/file-thumbnail';
 import { usePlaceMemory } from '@/app/features/photos/hooks/use-place-memory';
 import { photoKey } from '@/app/features/photos/hooks/use-viewer-state';
 import { subfolderFocus } from '@/app/features/photos/lib/places';
@@ -63,12 +64,7 @@ export function PhotoGallery({ photos, isLoading, onSelect, placeKey, section, s
                                 focus === photoKey(p) && 'z-10 ring-[3px] ring-amber-400 ring-offset-2 ring-offset-black',
                             )}
                         >
-                            <img
-                                src={p.thumbnailUrl ?? p.downloadUrl}
-                                alt={p.name}
-                                loading="lazy"
-                                className="h-full w-full object-cover transition-opacity group-hover:opacity-80"
-                            />
+                            <FileThumbnail file={p} imgClassName="h-full w-full object-cover transition-opacity group-hover:opacity-80" />
                         </button>
                     </Fragment>
                 ))}
