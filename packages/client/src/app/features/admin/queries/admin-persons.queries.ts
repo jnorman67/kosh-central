@@ -1,5 +1,7 @@
 import type { PersonInput } from '@/app/features/admin/models/person.models';
 import type { AdminPersonsService } from '@/app/features/admin/services/admin-persons.service';
+import { FeaturedQueryKeys } from '@/app/features/featured/queries/featured.queries';
+import { GalleriesQueryKeys } from '@/app/features/galleries/queries/galleries.queries';
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 
 export const AdminPersonsQueryKeys = {
@@ -7,11 +9,14 @@ export const AdminPersonsQueryKeys = {
     relationships: (id: string) => ['AdminPersons', 'Relationships', id] as const,
 } as const;
 
-/** Approving, merging or rejecting a suggestion changes names and tags shown across the app. */
-const invalidateAfterReview = (qc: QueryClient) => {
+/** Any change to a person (edit, delete, approve, merge, reject) changes names and tags shown across
+ *  the app: the viewer's People panel, person search, mentions, galleries and the featured album. */
+const invalidatePersons = (qc: QueryClient) => {
     qc.invalidateQueries({ queryKey: AdminPersonsQueryKeys.list });
     qc.invalidateQueries({ queryKey: ['Persons', 'All'] });
     qc.invalidateQueries({ queryKey: ['Subjects'] });
+    qc.invalidateQueries({ queryKey: GalleriesQueryKeys.all });
+    qc.invalidateQueries({ queryKey: FeaturedQueryKeys.all });
 };
 
 export const createAdminPersonsQueries = (service: AdminPersonsService) => {
@@ -34,7 +39,7 @@ export const createAdminPersonsQueries = (service: AdminPersonsService) => {
         const qc = useQueryClient();
         return useMutation({
             mutationFn: (input: PersonInput) => service.create(input),
-            onSuccess: () => qc.invalidateQueries({ queryKey: AdminPersonsQueryKeys.list }),
+            onSuccess: () => invalidatePersons(qc),
         });
     };
 
@@ -42,7 +47,7 @@ export const createAdminPersonsQueries = (service: AdminPersonsService) => {
         const qc = useQueryClient();
         return useMutation({
             mutationFn: ({ id, input }: { id: string; input: PersonInput }) => service.update(id, input),
-            onSuccess: () => qc.invalidateQueries({ queryKey: AdminPersonsQueryKeys.list }),
+            onSuccess: () => invalidatePersons(qc),
         });
     };
 
@@ -50,7 +55,7 @@ export const createAdminPersonsQueries = (service: AdminPersonsService) => {
         const qc = useQueryClient();
         return useMutation({
             mutationFn: (id: string) => service.remove(id),
-            onSuccess: () => qc.invalidateQueries({ queryKey: AdminPersonsQueryKeys.list }),
+            onSuccess: () => invalidatePersons(qc),
         });
     };
 
@@ -58,7 +63,7 @@ export const createAdminPersonsQueries = (service: AdminPersonsService) => {
         const qc = useQueryClient();
         return useMutation({
             mutationFn: (id: string) => service.approve(id),
-            onSuccess: () => invalidateAfterReview(qc),
+            onSuccess: () => invalidatePersons(qc),
         });
     };
 
@@ -66,7 +71,7 @@ export const createAdminPersonsQueries = (service: AdminPersonsService) => {
         const qc = useQueryClient();
         return useMutation({
             mutationFn: ({ id, intoPersonId }: { id: string; intoPersonId: string }) => service.merge(id, intoPersonId),
-            onSuccess: () => invalidateAfterReview(qc),
+            onSuccess: () => invalidatePersons(qc),
         });
     };
 
@@ -74,7 +79,7 @@ export const createAdminPersonsQueries = (service: AdminPersonsService) => {
         const qc = useQueryClient();
         return useMutation({
             mutationFn: (id: string) => service.reject(id),
-            onSuccess: () => invalidateAfterReview(qc),
+            onSuccess: () => invalidatePersons(qc),
         });
     };
 
