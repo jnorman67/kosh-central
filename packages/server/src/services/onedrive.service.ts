@@ -34,8 +34,9 @@ export function isImageFile(photo: Pick<Photo, 'mimeType'>): boolean {
 
 /** Files that are Kosh's own data or system clutter rather than something to view. */
 const HIDDEN_FILE_NAMES = new Set(['desktop.ini', 'thumbs.db']);
-/** JSON files are Kosh sidecars and manifests; XMP and AAE are photo-editor sidecars. */
-const HIDDEN_FILE_EXTENSIONS = ['.json', '.xmp', '.aae', '.tmp'];
+/** JSON files are Kosh sidecars and manifests; XMP and AAE are photo-editor sidecars; ONNX is the
+ *  face-detection model Cowork tooling keeps next to the photos. */
+const HIDDEN_FILE_EXTENSIONS = ['.json', '.xmp', '.aae', '.tmp', '.onnx'];
 
 /** Whether an album shows a file. Hidden files, Office lock files and sidecars are left out. */
 export function isViewableFile(name: string): boolean {

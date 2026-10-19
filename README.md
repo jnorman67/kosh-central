@@ -111,7 +111,7 @@ Covers can be set per subfolder in browse albums (admins: **Cover** menu on a ph
 
 ### Documents and other files
 
-Albums show every file, not only images. The exceptions are hidden files (names starting with `.`), Office lock files (`~$…`), `desktop.ini`, `Thumbs.db`, and sidecars (`*.json`, which covers Kosh sidecars and `kosh-manifest.json`, plus `*.xmp`, `*.aae` and `*.tmp`). Pictures open in the zoomable viewer. Other files open in a file viewer (`components/file-viewer.tsx`):
+Albums show every file, not only images. The exceptions are hidden files (names starting with `.`), Office lock files (`~$…`), `desktop.ini`, `Thumbs.db`, and sidecars (`*.json`, which covers Kosh sidecars and `kosh-manifest.json`, plus `*.xmp`, `*.aae`, `*.tmp`, and `*.onnx` for the face-detection model that Cowork tooling keeps in album folders). Pictures open in the zoomable viewer. Other files open in a file viewer (`components/file-viewer.tsx`):
 
 - **PDF** — the browser's own PDF viewer. Browsers that can't show one in the page (`navigator.pdfViewerEnabled === false`, mostly Android phones) get a card with Open and Download buttons instead.
 - **Text** (`text/*`, or `.txt` `.md` `.csv` `.tsv` `.log`) — shown as text. Files that aren't valid UTF-8 are read as Windows-1252, and only the first 1 MB is shown.
@@ -243,8 +243,10 @@ The apex (`kosh-central.com`) and `www.kosh-central.com` 301-redirect to `https:
 ### Deploying
 
 ```bash
-npm run deploy:container
+make deploy
 ```
+
+`make deploy` (and `make deploy-image`) refuses to run unless you're on `main` with a clean working tree, so production never runs code that isn't on `main`. The underlying `npm run deploy:container` skips that check.
 
 This runs:
 1. `npm run deploy:image` — builds the Docker image locally and pushes to ACR (`koshcentralacr.azurecr.io/kosh-central:latest`).

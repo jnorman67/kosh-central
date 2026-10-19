@@ -61,6 +61,15 @@ define require
 test -n "$($(1))" || { echo "$(1) is required. Usage: $(2)"; exit 1; }
 endef
 
+# Refuse to build a production image from anything but a clean main, so prod
+# never runs code that isn't on main (a deploy from a feature branch once did).
+# Usage: @$(call require_clean_main)
+define require_clean_main
+branch=$$(git rev-parse --abbrev-ref HEAD); \
+test "$$branch" = main || { echo "Deploy from main only (on '$$branch')."; exit 1; }; \
+test -z "$$(git status --porcelain)" || { echo "Working tree is not clean; commit or stash first."; git status --short; exit 1; }
+endef
+
 .PHONY: help install \
         dev dev-server dev-client dev-prod-db kill start \
         build build-server build-client typecheck lint format \
@@ -231,11 +240,13 @@ thumbnails:
 
 ## deploy: build + push the image to ACR, then roll a new Container App revision
 deploy:
+	@$(call require_clean_main)
 	@$(call title,deploy)
 	npm run deploy:container
 
 ## deploy-image: build the Docker image and push it to ACR only
 deploy-image:
+	@$(call require_clean_main)
 	@$(call title,deploy image)
 	npm run deploy:image
 
