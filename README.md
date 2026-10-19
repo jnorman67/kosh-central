@@ -122,7 +122,7 @@ The bytes come through `GET /api/folders/:folderId/files/:itemId/content/:fileNa
 
 ### Keeping the viewer's place
 
-The viewer's position lives in the URL (`folder`, `path`, `view=pages`, `photo`), so reloads and the browser's back button return to the same album, subfolder, view, and photo. Scroll offsets aren't in the URL. Instead, `packages/client/src/app/features/photos/lib/places.ts` stores them in `sessionStorage` (per tab, cleared on sign-out), together with the item last opened from each view. Returning to the album list, a gallery, or a pages reader restores its scroll position and highlights the album, subfolder, or photo the user came back from, scrolling it into view if needed. "Back to viewer" on the other pages (Persons, admin pages, Change password, Featured's continue button) returns to the last viewer URL rather than the album list. New scrollable views should use `usePlaceMemory` and mark their items with `data-place-item`.
+The viewer's position lives in the URL (`folder`, `path`, `view=pages`, `photo`), so reloads and the browser's back button return to the same album, subfolder, view, and photo. Scroll offsets aren't in the URL. Instead, `packages/client/src/app/features/photos/lib/places.ts` stores them in `sessionStorage` (per tab, cleared on sign-out), together with the item last opened from each view. Returning to the album list, a gallery, or a pages reader restores its scroll position and highlights the album, subfolder, or photo the user came back from, scrolling it into view if needed. "Back to viewer" on the other pages (People, admin pages, Change password, Featured's continue button) returns to the last viewer URL rather than the album list. New scrollable views should use `usePlaceMemory` and mark their items with `data-place-item`.
 
 ## Featured Album
 
@@ -160,7 +160,7 @@ Any signed-in user can tag people in a photo from the **People** panel in the vi
 
 If the name someone types doesn't match anyone in the index, the search offers **Add "…" as a new person**. That creates a *suggested* person (`persons.proposed = 1`, via `POST /api/persons/proposals`) and tags the photo in one step. If the name exactly matches an existing person (ignoring case), that person is reused instead. Suggested people can be tagged, mentioned, and picked for galleries right away, and they show as "pending" in the People panel.
 
-Admins review suggestions on the **Persons** page (`/persons`). Suggestions are listed under **Awaiting review**, and the user menu shows how many are waiting. For each one, an admin can:
+Admins review suggestions on the **People** page (`/people`). Suggestions are listed under **Awaiting review**, and the user menu shows how many are waiting. For each one, an admin can:
 
 - **Approve** it into the index. They can edit the name and details first.
 - **Merge** it into an existing person. Tags, comment mentions, gallery and featured-album picks, and relationships move to that person, and the suggestion is deleted.

@@ -81,9 +81,9 @@ export function UserMenu() {
                         Users & invites
                     </DropdownMenuItem>
                 )}
-                <DropdownMenuItem onSelect={() => navigate('/persons')}>
+                <DropdownMenuItem onSelect={() => navigate('/people')}>
                     <Users />
-                    Persons
+                    People
                     {isAdmin && pendingCount > 0 && (
                         <span
                             className="ml-auto rounded-full bg-amber-500/15 px-1.5 text-xs font-medium text-amber-700 dark:text-amber-300"

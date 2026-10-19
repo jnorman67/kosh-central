@@ -346,7 +346,7 @@ export function PersonsAdminPage() {
                             </TooltipTrigger>
                             <TooltipContent>Back to viewer</TooltipContent>
                         </Tooltip>
-                        <span className="truncate px-2 py-2 text-sm font-medium">Persons</span>
+                        <span className="truncate px-2 py-2 text-sm font-medium">People</span>
                     </div>
                     <div className="flex shrink-0 items-center gap-3 pr-1 sm:px-4">
                         <UserMenu />
@@ -406,7 +406,7 @@ export function PersonsAdminPage() {
                                 <p className="px-4 py-6 text-center text-sm text-muted-foreground">Loading…</p>
                             ) : filtered.length === 0 ? (
                                 <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-                                    {search ? 'No matches.' : 'No persons yet.'}
+                                    {search ? 'No matches.' : 'No people yet.'}
                                 </p>
                             ) : (
                                 <>

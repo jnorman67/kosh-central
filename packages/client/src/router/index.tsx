@@ -18,7 +18,7 @@ import { GalleriesQueryProvider } from '@/app/features/galleries/contexts/galler
 import { PhotosQueryProvider } from '@/app/features/photos/contexts/photos-query.context';
 import { SubjectsQueryProvider } from '@/app/features/photos/contexts/subjects-query.context';
 import { ViewerPage } from '@/app/features/photos/pages/viewer-page';
-import { createBrowserRouter } from 'react-router-dom';
+import { createBrowserRouter, Navigate } from 'react-router-dom';
 
 export const router = createBrowserRouter([
     {
@@ -140,7 +140,7 @@ export const router = createBrowserRouter([
         ),
     },
     {
-        path: '/persons',
+        path: '/people',
         element: (
             <AuthGuard>
                 <AdminQueryProvider>
@@ -149,4 +149,6 @@ export const router = createBrowserRouter([
             </AuthGuard>
         ),
     },
+    // The page used to be called Persons; keep old bookmarks working.
+    { path: '/persons', element: <Navigate to="/people" replace /> },
 ]);
